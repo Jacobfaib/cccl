@@ -30,8 +30,7 @@ struct host_device
 class processor
 {
 public:
-  // Must be explicit
-  processor() = delete;
+  processor() = default;
 
   processor(host_device)
       : proc_{std::in_place_type<host_device>}
@@ -41,7 +40,7 @@ public:
       : proc_{std::move(dev)}
   {}
 
-  processor(::cuda::device::device_ref dev)
+  processor(::cuda::device_ref dev)
       : processor{logical_device{dev}}
   {}
 
@@ -60,7 +59,7 @@ public:
 };
 
 template <typename MDSpan>
-explicit shard(MDSpan, processor) -> shard<MDSpan>;
+explicit shard(const MDSpan&, processor) -> shard<MDSpan>;
 
 template <typename MDSpan>
 class basic_sharded_mdarray
@@ -84,7 +83,7 @@ private:
 };
 
 template <typename MDSpan, typename... Rest>
-auto make_sharded_mdarray(shard<MDSpan> first, Rest&&... rest) -> basic_sharded_mdarray<MDSpan>
+basic_sharded_mdarray<MDSpan> make_sharded_mdarray(shard<MDSpan> first, Rest&&... rest)
 {
   return basic_sharded_mdarray<MDSpan>{std::move(first), std::move(rest)...};
 }
@@ -99,8 +98,8 @@ inline void transform(const basic_sharded_mdarray<MDSpan>& mdarray, F&& functor)
 
 inline void foo()
 {
-  auto v1 = thrust::device_vector<int>{};
-  auto v2 = thrust::device_vector<int>{};
+  auto v1 = thrust::device_vector<int>{4};
+  auto v2 = thrust::device_vector<int>{4};
 
   auto v1_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v1.data()), 1, 2};
   auto v2_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v2.data()), 4, 5};
