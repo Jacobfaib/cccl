@@ -24,28 +24,28 @@
 
 namespace cuda::experimental
 {
-struct host_device
+struct host_memory
 {};
 
-class processor
+class memory
 {
 public:
-  processor() = default;
+  memory() = default;
 
-  processor(host_device)
-      : proc_{std::in_place_type<host_device>}
+  memory(host_memory)
+      : proc_{std::in_place_type<host_memory>}
   {}
 
-  processor(logical_device dev)
+  memory(logical_device dev)
       : proc_{std::move(dev)}
   {}
 
-  processor(::cuda::device_ref dev)
-      : processor{logical_device{dev}}
+  memory(::cuda::device_ref dev)
+      : memory{logical_device{dev}}
   {}
 
 private:
-  ::cuda::std::variant<host_device, logical_device> proc_{};
+  ::cuda::std::variant<host_memory, logical_device> proc_{};
 };
 
 template <typename MDSpan>
@@ -55,11 +55,11 @@ public:
   using mdspan_type = MDSpan;
 
   mdspan_type mdspan{};
-  processor proc{};
+  memory proc{};
 };
 
 template <typename MDSpan>
-explicit shard(const MDSpan&, processor) -> shard<MDSpan>;
+explicit shard(const MDSpan&, memory) -> shard<MDSpan>;
 
 template <typename MDSpan>
 class basic_sharded_mdarray
@@ -104,7 +104,7 @@ inline void foo()
   auto v1_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v1.data()), 1, 2};
   auto v2_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v2.data()), 4, 5};
 
-  auto sharded = make_sharded_mdarray(shard{v1_span, logical_device{0}}, shard{v2_span, host_device{}});
+  auto sharded = make_sharded_mdarray(shard{v1_span, logical_device{0}}, shard{v2_span, host_memory{}});
 
   transform(sharded, [] {});
 }
