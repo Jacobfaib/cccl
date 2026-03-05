@@ -15,66 +15,86 @@
 
 #include <cuda/devices>
 #include <cuda/std/mdspan>
-#include <cuda/std/tuple>
-#include <cuda/std/utility>
+#include <cuda/std/span>
+#include <cuda/std/variant>
+
+#include <cuda/experimental/__device/logical_device.cuh>
+
+#include <vector>
 
 namespace cuda::experimental
 {
-template <size_t I, typename... Ts>
-using type_at_index_t = std::tuple_element_t<I, std::tuple<Ts...>>;
+struct host_device
+{};
 
-template <typename... MDSpans>
+class processor
+{
+public:
+  // Must be explicit
+  processor() = delete;
+
+  processor(host_device)
+      : proc_{std::in_place_type<host_device>}
+  {}
+
+  processor(logical_device dev)
+      : proc_{std::move(dev)}
+  {}
+
+  processor(::cuda::device::device_ref dev)
+      : processor{logical_device{dev}}
+  {}
+
+private:
+  ::cuda::std::variant<host_device, logical_device> proc_{};
+};
+
+template <typename MDSpan>
+class shard
+{
+public:
+  using mdspan_type = MDSpan;
+
+  mdspan_type mdspan{};
+  processor proc{};
+};
+
+template <typename MDSpan>
+explicit shard(MDSpan, processor) -> shard<MDSpan>;
+
+template <typename MDSpan>
 class basic_sharded_mdarray
 {
 public:
-  static_assert(std::conjunction_v<
-                std::is_same<typename type_at_index_t<0, MDSpans...>::value_type, typename MDSpans::value_type>...>);
+  using mdspan_type = MDSpan;
+  using shard_type  = shard<MDSpan>;
 
-  template <typename MDSpan>
-  class shard_type
-  {
-  public:
-    int device{};
-    MDSpan mdspan{};
-  };
-
-  template <typename... MDSpan, typename = std::enable_if_t<(sizeof...(MDSpan) > 0)>>
-  basic_sharded_mdarray(const ::cuda::std::pair<int, MDSpan>&... rest)
-      : shards_{{rest.first, rest.second}...}
-  {}
-
-  [[nodiscard]] const ::cuda::std::tuple<shard_type<MDSpans>...>& shards() const
+  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const
   {
     return shards_;
   }
 
-  [[nodiscard]] ::cuda::std::tuple<shard_type<MDSpans>...>& shards()
+  [[nodiscard]] ::cuda::std::span<shard_type> shards()
   {
     return shards_;
   }
 
 private:
-  ::cuda::std::tuple<shard_type<MDSpans>...> shards_{};
+  ::std::vector<shard_type> shards_{};
 };
 
-template <typename... MDSpans, typename F, size_t... Is>
-inline void transform(const basic_sharded_mdarray<MDSpans...>& mdarray, F&& functor, std::index_sequence<Is...>)
+template <typename MDSpan, typename... Rest>
+auto make_sharded_mdarray(shard<MDSpan> first, Rest&&... rest) -> basic_sharded_mdarray<MDSpan>
 {
-  auto&& shards = mdarray.shards();
-
-  (([&] {
-     auto&& shard = std::get<Is>(shards);
-
-     cuDeviceSet(shard.device);
-     functor<<<...>>>(shard.mdspan);
-   }()),
-   ...);
+  return basic_sharded_mdarray<MDSpan>{std::move(first), std::move(rest)...};
 }
 
-template <typename... MDSpans, typename F>
-inline void transform(const basic_sharded_mdarray<MDSpans...>& mdarray, F&& functor)
+template <typename MDSpan, typename F>
+inline void transform(const basic_sharded_mdarray<MDSpan>& mdarray, F&& functor)
 {
-  transform(mdarray, std::forward<F>(functor), std::index_sequence_for<MDSpans...>{});
+  for (auto&& shard : mdarray.shards())
+  {
+  }
 }
 
 inline void foo()
@@ -84,9 +104,10 @@ inline void foo()
 
   auto v1_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v1.data()), 1, 2};
   auto v2_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v2.data()), 4, 5};
-  auto sharded = basic_sharded_mdarray{std::make_pair(0, v1_span), std::make_pair(1, v2_span)};
 
-  transform(sharded)
+  auto sharded = make_sharded_mdarray(shard{v1_span, logical_device{0}}, shard{v2_span, host_device{}});
+
+  transform(sharded, [] {});
 }
 } // namespace cuda::experimental
 #endif
