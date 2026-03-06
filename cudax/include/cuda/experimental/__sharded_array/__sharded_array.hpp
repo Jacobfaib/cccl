@@ -8,8 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CUDAX___SHARDED_ARRAY_CUH
-#define _CUDAX___SHARDED_ARRAY_CUH
+#pragma once
 
 #include <thrust/device_vector.h>
 
@@ -109,4 +108,3 @@ inline void foo()
   transform(sharded, [] {});
 }
 } // namespace cuda::experimental
-#endif
