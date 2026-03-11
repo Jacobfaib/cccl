@@ -13,6 +13,7 @@
 #include <thrust/device_vector.h>
 
 #include <cuda/devices>
+#include <cuda/std/__numeric/accumulate.h>
 #include <cuda/std/mdspan>
 #include <cuda/std/span>
 #include <cuda/std/variant>
@@ -65,21 +66,50 @@ class basic_sharded_mdarray
 {
 public:
   using mdspan_type = MDSpan;
+  using size_type   = typename mdspan_type::size_type;
   using shard_type  = shard<MDSpan>;
 
-  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const
-  {
-    return shards_;
-  }
+  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const;
+  [[nodiscard]] ::cuda::std::span<shard_type> shards();
 
-  [[nodiscard]] ::cuda::std::span<shard_type> shards()
-  {
-    return shards_;
-  }
+  [[nodiscard]] size_type size() const;
+  [[nodiscard]] bool empty() const;
 
 private:
   ::std::vector<shard_type> shards_{};
 };
+
+template <typename M>
+::cuda::std::span<const typename basic_sharded_mdarray<M>::shard_type> basic_sharded_mdarray<M>::shards() const
+{
+  return shards_;
+}
+
+template <typename M>
+::cuda::std::span<typename basic_sharded_mdarray<M>::shard_type> basic_sharded_mdarray<M>::shards()
+{
+  return shards_;
+}
+
+template <typename M>
+typename basic_sharded_mdarray<M>::size_type basic_sharded_mdarray<M>::size() const
+{
+  size_type ret = 0;
+
+  for (auto&& s : shards())
+  {
+    ret += s.subspan.size();
+  }
+  return ret;
+}
+
+template <typename M>
+bool basic_sharded_mdarray<M>::empty() const
+{
+  return size() == 0;
+}
+
+// ==========================================================================================
 
 template <typename MDSpan, typename... Rest>
 basic_sharded_mdarray<MDSpan> make_sharded_mdarray(shard<MDSpan> first, Rest&&... rest)
