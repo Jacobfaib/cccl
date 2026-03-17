@@ -23,6 +23,8 @@ endif()
 # Enable CXX so CMake can configure install paths
 project(CCCL LANGUAGES CXX)
 
+set(CCCL_TOPLEVEL_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
+
 include(cmake/CCCLInstallRules.cmake)
 
 # Support adding CCCL to a parent project via add_subdirectory.
@@ -42,6 +44,9 @@ if (CCCL_TOPLEVEL_PROJECT AND NOT CCCL_SKIP_BUILD_CHECKS)
   # Perform developer build checks
   include(cmake/CCCLDevBuildChecks.cmake)
   cccl_dev_build_checks()
+
+  include(cmake/CCCLAddTidyTarget.cmake)
+  cccl_tidy_init()
 endif()
 
 option(CCCL_ENABLE_LIBCUDACXX "Enable the libcu++ developer build." OFF)
