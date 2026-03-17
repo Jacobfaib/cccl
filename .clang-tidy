@@ -16,7 +16,6 @@ Checks:
   - 'cert-*'
   - 'portability-*'
   - 'google*'
-  - 'legate*'
   - 'cppcoreguidelines-pro-type-cstyle-cast'
   # then disable the stuff we don't want
   - '-cert-dcl21-cpp'  # returning non-const from operator-- or operator++
@@ -131,24 +130,6 @@ CheckOptions:
   llvm-else-after-return.WarnOnConditionVariables: 'false'
   cert-oop54-cpp.WarnOnlyIfThisHasSuspiciousField: 'false'
   performance-move-const-arg.CheckTriviallyCopyableMove: 'false'
-  # The following is needed because clang tidy complains that TaskContext is always
-  # copied:
-  #
-  # class MyTask
-  # {
-  #   // clang-tidy warning: ctx copied every time, but only used as a reference.
-  #   // Consider making it a const reference
-  #   void cpu_task(legate::TaskContext ctx)
-  #   {
-  #     ...
-  #   }
-  # };
-  #
-  # But we can't do that, because the `task_wrapper` expects to find exactly the signature
-  # above. So we can either add `NOLINT` everywhere, or we can just ignore `TaskContext`
-  # copies wholesale (which is OK because they are just pimpls, and thus, very cheap to
-  # copy).
-  # performance-unnecessary-value-param.AllowedTypes: 'legate::TaskContext'
   performance-inefficient-string-concatenation.StrictMode: 'true'
   readability-simplify-boolean-expr.ChainedConditionalReturn: 'true'
   readability-simplify-boolean-expr.ChainedConditionalAssignment: 'true'
@@ -159,17 +140,15 @@ CheckOptions:
   readability-enum-initial-value.AllowExplicitSequentialInitialValues: 'false'
   readability-redundant-access-specifiers.CheckFirstDeclaration: 'true'
   bugprone-lambda-function-name.IgnoreMacros: 'true'
-  # readability-identifier-naming.ClassCase: 'CamelCase'
-  # readability-identifier-naming.UnionCase: 'CamelCase'
+  # readability-identifier-naming.ClassCase: 'lower_case'
+  # readability-identifier-naming.UnionCase: 'lower_case'
   # readability-identifier-naming.ClassConstantCase: 'UPPER_CASE'
   # readability-identifier-naming.ClassIgnoredRegexp: 'tuple|has_.*|is_.*|as_.*|.*_tag|tag|.*_of'
   # readability-identifier-naming.ConstantMemberCase: 'UPPER_CASE'
   # readability-identifier-naming.ConstantMemberIgnoredRegexp: 'value'
-  # readability-identifier-naming.EnumCase: 'CamelCase'
+  # readability-identifier-naming.EnumCase: 'lower_case'
   # readability-identifier-naming.EnumConstantCase: 'UPPER_CASE'
   # readability-identifier-naming.FunctionCase: 'lower_case'
-  # # We want to allow legate::Shape SHAPE_4D()
-  # readability-identifier-naming.FunctionIgnoredRegexp: '[A-Z_0-9]+'
   # readability-identifier-naming.GlobalConstantCase: 'UPPER_CASE'
   # readability-identifier-naming.GlobalConstantIgnoredRegexp: '.*_v'
   # readability-identifier-naming.LocalVariableCase: 'lower_case'
@@ -188,7 +167,7 @@ CheckOptions:
   # readability-identifier-naming.ProtectedMethodCase: 'lower_case'
   # readability-identifier-naming.ProtectedMethodSuffix: '_'
   # readability-identifier-naming.PublicMethodCase: 'lower_case'
-  # readability-identifier-naming.ScopedEnumCase: 'CamelCase'
+  # readability-identifier-naming.ScopedEnumCase: 'lower_case'
   # readability-identifier-naming.ScopedEnumConstantCase: 'UPPER_CASE'
   readability-magic-numbers.IgnoredIntegerValues: '0;1;2;3;4;5;6;7;8;9'
   # There are some single-argument functions that we would not like to ignore
