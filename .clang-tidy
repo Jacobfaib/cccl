@@ -4,19 +4,19 @@
 ---
 Checks:
   # enable everything first
-  - 'performance*'
-  - 'modernize*'
-  - 'readability*'
-  - 'clang-analyzer*'
+  - 'performance-*'
+  - 'modernize-*'
+  - 'readability-*'
+  - 'clang-analyzer-*'
   - 'clang-diagnostic-*'
-  - 'bugprone*'
-  - 'misc*'
-  - 'core*'
-  - 'mpi*'
+  - 'bugprone-*'
+  - 'misc-*'
+  - 'core-*'
+  - 'mpi-*'
   - 'cert-*'
   - 'portability-*'
-  - 'google*'
-  - 'cppcoreguidelines-pro-type-cstyle-cast'
+  - 'google-*'
+  - 'cppcoreguidelines-*'
   # then disable the stuff we don't want
   - '-cert-dcl21-cpp'  # returning non-const from operator-- or operator++
   - '-cert-dcl50-cpp'  # allow c-style variadics
