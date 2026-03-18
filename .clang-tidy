@@ -17,10 +17,29 @@ Checks:
   - 'portability-*'
   - 'google-*'
   - 'cppcoreguidelines-*'
+  - 'concurrency-*'
+  # HICPP is 99% aliased to other checks (mostly modernize-* and bugprone-*). We don't
+  # want to also enable it because then we need to duplicate the NOLINT. The only 2 checks
+  # that aren't aliases are:
+  #
+  # - hicpp-multiway-paths-covered. This check is useful for detecting degenerate if-else
+  #   branches, but the switch cases are IMO better handled by -Wswitch. To make -Wswitch
+  #   even stronger, we should ban default: cases entirely,
+  #
+  # - hicpp-signed-bitwise. This check is also covered by
+  #   clang.llvm.org/extra/clang-tidy/checks/clang-analyzer/core.BitwiseShift.html
+  #
+  # - 'hicpp-*'
+  #
+  # LLVM checks are extremely specific to the LLVM project and aren't suitable for
+  # downstream users.
+  #
+  # - 'llvm-*'
+  #
   # then disable the stuff we don't want
   - '-cert-dcl21-cpp'  # returning non-const from operator-- or operator++
   - '-cert-dcl50-cpp'  # allow c-style variadics
-  # no reserved identifiers, both of these are aliased to bugprone-reserved-identifier,
+  # No reserved identifiers, both of these are aliased to bugprone-reserved-identifier,
   # which we do enable. Leaving these enabled however, leads to needing to specify all
   # three (bugprone-reserved-identifier, cert-dcl51-cpp, and cert-dcl37-c) in NOLINT lines
   # which is a hassle. Since bugprone-reserved-identifier is enabled, the check still
@@ -99,6 +118,9 @@ Checks:
   # feel it is obvious that a user does not care about the order of iteration
   # because... they are using unordered containers!
   - '-bugprone-nondeterministic-pointer-iteration-order'
+  - '-cppcoreguidelines-pro-type-reinterpret-cast'
+  # We don't use GSL
+  - '-cppcoreguidelines-owning-memory'
 WarningsAsErrors: '*'
 HeaderFileExtensions:
   - ''
