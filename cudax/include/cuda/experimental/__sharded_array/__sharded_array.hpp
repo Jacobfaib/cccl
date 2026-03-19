@@ -16,9 +16,6 @@
 #include <cuda/__iterator/zip_iterator.h>
 #include <cuda/devices>
 #include <cuda/mdspan>
-#include <cuda/std/__algorithm/any_of.h>
-#include <cuda/std/__numeric/accumulate.h>
-#include <cuda/std/mdspan>
 #include <cuda/std/span>
 #include <cuda/std/variant>
 
@@ -26,48 +23,6 @@
 
 #include <stdexcept>
 #include <vector>
-
-_CCCL_BEGIN_NAMESPACE_CUDA_STD
-
-template <typename T>
-class fancy_accessor;
-
-template <typename Element, typename Tag, typename Reference, typename Derived>
-class fancy_accessor<thrust::pointer<Element, Tag, Reference, Derived>>
-{
-  using fancy_pointer_type = thrust::pointer<Element, Tag, Reference, Derived>;
-
-public:
-  using offset_policy    = fancy_accessor;
-  using element_type     = typename fancy_pointer_type::value_type;
-  using reference        = typename fancy_pointer_type::reference;
-  using data_handle_type = fancy_pointer_type;
-
-  constexpr fancy_accessor() noexcept = default;
-
-  template <class U>
-  constexpr fancy_accessor(fancy_accessor<thrust::device_ptr<U>>) noexcept
-  {}
-
-  [[nodiscard]] constexpr reference access(data_handle_type __p, size_t __i) const noexcept
-  {
-    return __p[__i];
-  }
-  [[nodiscard]] constexpr data_handle_type offset(data_handle_type __p, size_t __i) const noexcept
-  {
-    return __p + __i;
-  }
-};
-
-_CCCL_TEMPLATE(typename Element, typename Tag, typename Reference, typename Derived, class... _OtherIndexTypes)
-_CCCL_REQUIRES((sizeof...(_OtherIndexTypes) > 0) _CCCL_AND(is_convertible_v<_OtherIndexTypes, size_t>&&... && true))
-_CCCL_HOST_DEVICE explicit mdspan(thrust::pointer<Element, Tag, Reference, Derived> ptr, _OtherIndexTypes...)
-  -> mdspan<Element,
-            extents<size_t, __maybe_static_ext<_OtherIndexTypes>...>,
-            layout_left,
-            fancy_accessor<thrust::pointer<Element, Tag, Reference, Derived>>>;
-
-_CCCL_END_NAMESPACE_CUDA_STD
 
 namespace cuda::experimental
 {
@@ -84,8 +39,9 @@ template <typename... T>
 overload(T...) -> overload<T...>;
 } // namespace detail
 
-struct host_memory
+class host_memory
 {
+public:
   constexpr bool operator==(const host_memory&) noexcept
   {
     return true;
@@ -177,25 +133,18 @@ private:
 };
 
 template <typename MDSpan>
-class shard
-{
-public:
-  using mdspan_type = MDSpan;
-
-  mdspan_type mdspan{};
-  memory proc{};
-};
-
-template <typename MDSpan>
-explicit shard(const MDSpan&, memory) -> shard<MDSpan>;
-
-template <typename MDSpan>
 class basic_sharded_mdarray
 {
 public:
   using mdspan_type = MDSpan;
   using size_type   = typename mdspan_type::size_type;
-  using shard_type  = shard<MDSpan>;
+
+  class shard_type
+  {
+  public:
+    mdspan_type mdspan{};
+    memory proc{};
+  };
 
   [[nodiscard]] ::cuda::std::span<const shard_type> shards() const;
   [[nodiscard]] ::cuda::std::span<shard_type> shards();
@@ -206,6 +155,9 @@ public:
 private:
   ::std::vector<shard_type> shards_{};
 };
+
+template <typename Shard, typename... Rest>
+basic_sharded_mdarray(Shard, Rest...) -> basic_sharded_mdarray<typename Shard::mdspan_type>;
 
 template <typename M>
 ::cuda::std::span<const typename basic_sharded_mdarray<M>::shard_type> basic_sharded_mdarray<M>::shards() const
@@ -240,7 +192,7 @@ bool basic_sharded_mdarray<M>::empty() const
 // ==========================================================================================
 
 template <typename MDSpan, typename... Rest>
-basic_sharded_mdarray<MDSpan> make_sharded_mdarray(shard<MDSpan> first, Rest&&... rest)
+basic_sharded_mdarray<MDSpan> make_sharded_mdarray(typename basic_sharded_mdarray<MDSpan>::shard first, Rest&&... rest)
 {
   return basic_sharded_mdarray<MDSpan>{std::move(first), std::move(rest)...};
 }
@@ -250,23 +202,7 @@ void transform(const basic_sharded_mdarray<MDSpan>& in_mdarray,
                const basic_sharded_mdarray<MDSpan>& out_mdarray,
                F&& functor)
 {
-  if (in_mdarray.shards().empty())
-  {
-    return;
-  }
-
-  auto&& first_mem = in_mdarray.shards().front().proc;
-
   auto zipper = make_zip_iterator(in_mdarray.shards(), out_mdarray.shards());
-
-  if (::cuda::std::any_of(zipper.begin(), zipper.end(), [&](const auto& tup) {
-        auto&& [in_arr, out_arr] = tup;
-
-        return in_arr.proc != first_mem || out_arr.proc != first_mem;
-      }))
-  {
-    throw ::std::runtime_error{"memories don't match"};
-  }
 
   for (auto&& [in_shard, out_shard] : zipper)
   {
@@ -281,10 +217,10 @@ inline void foo()
   auto v1 = thrust::device_vector<int>{4};
   auto v2 = thrust::device_vector<int>{4};
 
-  auto v1_span = ::cuda::std::mdspan{v1.data(), 1, 2};
+  auto v1_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v1.data()), 1, 2};
   auto v2_span = ::cuda::device_mdspan{thrust::raw_pointer_cast(v2.data()), 4, 5};
 
-  auto sharded = make_sharded_mdarray(shard{v1_span, logical_device{0}}, shard{v2_span, host_memory{}});
+  auto sharded = basic_sharded_mdarray{{v1_span, logical_device{0}}, {v2_span, host_memory{}}};
 
   transform(sharded, sharded, [] {});
 }
