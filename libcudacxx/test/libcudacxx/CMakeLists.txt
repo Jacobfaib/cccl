@@ -29,6 +29,7 @@ if (NOT LIBCUDACXX_TEST_WITH_NVRTC)
       ${target_name}
       ADD_CTEST
       NO_METATARGETS
+      DIALECT ${CMAKE_CUDA_STANDARD}
       SOURCES "${source}"
     )
     target_include_directories(
