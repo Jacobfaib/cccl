@@ -47,7 +47,7 @@ function(cccl_add_executable target_name)
     cccl_ensure_metatargets(${target_name} METATARGET_PATH ${metatarget_path})
   endif()
 
-  if (NOT NO_CLANG_TIDY)
+  if (NOT _cccl_NO_CLANG_TIDY)
     cccl_add_tidy_target(SOURCES ${_cccl_SOURCES})
   endif()
 endfunction()
