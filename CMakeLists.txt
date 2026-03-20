@@ -23,6 +23,7 @@ endif()
 # Enable CXX so CMake can configure install paths
 project(CCCL LANGUAGES CXX)
 
+# Needed for clang-tidy so that relative paths can be disambiguated
 set(CCCL_TOPLEVEL_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 
 include(cmake/CCCLInstallRules.cmake)
@@ -44,9 +45,6 @@ if (CCCL_TOPLEVEL_PROJECT AND NOT CCCL_SKIP_BUILD_CHECKS)
   # Perform developer build checks
   include(cmake/CCCLDevBuildChecks.cmake)
   cccl_dev_build_checks()
-
-  include(cmake/CCCLAddTidyTarget.cmake)
-  cccl_tidy_init()
 endif()
 
 option(CCCL_ENABLE_LIBCUDACXX "Enable the libcu++ developer build." OFF)
@@ -80,6 +78,18 @@ else()
   # Note that this doesn't override the cache variable, but rather creates a new
   # directory-scoped variable that shadows it. This is sufficient for our purposes.
   set(CCCL_ENABLE_CUDAX OFF)
+endif()
+
+if (
+  CCCL_TOPLEVEL_PROJECT
+  OR CCCL_ENABLE_TESTING
+  OR CCCL_ENABLE_EXAMPLES
+  OR CCCL_ENABLE_BENCHMARKS
+)
+  # cccl_add_tidy_target() is called by cccl_add_executable(). It expects that we have
+  # called cccl_tidy_init() before then, so do that now.
+  include(cmake/CCCLAddTidyTarget.cmake)
+  cccl_tidy_init()
 endif()
 
 include(CTest)
