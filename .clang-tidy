@@ -156,6 +156,17 @@ Checks:
   - '-cppcoreguidelines-noexcept-move-operations'
   # REVIEW ME: This warns about any usage of operator[], suggesting usage of .at() instead. Could
   - '-cppcoreguidelines-pro-bounds-avoid-unchecked-container-access'
+  # clang-tidy documentation says that for a given file, it matches the closest
+  # .clang-tidy up the directory stack and applies the configuration from it. However, by
+  # "it" `clang-tidy` means the closest `.clang-tidy` to the *source* file, not the file
+  # that was included by the source file.
+  #
+  # So `cuda/std/foo.h` included by `cccl/foo/bar/baz.cpp` will never "match" against
+  # `cccl/libcudacxx/.clang-tidy` because `clang-tidy` finds `cccl/.clang-tidy` instead.
+  #
+  # So we disable this for now. In the future we should add a custom check that bans
+  # reserved identifiers except symbols from libcu++.
+  - '-bugprone-reserved-identifier'
 WarningsAsErrors: '*'
 HeaderFileExtensions:
   - ''
