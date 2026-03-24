@@ -133,7 +133,7 @@ private:
 };
 
 template <typename MDSpan>
-class basic_sharded_mdarray
+class basic_sharded_mdspan
 {
 public:
   using mdspan_type = MDSpan;
@@ -157,22 +157,22 @@ private:
 };
 
 template <typename Shard, typename... Rest>
-basic_sharded_mdarray(Shard, Rest...) -> basic_sharded_mdarray<typename Shard::mdspan_type>;
+basic_sharded_mdspan(Shard, Rest...) -> basic_sharded_mdspan<typename Shard::mdspan_type>;
 
 template <typename M>
-::cuda::std::span<const typename basic_sharded_mdarray<M>::shard_type> basic_sharded_mdarray<M>::shards() const
+::cuda::std::span<const typename basic_sharded_mdspan<M>::shard_type> basic_sharded_mdspan<M>::shards() const
 {
   return shards_;
 }
 
 template <typename M>
-::cuda::std::span<typename basic_sharded_mdarray<M>::shard_type> basic_sharded_mdarray<M>::shards()
+::cuda::std::span<typename basic_sharded_mdspan<M>::shard_type> basic_sharded_mdspan<M>::shards()
 {
   return shards_;
 }
 
 template <typename M>
-typename basic_sharded_mdarray<M>::size_type basic_sharded_mdarray<M>::size() const
+typename basic_sharded_mdspan<M>::size_type basic_sharded_mdspan<M>::size() const
 {
   size_type ret = 0;
 
@@ -184,7 +184,7 @@ typename basic_sharded_mdarray<M>::size_type basic_sharded_mdarray<M>::size() co
 }
 
 template <typename M>
-bool basic_sharded_mdarray<M>::empty() const
+bool basic_sharded_mdspan<M>::empty() const
 {
   return size() == 0;
 }
@@ -192,36 +192,8 @@ bool basic_sharded_mdarray<M>::empty() const
 // ==========================================================================================
 
 template <typename MDSpan, typename... Rest>
-basic_sharded_mdarray<MDSpan> make_sharded_mdarray(typename basic_sharded_mdarray<MDSpan>::shard first, Rest&&... rest)
+basic_sharded_mdspan<MDSpan> make_sharded_mdspan(typename basic_sharded_mdspan<MDSpan>::shard first, Rest&&... rest)
 {
-  return basic_sharded_mdarray<MDSpan>{std::move(first), std::move(rest)...};
-}
-
-template <typename MDSpan, typename F>
-void transform(const basic_sharded_mdarray<MDSpan>& in_mdarray,
-               const basic_sharded_mdarray<MDSpan>& out_mdarray,
-               F&& functor)
-{
-  auto zipper = make_zip_iterator(in_mdarray.shards(), out_mdarray.shards());
-
-  for (auto&& [in_shard, out_shard] : zipper)
-  {
-    const auto _ = in_shard.proc.activate_guard();
-
-    thrust::transform(in_shard.subspan, out_shard.subspan, std::forward<F>(functor));
-  }
-}
-
-inline void foo()
-{
-  auto v1 = thrust::device_vector<int>{4};
-  auto v2 = thrust::device_vector<int>{4};
-
-  auto v1_span = ::cuda::std::mdspan{thrust::raw_pointer_cast(v1.data()), 1, 2};
-  auto v2_span = ::cuda::device_mdspan{thrust::raw_pointer_cast(v2.data()), 4, 5};
-
-  auto sharded = basic_sharded_mdarray{{v1_span, logical_device{0}}, {v2_span, host_memory{}}};
-
-  transform(sharded, sharded, [] {});
+  return basic_sharded_mdspan<MDSpan>{std::move(first), std::move(rest)...};
 }
 } // namespace cuda::experimental
