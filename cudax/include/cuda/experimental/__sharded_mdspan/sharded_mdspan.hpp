@@ -10,18 +10,15 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-
 #include <cuda/__driver/driver_api.h>
-#include <cuda/__iterator/zip_iterator.h>
-#include <cuda/devices>
 #include <cuda/mdspan>
 #include <cuda/std/span>
 #include <cuda/std/variant>
 
 #include <cuda/experimental/__device/logical_device.cuh>
 
-#include <stdexcept>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace cuda::experimental
@@ -144,6 +141,7 @@ public:
   public:
     mdspan_type mdspan{};
     memory proc{};
+    ::std::thread::id owning_thread_id = ::std::this_thread::get_id();
   };
 
   [[nodiscard]] ::cuda::std::span<const shard_type> shards() const;
@@ -194,6 +192,6 @@ bool basic_sharded_mdspan<M>::empty() const
 template <typename MDSpan, typename... Rest>
 basic_sharded_mdspan<MDSpan> make_sharded_mdspan(typename basic_sharded_mdspan<MDSpan>::shard first, Rest&&... rest)
 {
-  return basic_sharded_mdspan<MDSpan>{std::move(first), std::move(rest)...};
+  return basic_sharded_mdspan<MDSpan>{::std::move(first), ::std::move(rest)...};
 }
 } // namespace cuda::experimental
