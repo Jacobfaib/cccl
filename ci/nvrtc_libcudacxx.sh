@@ -6,9 +6,10 @@ print_environment_details
 
 
 PRESET="libcudacxx-nvrtc"
-CMAKE_OPTIONS="-DCMAKE_CXX_STANDARD=${CXX_STANDARD} -DCMAKE_CUDA_STANDARD=${CXX_STANDARD}"
+# shellcheck disable=SC2154
+CMAKE_OPTIONS=("-DCMAKE_CXX_STANDARD=${CXX_STANDARD}" "-DCMAKE_CUDA_STANDARD=${CXX_STANDARD}")
 
-configure_and_build_preset "libcudacxx NVRTC" "$PRESET" "$CMAKE_OPTIONS"
+configure_and_build_preset "libcudacxx NVRTC" "${PRESET}" "${CMAKE_OPTIONS[@]}"
 
 sccache -z > /dev/null || :
 test_preset "libcudacxx NVRTC" "${PRESET}"

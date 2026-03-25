@@ -7,15 +7,15 @@
 
 set -e
 
-SCRIPT_PATH=$(cd $(dirname ${0}); pwd -P)
+SCRIPT_PATH=$(cd "$(dirname "${0}")" && pwd -P)
 
-path_to_docs=$(realpath $1)
+path_to_docs=$(realpath "$1")
 
-cd $SCRIPT_PATH
+cd "${SCRIPT_PATH}"
 
 pages=$(
-        cd $path_to_docs;
+        cd "${path_to_docs}";
         find ./ -iname "*.html" -printf '/%P,'
     )
 
-echo "$pages" > $path_to_docs/pagelist.txt
+echo "${pages}" > "${path_to_docs}"/pagelist.txt

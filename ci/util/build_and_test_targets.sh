@@ -36,7 +36,7 @@ function elapsed_time {
   local duration=$(( SECONDS - start_timestamp ))
   local minutes=$(( duration / 60 ))
   local seconds=$(( duration % 60 ))
-  printf "%dm%02ds" "$minutes" "$seconds"
+  printf "%dm%02ds" "${minutes}" "${seconds}"
 }
 
 PRESET=""
@@ -86,7 +86,11 @@ cmlog_file="$(mktemp /tmp/cmake-config-XXXXXX.log)"
 if [[ -n "${CONFIGURE_OVERRIDE}" ]]; then
   if ! (set -x; eval "${CONFIGURE_OVERRIDE}") 2>&1 | tee "${cmlog_file}"; then
     echo "::endgroup::"
-    echo "🔴📝 Configuration override failed ($(elapsed_time)):\n\t${CONFIGURE_OVERRIDE}"
+    # Shellcheck says "If you actually wanted a literal backslash-n, use \\n" but still
+    # emits the warning. So need to disable it as well...
+    #
+    # shellcheck disable=SC2028
+    echo "🔴📝 Configuration override failed ($(elapsed_time)):\\n\\t${CONFIGURE_OVERRIDE}"
     exit 1
   fi
 else
@@ -105,7 +109,7 @@ if [[ -z "${BUILD_DIR}" ]]; then
 fi
 
 if [[ -n "${BUILD_TARGETS}" ]]; then
-  if ! (set -x; ninja -C "${BUILD_DIR}" ${BUILD_TARGETS}); then
+  if ! (set -x; ninja -C "${BUILD_DIR}" "${BUILD_TARGETS}"); then
     echo "::endgroup::"
     echo "🔴🛠️ Ninja build failed for targets ($(elapsed_time)): ${BUILD_TARGETS}"
     exit 1
@@ -114,9 +118,9 @@ fi
 
 if [[ -n "${CTEST_TARGETS}" ]]; then
   for t in ${CTEST_TARGETS}; do
-    if ! (set -x; ctest --test-dir "${BUILD_DIR}" -R "$t" -V --output-on-failure); then
+    if ! (set -x; ctest --test-dir "${BUILD_DIR}" -R "${t}" -V --output-on-failure); then
       echo "::endgroup::"
-      echo "🔴🔎 CTest failed for target $t ($(elapsed_time))"
+      echo "🔴🔎 CTest failed for target ${t} ($(elapsed_time))"
       exit 1
     fi
   done

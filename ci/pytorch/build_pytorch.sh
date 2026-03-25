@@ -55,22 +55,22 @@ echo "::group::Setting up clone of CUDA environment with custom CCCL..."
   cccl/ci/install_cccl.sh ./cccl-install > /dev/null
   cp -r ./cccl-install/include/* ./cuda/include/cccl
 )
-export PATH="$PWD/cuda/bin:$PATH"
-export CUDA_HOME="$PWD/cuda"
-export CUDA_PATH="$PWD/cuda"
-which nvcc
+export PATH="${PWD}/cuda/bin:${PATH}"
+export CUDA_HOME="${PWD}/cuda"
+export CUDA_PATH="${PWD}/cuda"
+command -v nvcc
 nvcc --version
 echo "::endgroup::"
 
 echo "::group::Cloning PyTorch..."
 rm -rf pytorch
-git clone ${pytorch_repo} -b ${pytorch_branch} --recursive --depth 1
+git clone "${pytorch_repo}" -b "${pytorch_branch}" --recursive --depth 1
 echo "PyTorch HEAD:"
 git -C pytorch log -1 --format=short
 echo "::endgroup::"
 
 echo "::group::Installing PyTorch build dependencies..."
-pytorch_root="$PWD/pytorch"
+pytorch_root="${PWD}/pytorch"
 export PYTHONPATH="${pytorch_root}:${pytorch_root}/tools:${PYTHONPATH:-}"
 pip install -r "${pytorch_root}/requirements-build.txt"
 echo "::endgroup::"
@@ -87,11 +87,11 @@ cmake -S ./pytorch -B ./build -G Ninja "${cmake_args[@]}"
 echo "::endgroup::"
 
 # Verify that the configured build is using the custom CUDA dir for CTK and nvcc:
-if ! grep -q "CUDA_TOOLKIT_ROOT_DIR:PATH=$PWD/cuda" ./build/CMakeCache.txt; then
+if ! grep -q "CUDA_TOOLKIT_ROOT_DIR:PATH=${PWD}/cuda" ./build/CMakeCache.txt; then
     echo "Error: CUDA_TOOLKIT_ROOT_DIR does not point to the custom CUDA";
     exit 1;
 fi
-if ! grep -q "CUDA_NVCC_EXECUTABLE:FILEPATH=$PWD/cuda/bin/nvcc" ./build/CMakeCache.txt; then
+if ! grep -q "CUDA_NVCC_EXECUTABLE:FILEPATH=${PWD}/cuda/bin/nvcc" ./build/CMakeCache.txt; then
     echo "Error: CUDA_NVCC_EXECUTABLE does not point to the custom CUDA";
     exit 1;
 fi
@@ -112,14 +112,19 @@ ninja -C ./build -t query lib/libtorch_cuda.so |
 # At the time this script was written, there were 311 cuda targets.
 # Check that there are at least 100 detected targets, otherwise fail.
 num_targets=$(wc -l < build/cuda_targets.txt)
-if test "$num_targets" -lt 100; then
-    echo "Error: extracted cuda targets count is less than 100! ($num_targets)";
+if test "${num_targets}" -lt 100; then
+    echo "Error: extracted cuda targets count is less than 100! (${num_targets})";
     echo "This likely indicates a failure to extract the targets from ninja.";
     exit 1;
 fi
 echo "::endgroup::"
 
-echo "::group::Building $num_targets pytorch CUDA targets with custom CCCL..."
+echo "::group::Building ${num_targets} pytorch CUDA targets with custom CCCL..."
+# There is no way to portably avoid word splitting here. We could store the output to an
+# array variable above instead of a file, but then there's no portable way to ensure that
+# word splitting doesn't occur *then* either.
+#
+# shellcheck disable=SC2046
 ninja -C ./build $(xargs -a build/cuda_targets.txt)
 echo "::endgroup::"
 

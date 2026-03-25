@@ -18,10 +18,10 @@ log_vars() {
 version_max() {
   local v1="${1}"
   local v2="${2}"
-  if ci/util/version_compare.sh "$v1" ge "$v2"; then
-    echo "$v1"
+  if ci/util/version_compare.sh "${v1}" ge "${v2}"; then
+    echo "${v1}"
   else
-    echo "$v2"
+    echo "${v2}"
   fi
 }
 
@@ -38,19 +38,25 @@ else
     cccl_sha="$(git -C "${cccl_repo}" rev-parse HEAD)";
 fi
 
-readonly cccl_repo_version="$(git -C "${cccl_repo}" describe ${cccl_sha}| grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')"
+cccl_repo_version="$(git -C "${cccl_repo}" describe "${cccl_sha}"| grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')"
+readonly cccl_repo_version
 
 # Define CCCL_VERSION to override the version used by rapids-cmake to patch CCCL.
 echo "CCCL_VERSION (override): ${CCCL_VERSION-}";
 if test -n "${CCCL_VERSION-}"; then
+  # It does not realize we log this below
+  #
+  # shellcheck disable=SC2034
   readonly cccl_rapids_cmake_version="${CCCL_VERSION}"
 else
+  # shellcheck disable=SC2034
   readonly cccl_rapids_cmake_version="${cccl_repo_version}"
 fi
 
 # If the current version is less than 2.8.0, use 2.8.0 for the rapids-cmake version.
 # This is to allow rapids-cmake to correctly patch the CCCL install rules on current `main`.
-readonly cccl_version=$(version_max "${cccl_repo_version}" "2.8.0")
+cccl_version=$(version_max "${cccl_repo_version}" "2.8.0")
+readonly cccl_version
 
 readonly workdir="${cccl_repo}/build/${CCCL_BUILD_INFIX:-}/matx"
 readonly version_file="${workdir}/MatX/cmake/versions.json"
@@ -70,7 +76,7 @@ pip install numpy
 
 # Clone MatX
 rm -rf MatX
-git clone ${matx_repo} -b ${matx_branch}
+git clone "${matx_repo}" -b "${matx_branch}"
 
 cd MatX
 echo "MatX HEAD:"
@@ -88,7 +94,7 @@ jq -r ".packages.CCCL *=
   "${version_file}" > "${version_override_file}"
 
 echo "Overriding MatX versions.json file:"
-cat $version_override_file
+cat "${version_override_file}"
 
 # Configure and build
 rm -rf build
@@ -102,4 +108,4 @@ cmake \
   -DMATX_BUILD_BENCHMARKS=ON \
   -DMATX_EN_CUTENSOR=ON
 
-cmake --build build -j ${PARALLEL_LEVEL:-}
+cmake --build build -j "${PARALLEL_LEVEL:-}"

@@ -5,30 +5,30 @@ ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage="Usage: $0 -py-version <python_version> [additional options...]"
 
-source "$ci_dir/util/python/common_arg_parser.sh"
+# shellcheck source=ci/util/python/common_arg_parser.sh
+source "${ci_dir}/util/python/common_arg_parser.sh"
 parse_python_args "$@"
 
 # Check if py_version was provided (this script requires it)
-require_py_version "$usage" || exit 1
+require_py_version "${usage}" || exit 1
 
-echo "Docker socket: " $(ls /var/run/docker.sock)
+echo "Docker socket: " "$(ls /var/run/docker.sock)"
 
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
   # Prepare mount points etc for getting artifacts in/out of the container.
-  source "$ci_dir/util/artifacts/common.sh"
+  # shellcheck source=ci/util/artifacts/common.sh
+  source "${ci_dir}/util/artifacts/common.sh"
   # Note that these mounts use the runner (not the devcontainer) filesystem for
   # source directories because of docker-out-of-docker quirks.
   # The workflow-job GH actions make sure that they exist before running any
   # scripts.
-  action_mounts=$(cat <<EOF
-    --mount type=bind,source=${ARTIFACT_ARCHIVES},target=${ARTIFACT_ARCHIVES} \
-    --mount type=bind,source=${ARTIFACT_UPLOAD_STAGE},target=${ARTIFACT_UPLOAD_STAGE}
-EOF
-)
-
+  action_mounts=(
+    --mount "type=bind,source=${ARTIFACT_ARCHIVES},target=${ARTIFACT_ARCHIVES}"
+    --mount "type=bind,source=${ARTIFACT_UPLOAD_STAGE},target=${ARTIFACT_UPLOAD_STAGE}"
+  )
 else
   # If not running in GitHub Actions, we don't need to set up artifact mounts.
-  action_mounts=""
+  action_mounts=()
 fi
 
 # cuda_cccl must be built in a container that can produce manylinux wheels,
@@ -41,35 +41,43 @@ readonly cuda13_version=13.1.1
 readonly devcontainer_version=26.04
 readonly devcontainer_distro=rockylinux8
 
-if [[ "$(uname -m)" == "aarch64" ]]; then
+uname_str="$(uname -m)"
+if [[ "${uname_str}" == "aarch64" ]]; then
+  # These are used below, but shellcheck doesn't realize this.
+  # shellcheck disable=SC2034
   readonly cuda12_image=rapidsai/ci-wheel:${devcontainer_version}-cuda${cuda12_version}-${devcontainer_distro}-py${py_version}-arm64
+  # shellcheck disable=SC2034
   readonly cuda13_image=rapidsai/ci-wheel:${devcontainer_version}-cuda${cuda13_version}-${devcontainer_distro}-py${py_version}-arm64
 else
+  # shellcheck disable=SC2034
   readonly cuda12_image=rapidsai/ci-wheel:${devcontainer_version}-cuda${cuda12_version}-${devcontainer_distro}-py${py_version}
+  # shellcheck disable=SC2034
   readonly cuda13_image=rapidsai/ci-wheel:${devcontainer_version}-cuda${cuda13_version}-${devcontainer_distro}-py${py_version}
 fi
 
 mkdir -p wheelhouse
 
 for ctk in 12 13; do
-  image=$(eval echo \$cuda${ctk}_image)
+  image=$(eval echo \$cuda"${ctk}"_image)
   echo "::group::⚒️ Building CUDA ${ctk} wheel on ${image}"
   (
     set -x
-    docker pull $image
+    docker pull "${image}"
+    # HOST_WORKSPACE set elsewhere (I hope)
+    # shellcheck disable=SC2154
     docker run --rm -i \
         --workdir /workspace/python/cuda_cccl \
-        --mount type=bind,source=${HOST_WORKSPACE},target=/workspace/ \
-        ${action_mounts} \
-        --env py_version=${py_version} \
-        --env GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
-        --env GITHUB_RUN_ID=${GITHUB_RUN_ID:-} \
-        --env JOB_ID=${JOB_ID:-} \
-        $image \
+        --mount type=bind,source="${HOST_WORKSPACE}",target=/workspace/ \
+        "${action_mounts[@]}" \
+        --env py_version="${py_version}" \
+        --env GITHUB_ACTIONS="${GITHUB_ACTIONS:-}" \
+        --env GITHUB_RUN_ID="${GITHUB_RUN_ID:-}" \
+        --env JOB_ID="${JOB_ID:-}" \
+        "${image}" \
         /workspace/ci/build_cuda_cccl_wheel.sh
     # Prevent GHA runners from exhausting available storage with leftover images:
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-      docker rmi -f $image
+      docker rmi -f "${image}"
     fi
   )
   echo "::endgroup::"
@@ -84,35 +92,35 @@ python -m pip install wheel
 cu12_wheel=$(find wheelhouse -name "*cu12*.whl" | head -1)
 cu13_wheel=$(find wheelhouse -name "*cu13*.whl" | head -1)
 
-if [[ -z "$cu12_wheel" ]]; then
+if [[ -z "${cu12_wheel}" ]]; then
   echo "Error: CUDA 12 wheel not found in wheelhouse/"
   ls -la wheelhouse/
   exit 1
 fi
 
-if [[ -z "$cu13_wheel" ]]; then
+if [[ -z "${cu13_wheel}" ]]; then
   echo "Error: CUDA 13 wheel not found in wheelhouse/"
   ls -la wheelhouse/
   exit 1
 fi
 
-echo "Found CUDA 12 wheel: $cu12_wheel"
-echo "Found CUDA 13 wheel: $cu13_wheel"
+echo "Found CUDA 12 wheel: ${cu12_wheel}"
+echo "Found CUDA 13 wheel: ${cu13_wheel}"
 
 # Merge the wheels
-python python/cuda_cccl/merge_cuda_wheels.py "$cu12_wheel" "$cu13_wheel" --output-dir wheelhouse_merged
+python python/cuda_cccl/merge_cuda_wheels.py "${cu12_wheel}" "${cu13_wheel}" --output-dir wheelhouse_merged
 
 # Install auditwheel and repair the merged wheel
 python -m pip install patchelf auditwheel
 for wheel in wheelhouse_merged/cuda_cccl-*.whl; do
-    echo "Repairing merged wheel: $wheel"
+    echo "Repairing merged wheel: ${wheel}"
     python -m auditwheel repair \
         --exclude 'libnvrtc.so.12' \
         --exclude 'libnvrtc.so.13' \
         --exclude 'libnvJitLink.so.12' \
         --exclude 'libnvJitLink.so.13' \
         --exclude 'libcuda.so.1' \
-        "$wheel" \
+        "${wheel}" \
         --wheel-dir wheelhouse_final
 done
 
@@ -137,5 +145,5 @@ ls -la wheelhouse/
 
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
   wheel_artifact_name="$(ci/util/workflow/get_wheel_artifact_name.sh)"
-  ci/util/artifacts/upload.sh $wheel_artifact_name 'wheelhouse/.*'
+  ci/util/artifacts/upload.sh "${wheel_artifact_name}" 'wheelhouse/.*'
 fi

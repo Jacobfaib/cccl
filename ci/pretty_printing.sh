@@ -4,13 +4,13 @@ ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 function print_var_values() {
     # Iterate through the arguments
     for var_name in "$@"; do
-        if [ -z "$var_name" ]; then
+        if [[ -z "${var_name}" ]]; then
             echo "Usage: print_var_values <variable_name1> <variable_name2> ..."
             return 1
         fi
 
         # Dereference the variable and print the result
-        echo "$var_name=${!var_name:-(undefined)}"
+        echo "${var_name}=${!var_name:-(undefined)}"
     done
 }
 
@@ -22,9 +22,9 @@ function begin_group() {
     # See options for colors here: https://gist.github.com/JBlond/2fea43a3049b38287e5e9cefc87b2124
     local blue="34"
     local name="${1:-}"
-    local color="${2:-$blue}"
+    local color="${2:-${blue}}"
 
-    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
         echo -e "::group::\e[${color}m${name}\e[0m"
     else
         echo -e "\e[${color}m================== ${name} ======================\e[0m"
@@ -42,14 +42,14 @@ function end_group() {
     local red="31"
     local blue="34"
 
-    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
         echo "::endgroup::"
 
-        if [ "$build_status" -ne 0 ]; then
+        if [[ "${build_status}" -ne 0 ]]; then
             echo -e "::error::\e[${red}m ${name} - Failed (⬆️ click above for full log ⬆️)\e[0m"
         fi
     else
-        if [ "$build_status" -ne 0 ]; then
+        if [[ "${build_status}" -ne 0 ]]; then
             echo -e "\e[${red}m================== End ${name} - Failed${duration:+ - Duration: ${duration}s} ==================\e[0m"
         else
             echo -e "\e[${blue}m================== End ${name} - Success${duration:+ - Duration: ${duration}s} ==================\n\e[0m"
@@ -67,30 +67,32 @@ function run_command() {
     local command=("$@")
     local status
 
-    begin_group "$group_name"
+    begin_group "${group_name}"
     echo "Working directory: $(pwd)"
     echo "Running command: ${command[*]}"
     set +e
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
     # If RUN_COMMAND_RETRY_PARAMS is set to "<retries> <sleep_time>", use retry.sh to run the command:
     if [[ -n "${RUN_COMMAND_RETRY_PARAMS:-}" ]]; then
         status=0
-        "$ci_dir/util/retry.sh" $RUN_COMMAND_RETRY_PARAMS "${command[@]}" || status=$?
+        "${ci_dir}/util/retry.sh" "${RUN_COMMAND_RETRY_PARAMS[@]}" "${command[@]}" || status=$?
     else
         status=0
         "${command[@]}" || status=$?
     fi
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     set -e
     local duration=$((end_time - start_time))
-    end_group "$group_name" $status $duration
-    command_durations["$group_name"]=$duration
-    return $status
+    end_group "${group_name}" "${status}" "${duration}"
+    command_durations["${group_name}"]=${duration}
+    return "${status}"
 }
 
 function string_width() {
     local str="$1"
-    echo "$str" | awk '{print length}'
+    echo "${str}" | awk '{print length}'
 }
 
 function print_time_summary() {
@@ -99,19 +101,20 @@ function print_time_summary() {
 
     # Find the longest group name for formatting
     for group in "${!command_durations[@]}"; do
-        local group_length=$(echo "$group" | awk '{print length}')
-        if [ "$group_length" -gt "$max_length" ]; then
-            max_length=$group_length
+        local group_length
+        group_length=$(echo "${group}" | awk '{print length}')
+        if [[ "${group_length}" -gt "${max_length}" ]]; then
+            max_length=${group_length}
         fi
     done
 
-    if [ "$max_length" -eq 0 ]; then
+    if [[ "${max_length}" -eq 0 ]]; then
         return
     fi
 
     echo "Time Summary:"
     for group in "${!command_durations[@]}"; do
-        printf "%-${max_length}s : %s seconds\n" "$group" "${command_durations[$group]}"
+        printf "%-${max_length}s : %s seconds\n" "${group}" "${command_durations[${group}]}"
     done
 
     # Clear the array of timing info

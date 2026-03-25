@@ -3,22 +3,23 @@
 set -euo pipefail
 
 ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$ci_dir/pyenv_helper.sh"
+source "${ci_dir}/pyenv_helper.sh"
 
 # Parse common arguments
-source "$ci_dir/util/python/common_arg_parser.sh"
+source "${ci_dir}/util/python/common_arg_parser.sh"
 parse_python_args "$@"
 cuda_major_version=$(nvcc --version | grep release | awk '{print $6}' | tr -d ',' | cut -d '.' -f 1 | cut -d 'V' -f 2)
 
 # Setup Python environment
+# shellcheck disable=SC2154
 setup_python_env "${py_version}"
 
 # Fetch or build the cuda_cccl wheel:
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-  wheel_artifact_name=$("$ci_dir/util/workflow/get_wheel_artifact_name.sh")
-  "$ci_dir/util/artifacts/download.sh" ${wheel_artifact_name} /home/coder/cccl/
+  wheel_artifact_name=$("${ci_dir}/util/workflow/get_wheel_artifact_name.sh")
+  "${ci_dir}/util/artifacts/download.sh" "${wheel_artifact_name}" /home/coder/cccl/
 else
-  "$ci_dir/build_cuda_cccl_python.sh" -py-version "${py_version}"
+  "${ci_dir}/build_cuda_cccl_python.sh" -py-version "${py_version}"
 fi
 
 # Install cuda_cccl

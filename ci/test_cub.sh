@@ -12,7 +12,7 @@ ARTIFACT_TAGS=()
 
 ci_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-new_args=$("${ci_dir}/util/extract_switches.sh" \
+new_args="$("${ci_dir}/util/extract_switches.sh" \
   -no-lid \
   -lid0 \
   -lid1 \
@@ -22,9 +22,10 @@ new_args=$("${ci_dir}/util/extract_switches.sh" \
   -compute-sanitizer-racecheck \
   -compute-sanitizer-initcheck \
   -compute-sanitizer-synccheck \
-  -- "$@")
+  -- "$@")"
+declare -a new_args="(${new_args})"
 
-eval set -- ${new_args}
+set -- "${new_args[@]}"
 while true; do
   case "$1" in
   -no-lid)
@@ -84,11 +85,11 @@ while true; do
   esac
 done
 
-if $LIMITED; then
+if ${LIMITED}; then
 
   export C2H_SEED_COUNT_OVERRIDE=1
   readonly device_mem_GiB=8
-  export C2H_DEVICE_MEMORY_LIMIT=$((${device_mem_GiB} * 1024 * 1024 * 1024))
+  export C2H_DEVICE_MEMORY_LIMIT=$((device_mem_GiB * 1024 * 1024 * 1024))
   export C2H_DEBUG_CHECKED_ALLOC_FAILURES=1
 
   echo "Configuring limited environment:"
@@ -108,33 +109,33 @@ if [[ -z "${GITHUB_ACTIONS:-}" ]]; then
 else
   producer_id=$(util/workflow/get_producer_id.sh)
   for tag in "${ARTIFACT_TAGS[@]}"; do
-    artifact="z_cub-test-artifacts-$DEVCONTAINER_NAME-$producer_id-$tag"
-    run_command "📦  Unpacking artifact '$artifact'" \
-      "${ci_dir}/util/artifacts/download_packed.sh" "$artifact" /home/coder/cccl
+    artifact="z_cub-test-artifacts-${DEVCONTAINER_NAME:?}-${producer_id}-${tag}"
+    run_command "📦  Unpacking artifact '${artifact}'" \
+      "${ci_dir}/util/artifacts/download_packed.sh" "${artifact}" /home/coder/cccl
   done
 fi
 
-if $NO_LID; then
+if ${NO_LID}; then
   PRESETS=("cub-nolid")
-elif $LID0; then
+elif ${LID0}; then
   PRESETS=("cub-lid0")
-elif $LID1; then
+elif ${LID1}; then
   PRESETS=("cub-lid1")
-elif $LID2; then
+elif ${LID2}; then
   PRESETS=("cub-lid2")
 else
   PRESETS=("cub")
 fi
 
-if $COMPUTE_SANITIZER; then
+if ${COMPUTE_SANITIZER}; then
   echo "Setting CCCL_TEST_MODE=compute-sanitizer-${TOOL}"
   export CCCL_TEST_MODE=compute-sanitizer-${TOOL}
   echo "Setting C2H_SEED_COUNT_OVERRIDE=1"
   export C2H_SEED_COUNT_OVERRIDE=1
 fi
 
-for PRESET in ${PRESETS[@]}; do
-  test_preset "CUB (${PRESET})" ${PRESET}
+for PRESET in "${PRESETS[@]}"; do
+  test_preset "CUB (${PRESET})" "${PRESET}"
 done
 
 print_time_summary

@@ -8,14 +8,14 @@ internal_headers=$(find ../../include -path "*cuda/std/__*/*" -not -path "*/__cu
 
 cd ../../test/libcxx/selftest/internal_headers
 
-for f in $internal_headers
+for f in ${internal_headers}
 do
     short_path=${f##*../include/}
     test_name=${f##*include/}
     test_name=${test_name%.h}.pass.cpp
 
     mkdir -p -- "${test_name%/*}"
-    cat > $test_name << EOL
+    cat > "${test_name}" << EOL
 //===----------------------------------------------------------------------===//
 //
 // Part of libcu++, the C++ Standard Library for your entire system,
@@ -27,7 +27,7 @@ do
 //===----------------------------------------------------------------------===//
 
 #include <cuda/std/version>
-#include <$short_path>
+#include <${short_path}>
 
 int main(int, char**) { return 0; }
 EOL

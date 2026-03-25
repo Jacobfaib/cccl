@@ -3,8 +3,9 @@
 # Similar to getopt, but only extracts recognized switches and leaves all other arguments in place.
 #
 # Example Usage:
-#   new_args=$(extract_switches.sh -cpu-only -gpu-only -- "$@")
-#   eval set -- ${new_args}
+#   new_args="$(extract_switches.sh -cpu-only -gpu-only -- "$@")"
+#   declare -a new_args="(${new_args})"
+#   set -- "${new_args[@]}"
 #   while true; do
 #     case "$1" in
 #     -cpu-only) CPU_ONLY=true; shift;;
@@ -19,7 +20,7 @@
 # Parse switches
 switches=()
 for arg in "$@"; do
-  case "$arg" in
+  case "${arg}" in
   --help | -h)
     cat <<"EOF" | cut -c 5-
     Usage: extract_switches.sh <switch> [<switch> ...] -- <argv>
@@ -28,8 +29,9 @@ for arg in "$@"; do
     Unrecognized switches are left in place.
 
     Example Usage:
-      new_args=$(extract_switches.sh -cpu-only -gpu-only -- "$@")
-      eval set -- ${new_args}
+      new_args="$(extract_switches.sh -cpu-only -gpu-only -- "$@")"
+      declare -a new_args="(${new_args})"
+      set -- "${new_args[@]}"
       while true; do
         case "$1" in
         -cpu-only) CPU_ONLY=true; shift;;
@@ -46,7 +48,7 @@ EOF
     break
     ;;
   *)
-    switches+=("$arg")
+    switches+=("${arg}")
     shift
     ;;
   esac
@@ -56,12 +58,12 @@ found_switches=()
 other_args=()
 for arg in "$@"; do
   for switch in "${switches[@]}"; do
-    if [ "$arg" = "$switch" ]; then
-      found_switches+=("\"$arg\"")
+    if [[ "${arg}" = "${switch}" ]]; then
+      found_switches+=("\"${arg}\"")
       continue 2
     fi
   done
-  other_args+=("\"$arg\"")
+  other_args+=("\"${arg}\"")
 done
 
-echo "${found_switches[@]} -- ${other_args[@]}"
+echo "${found_switches[*]} -- ${other_args[*]}"

@@ -5,8 +5,10 @@
 set -e;
 
 if ! test -n "${DISABLE_SCCACHE:+x}" && test -n "${DEVCONTAINER_UTILS_ENABLE_SCCACHE_DIST:+x}" && ! test -n "${SCCACHE_DIST_URL:+x}"; then
-    export SCCACHE_DIST_URL="https://$(dpkg --print-architecture).$(uname -s | tr '[:upper:]' '[:lower:]').sccache.rapids.nvidia.com";
-    echo "export SCCACHE_DIST_URL=$SCCACHE_DIST_URL" >> ~/.bashrc;
+    arch_str="$(dpkg --print-architecture)"
+    uname_str="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    export SCCACHE_DIST_URL="https://${arch_str}.${uname_str}.sccache.rapids.nvidia.com";
+    echo "export SCCACHE_DIST_URL=${SCCACHE_DIST_URL}" >> ~/.bashrc;
 fi
 
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then

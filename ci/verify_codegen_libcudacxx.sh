@@ -6,23 +6,20 @@ cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
 # TBD: verbose? any extra args?
 
+# shellcheck source=ci/pretty_printing.sh
 source ./pretty_printing.sh
 
 pushd .. > /dev/null
 GROUP_NAME="🛠️  CMake Configure Libcudacxx Codegen"
-run_command "$GROUP_NAME" cmake --preset libcudacxx-codegen
-status=$?
+run_command "${GROUP_NAME}" cmake --preset libcudacxx-codegen
 popd > /dev/null
 
 pushd .. > /dev/null
 GROUP_NAME="🏗️  Build Libcudacxx Codegen"
-run_command "$GROUP_NAME" cmake --build --preset libcudacxx-codegen
-
-status=$?
+run_command "${GROUP_NAME}" cmake --build --preset libcudacxx-codegen
 popd > /dev/null
 
 pushd .. > /dev/null
 GROUP_NAME="🚀  Test Libcudacxx Codegen"
-run_command "$GROUP_NAME" ctest --preset libcudacxx-codegen
-status=$?
+run_command "${GROUP_NAME}" ctest --preset libcudacxx-codegen
 popd > /dev/null

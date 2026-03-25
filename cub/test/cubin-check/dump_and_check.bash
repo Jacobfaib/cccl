@@ -1,4 +1,4 @@
 #!/bin/bash
-set -e
+set -eou pipefail
 cuobjdump=$1; cubin=$2; testfile=$3
-$cuobjdump -symbols "$cubin" | FileCheck --allow-empty "$testfile"
+${cuobjdump} -symbols "${cubin}" | FileCheck --allow-empty "${testfile}"

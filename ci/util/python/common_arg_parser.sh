@@ -29,7 +29,7 @@ parse_python_args() {
 }
 
 require_py_version() {
-    if [[ -z "$py_version" ]]; then
+    if [[ -z "${py_version}" ]]; then
         echo "Error: -py-version is required" >&2
         [[ -n "$1" ]] && echo "$1" >&2
         return 1

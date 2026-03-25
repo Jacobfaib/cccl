@@ -11,10 +11,10 @@
 # consistent documentation generation. The built Doxygen will be stored
 # in _build/doxygen-build/ and reused for subsequent runs.
 
-set -e
+set -eou pipefail
 
-SCRIPT_PATH=$(cd $(dirname ${0}); pwd -P)
-cd $SCRIPT_PATH
+SCRIPT_PATH="$(cd "$(dirname "${0}")"; pwd -P)"
+cd "${SCRIPT_PATH}"
 
 # Configuration
 SPHINXOPTS="${SPHINXOPTS:---keep-going}"
@@ -24,17 +24,17 @@ DOXYGEN_SRC_DIR="${SCRIPT_PATH}/_build/doxygen-src"
 DOXYGEN_BIN="${DOXYGEN_BUILD_DIR}/bin/doxygen"
 
 # Use custom-built doxygen if available, otherwise fall back to system doxygen
-if [ -f "${DOXYGEN_BIN}" ]; then
+if [[ -f "${DOXYGEN_BIN}" ]]; then
     DOXYGEN="${DOXYGEN_BIN}"
 else
     DOXYGEN="${DOXYGEN:-doxygen}"
 fi
 
 # Handle clean command
-if [ "$1" = "clean" ]; then
+if [[ "${1:-}" = "clean" ]]; then
     echo "Cleaning build directory..."
-    rm -rf ${BUILDDIR}/*
-    if [ "$2" = "--all" ]; then
+    rm -rf "${BUILDDIR:?}"/*
+    if [[ "${2:-}" = "--all" ]]; then
         echo "Also removing Doxygen source and build directories..."
         rm -rf "${DOXYGEN_SRC_DIR}" "${DOXYGEN_BUILD_DIR}"
     fi
@@ -46,25 +46,30 @@ rm -rf img
 mkdir -p img
 
 # Pull cub images
-if [ ! -d cubimg ]; then
+if [[ ! -d cubimg ]]; then
     git clone -b gh-pages https://github.com/NVlabs/cub.git cubimg
 fi
 
-if [ ! -n "$(find cubimg -name 'example_range.png')" ]; then
+if [[ -z "$(find cubimg -name 'example_range.png')" ]]; then
     wget -q https://raw.githubusercontent.com/NVIDIA/NVTX/release-v3/docs/images/example_range.png -O cubimg/example_range.png
 fi
 
-if [ ! -n "$(find img -name '*.png')" ]; then
+if [[ -z "$(find img -name '*.png')" ]]; then
     wget -q https://docs.nvidia.com/cuda/_static/Logo_and_CUDA.png -O img/logo.png
 
     # Parse files and collects unique names ending with .png
+    #
+    # Shellcheck warning is pertinent, but I don't know how to solve this portably. All of
+    # the suggested fixes require recent enough versions of bash to make them unpalatable.
+    #
+    # shellcheck disable=SC2207
     imgs=( $(grep -R -o -h '[[:alpha:][:digit:]_]*.png' ../cub/cub | uniq) )
     imgs+=( "cub_overview.png" "nested_composition.png" "tile.png" "blocked.png" "striped.png" )
 
     for img in "${imgs[@]}"
     do
-        echo ${img}
-        cp cubimg/${img} img/${img}
+        echo "${img}"
+        cp cubimg/"${img}" img/"${img}"
     done
 fi
 
@@ -73,7 +78,7 @@ build_doxygen() {
     echo "Building Doxygen 1.9.6..."
 
     # Clone Doxygen if not already cloned
-    if [ ! -d "${DOXYGEN_SRC_DIR}" ]; then
+    if [[ ! -d "${DOXYGEN_SRC_DIR}" ]]; then
         echo "Cloning Doxygen repository..."
         git clone https://github.com/doxygen/doxygen.git "${DOXYGEN_SRC_DIR}"
     fi
@@ -89,7 +94,7 @@ build_doxygen() {
 
     # Configure based on platform
     echo "Configuring Doxygen build..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [[ "${OSTYPE}" == "darwin"* ]]; then
         # macOS
         echo "Detected macOS, configuring with LLVM paths..."
         if ! command -v brew &> /dev/null; then
@@ -98,10 +103,11 @@ build_doxygen() {
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 "${DOXYGEN_SRC_DIR}"
         else
+            bison_prefix="$(brew --prefix bison)"
             cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
                 -Duse_libclang=NO \
-                -DBISON_EXECUTABLE="$(brew --prefix bison)/bin/bison" \
+                -DBISON_EXECUTABLE="${bison_prefix}/bin/bison" \
                 "${DOXYGEN_SRC_DIR}"
         fi
     else
@@ -122,7 +128,7 @@ build_doxygen() {
 }
 
 # Check if custom Doxygen needs to be built
-if [ ! -f "${DOXYGEN_BIN}" ]; then
+if [[ ! -f "${DOXYGEN_BIN}" ]]; then
     echo "Custom Doxygen 1.9.6 not found, building it now..."
 
     # Check for required build tools
@@ -148,12 +154,14 @@ fi
 echo "Checking for documentation dependencies..."
 
 # Use virtual environment if it exists, otherwise create one
-if [ -d "env" ]; then
+if [[ -d "env" ]]; then
     echo "Using existing virtual environment..."
+    # shellcheck disable=SC1091
     source env/bin/activate
 else
     echo "Creating virtual environment..."
     python3 -m venv env
+    # shellcheck disable=SC1091
     source env/bin/activate
 fi
 
@@ -168,14 +176,14 @@ if ! python -c "import sphinx" 2>/dev/null; then
 fi
 
 # Generate Doxygen XML in parallel (if doxygen is available)
-if which ${DOXYGEN} > /dev/null 2>&1; then
+if command -v "${DOXYGEN}" > /dev/null 2>&1; then
     echo "Generating Doxygen XML..."
-    mkdir -p ${BUILDDIR}/doxygen/cub ${BUILDDIR}/doxygen/thrust ${BUILDDIR}/doxygen/cudax ${BUILDDIR}/doxygen/libcudacxx
+    mkdir -p "${BUILDDIR}"/doxygen/cub "${BUILDDIR}"/doxygen/thrust "${BUILDDIR}"/doxygen/cudax "${BUILDDIR}"/doxygen/libcudacxx
 
     # Copy all images to Doxygen XML output directories where they're expected
     for project in cub thrust cudax libcudacxx; do
-        mkdir -p ${BUILDDIR}/doxygen/${project}/xml
-        cp img/*.png ${BUILDDIR}/doxygen/${project}/xml/ 2>/dev/null || true
+        mkdir -p "${BUILDDIR}"/doxygen/"${project}"/xml
+        cp img/*.png "${BUILDDIR}"/doxygen/"${project}"/xml/ 2>/dev/null || true
     done
 
     # Run all Doxygen builds in parallel
@@ -193,7 +201,7 @@ fi
 # Build Sphinx HTML documentation
 echo "Building documentation with Sphinx..."
 # Use the virtual environment's Python
-python -m sphinx.cmd.build -b html -d ${BUILDDIR}/doctrees -j auto . ${BUILDDIR}/html ${SPHINXOPTS}
+python -m sphinx.cmd.build -b html -d "${BUILDDIR}"/doctrees -j auto . "${BUILDDIR}"/html "${SPHINXOPTS}"
 
 # Reorganize output to include versioned directory and root assets
 VERSION="${SPHINX_CCCL_VER:-unstable}"
@@ -211,7 +219,7 @@ cp -a "${ORIG_DIR}/." "${HTML_DIR}/${VERSION}/"
 rm -rf "${ORIG_DIR}"
 
 # Copy objects.inv to the root to support intersphinx consumers
-if [ -f "${HTML_DIR}/${VERSION}/objects.inv" ]; then
+if [[ -f "${HTML_DIR}/${VERSION}/objects.inv" ]]; then
     cp "${HTML_DIR}/${VERSION}/objects.inv" "${HTML_DIR}/objects.inv"
 fi
 

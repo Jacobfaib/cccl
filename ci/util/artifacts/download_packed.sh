@@ -2,10 +2,12 @@
 
 set -euo pipefail
 
-readonly ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../" && pwd)"
-source "$ci_dir/util/artifacts/common.sh"
+ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../" && pwd)"
+readonly ci_dir
+# shellcheck source=ci/util/artifacts/common.sh
+source "${ci_dir}/util/artifacts/common.sh"
 
-readonly usage=$(cat <<EOF
+usage=$(cat <<EOF
 Usage: $0 <name> [<path>]
 
 Download and extracts a packed artifact uploaded by another job in this CI run.
@@ -18,27 +20,26 @@ Example Usage:
     $0 job-\$ID-products build/
 EOF
 )
+readonly usage
 
-if [ "$#" -lt 1 ]; then
+if [[ "$#" -lt 1 ]]; then
   echo "Error: Missing artifact name." >&2
-  echo "$usage" >&2
+  echo "${usage}" >&2
   exit 1
 fi
 readonly artifact_name="$1"
 
-if [ "$#" -eq 1 ]; then
+if [[ "$#" -eq 1 ]]; then
   artifact_path="./"
 else
   artifact_path="$2"
 fi
 
-readonly artifact_archive="$ARTIFACT_ARCHIVES/$artifact_name.tar.zst"
+start=${SECONDS}
+"${ci_dir}/util/artifacts/download/fetch.sh" "${artifact_name}" "${ARTIFACT_ARCHIVES}"
+fetched=${SECONDS}
+"${ci_dir}/util/artifacts/download/unpack.sh" "${artifact_name}" "${artifact_path}"
+unpacked=${SECONDS}
 
-start=$SECONDS
-"$ci_dir/util/artifacts/download/fetch.sh" "$artifact_name" "${ARTIFACT_ARCHIVES}"
-fetched=$SECONDS
-"$ci_dir/util/artifacts/download/unpack.sh" "$artifact_name" "$artifact_path"
-unpacked=$SECONDS
-
-echo "Artifact '$artifact_name' fetched in $((fetched - start)) seconds."
-echo "Artifact '$artifact_name' unpacked in $((unpacked - fetched)) seconds."
+echo "Artifact '${artifact_name}' fetched in $((fetched - start)) seconds."
+echo "Artifact '${artifact_name}' unpacked in $((unpacked - fetched)) seconds."

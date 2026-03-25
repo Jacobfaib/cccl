@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ci_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ci_dir/.."
+cd "${ci_dir}/.."
 
 usage() {
   cat <<USAGE
@@ -45,7 +45,7 @@ function elapsed_time {
   local duration=$(( SECONDS - start_timestamp ))
   local minutes=$(( duration / 60 ))
   local seconds=$(( duration % 60 ))
-  printf "%dm%02ds" "$minutes" "$seconds"
+  printf "%dm%02ds" "${minutes}" "${seconds}"
 }
 
 GOOD_REF=""
@@ -110,48 +110,48 @@ _resolve_days_ago() {
   local base_branch="origin/main"
   local n="${spec#-}"
   n="${n%d}"
-  if [[ -z "$n" || ! "$n" =~ ^[0-9]+$ ]]; then
+  if [[ -z "${n}" || ! "${n}" =~ ^[0-9]+$ ]]; then
     return 1
   fi
   local when
-  when=$(date -u -d "$n days ago" '+%Y-%m-%d %H:%M:%S %z')
-  git rev-list -n 1 --before="$when" "$base_branch"
+  when=$(date -u -d "${n} days ago" '+%Y-%m-%d %H:%M:%S %z')
+  git rev-list -n 1 --before="${when}" "${base_branch}"
 }
 
 # Resolve good_ref
-if [[ -z "$good_ref" ]]; then
+if [[ -z "${good_ref}" ]]; then
   good_ref=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || :)
-  echo "Good ref defaulted to last release: $good_ref"
+  echo "Good ref defaulted to last release: ${good_ref}"
 fi
-if [[ "$good_ref" =~ ^-[0-9]+d$ ]]; then
-  good_sha=$(_resolve_days_ago "$good_ref")
-  if [[ -z "$good_sha" ]]; then
-    echo "::error::Unable to resolve good_ref '$good_ref' to a commit on origin/main" >&2
+if [[ "${good_ref}" =~ ^-[0-9]+d$ ]]; then
+  good_sha=$(_resolve_days_ago "${good_ref}")
+  if [[ -z "${good_sha}" ]]; then
+    echo "::error::Unable to resolve good_ref '${good_ref}' to a commit on origin/main" >&2
     exit 1
   fi
-  echo "Resolved good_ref '$good_ref' to origin/main @ $good_sha"
+  echo "Resolved good_ref '${good_ref}' to origin/main @ ${good_sha}"
 else
-  if [[ -z "$good_ref" ]]; then
+  if [[ -z "${good_ref}" ]]; then
     echo "::error::Unable to determine good ref" >&2
     exit 1
   fi
-  good_sha=$(git rev-parse "$good_ref")
+  good_sha=$(git rev-parse "${good_ref}")
 fi
 
 # Resolve bad_ref
-if [[ -z "$bad_ref" ]]; then
+if [[ -z "${bad_ref}" ]]; then
   bad_ref="origin/main"
-  echo "Bad ref defaulted to origin/main: $bad_ref"
+  echo "Bad ref defaulted to origin/main: ${bad_ref}"
 fi
-if [[ "$bad_ref" =~ ^-[0-9]+d$ ]]; then
-  bad_sha=$(_resolve_days_ago "$bad_ref")
-  if [[ -z "$bad_sha" ]]; then
-    echo "::error::Unable to resolve bad_ref '$bad_ref' to a commit on origin/main" >&2
+if [[ "${bad_ref}" =~ ^-[0-9]+d$ ]]; then
+  bad_sha=$(_resolve_days_ago "${bad_ref}")
+  if [[ -z "${bad_sha}" ]]; then
+    echo "::error::Unable to resolve bad_ref '${bad_ref}' to a commit on origin/main" >&2
     exit 1
   fi
-  echo "Resolved bad_ref '$bad_ref' to origin/main @ $bad_sha"
+  echo "Resolved bad_ref '${bad_ref}' to origin/main @ ${bad_sha}"
 else
-  bad_sha=$(git rev-parse "$bad_ref")
+  bad_sha=$(git rev-parse "${bad_ref}")
 fi
 
 # Copy the build-and-test runner to a temp file so it remains available as HEAD changes:
@@ -193,11 +193,11 @@ write_summary() {
 }
 
 echo "Starting bisect with:"
-echo "  BAD_SHA:  $bad_sha"
-echo "  GOOD_SHA: $good_sha"
+echo "  BAD_SHA:  ${bad_sha}"
+echo "  GOOD_SHA: ${good_sha}"
 
 echo "::group::⚙️ Starting git bisect"
-(set -x; git bisect start "$bad_sha" "$good_sha")
+(set -x; git bisect start "${bad_sha}" "${good_sha}")
 echo "::endgroup::"
 
 bisect_log="$(mktemp /tmp/git-bisect-log-XXXXXX.log)"
@@ -218,12 +218,13 @@ bisect_output="$(mktemp /tmp/git-bisect-output-XXXXXX.log)"
   git bisect reset || :
 )
 
+end_time="$(elapsed_time)"
 if grep -q " is the first bad commit" "${bisect_output}"; then
   bad_commit=$(awk '/ is the first bad commit/ {print $1}' "${bisect_output}")
-  echo -e "\e[1;32mFound bad commit in $(elapsed_time): $bad_commit\e[0m"
+  echo -e "\e[1;32mFound bad commit in ${end_time}: ${bad_commit}\e[0m"
   found=true
 else
-  echo -e "\e[1;31mNo bad commit found ($(elapsed_time)).\e[0m"
+  echo -e "\e[1;31mNo bad commit found (${end_time}).\e[0m"
   found=false
 fi
 
@@ -255,7 +256,7 @@ function print_repro {
     if [[ -n "${!var:-}" ]]; then
       flag="--${var,,}"
       flag=${flag//_/-}  # replace _ with -
-      if ! $first; then
+      if ! ${first}; then
         echo " \\" # Trailing "\" to escape newlines
       fi
       echo -n "       ${flag} \"${!var}\""
@@ -267,20 +268,21 @@ function print_repro {
 }
 
 if [[ "${found}" == "true" ]]; then
-  commit_info=$(git log "$bad_commit" -1 --pretty=format:'%h %s')
-  pr_ref=$(echo "$commit_info" | grep -oE '#[0-9]+' | head -n1 || :)
+  commit_info=$(git log "${bad_commit}" -1 --pretty=format:'%h %s')
+  pr_ref=$(echo "${commit_info}" | grep -oE '#[0-9]+' | head -n1 || :)
   (
     echo "## 🔎 Bisect Result"
     echo
-    echo "- Culprit Commit: $commit_info"
-    if [[ -n "$pr_ref" ]]; then
+    echo "- Culprit Commit: ${commit_info}"
+    if [[ -n "${pr_ref}" ]]; then
       pr_num=${pr_ref#\#}
-      echo "- Culprit PR: https://github.com/NVIDIA/cccl/pull/$pr_num"
+      echo "- Culprit PR: https://github.com/NVIDIA/cccl/pull/${pr_num}"
     fi
-    echo "- Commit SHA: $bad_commit"
+    echo "- Commit SHA: ${bad_commit}"
     echo "- Commit URL: https://github.com/NVIDIA/cccl/commit/${bad_commit}"
     if [[ -n "${GHA_LOG_URL:-}" ]]; then
       echo "- Bisection Logs: [GHA Job](${GHA_LOG_URL})"
+      # shellcheck disable=SC2154
       echo "- Bisection Summary: [GHA Report](${STEP_SUMMARY_URL})"
     fi
     echo
@@ -289,7 +291,7 @@ if [[ "${found}" == "true" ]]; then
     echo "### ℹ️ Commit Details"
     echo
     echo '```'
-    git show "$bad_commit" --stat
+    git show "${bad_commit}" --stat
     echo '```'
     echo
     echo "### 🪵 Bisect Log"
@@ -306,6 +308,7 @@ else
     echo
     if [[ -n "${GHA_LOG_URL:-}" ]]; then
       echo "- Bisection Logs: [GHA Job](${GHA_LOG_URL})"
+      # shellcheck disable=SC2154
       echo "- Bisection Summary: [GHA Report](${STEP_SUMMARY_URL})"
     fi
     echo

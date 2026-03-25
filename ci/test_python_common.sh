@@ -14,13 +14,16 @@ function run_tests {
   TEMP_VENV_DIR="/tmp/${module}_venv"
   rm -rf "${TEMP_VENV_DIR}"
   python -m venv "${TEMP_VENV_DIR}"
+  # shellcheck disable=SC1091
   . "${TEMP_VENV_DIR}/bin/activate"
   echo 'cuda-cccl @ file:///home/coder/cccl/python/cuda_cccl' > /tmp/cuda-cccl_constraints.txt
+  # shellcheck disable=SC2102
   run_command "⚙️  Pip install ${module}" pip install -c /tmp/cuda-cccl_constraints.txt .[test]
   begin_group "⚙️ ${module} site-packages"
   pip freeze
   end_group "⚙️ ${module} site-packages"
-  run_command "🚀  Pytest ${module}" pytest -n ${PARALLEL_LEVEL} -v ./tests
+  # shellcheck disable=SC2154
+  run_command "🚀  Pytest ${module}" pytest -n "${PARALLEL_LEVEL}" -v ./tests
   deactivate
 
   popd >/dev/null

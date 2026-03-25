@@ -12,7 +12,7 @@ readonly workdir="${cccl_repo}/test/stdpar"
 CXX_STANDARD=17
 
 args=("$@")
-while [ "${#args[@]}" -ne 0 ]; do
+while [[ "${#args[@]}" -ne 0 ]]; do
     case "${args[0]}" in
     -std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
     *) echo "Unrecognized option: ${args[0]}"; exit 1 ;;
@@ -30,4 +30,4 @@ cmake -B build -S . -G Ninja \
   `# Explicitly compile for hopper since the CI machine does not have a gpu:` \
   -DCMAKE_CXX_FLAGS="-gpu=cc90"
 
-cmake --build build -j ${PARALLEL_LEVEL:-}
+cmake --build build -j "${PARALLEL_LEVEL:-}"

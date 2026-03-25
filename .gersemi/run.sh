@@ -22,7 +22,7 @@ declare -a patterns=(
 
 declare -a tracked_files
 while IFS= read -r file; do
-  tracked_files+=("$file")
+  tracked_files+=("${file}")
 done < <(git ls-files "${patterns[@]}")
 
 cd "${repo_root}"
@@ -31,8 +31,8 @@ gersemi -i -- "${tracked_files[@]}"
 # Count the total number of lines in the files:
 total_lines=0
 for file in "${tracked_files[@]}"; do
-  if [[ -f "$file" ]]; then
-    line_count=$(wc -l < "$file")
+  if [[ -f "${file}" ]]; then
+    line_count=$(wc -l < "${file}")
     total_lines=$((total_lines + line_count))
   fi
 done
