@@ -11,95 +11,98 @@
 #pragma once
 
 #include <cuda/__driver/driver_api.h>
-#include <cuda/mdspan>
+#include <cuda/__memory_resource/any_resource.h>
+#include <cuda/std/__utility/forward.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/span>
 #include <cuda/std/variant>
 
 #include <cuda/experimental/__device/logical_device.cuh>
 
-#include <thread>
-#include <utility>
 #include <vector>
 
 namespace cuda::experimental
 {
-namespace detail
-{
-template <typename... T>
-class overload : public T...
-{
-public:
-  using T::operator()...;
-};
-
-template <typename... T>
-overload(T...) -> overload<T...>;
-} // namespace detail
-
 class host_memory
 {
 public:
-  constexpr bool operator==(const host_memory&) noexcept
+  using resource_type     = ::cuda::mr::any_resource<::cuda::mr::host_accessible>;
+  using resource_ref_type = ::cuda::mr::resource_ref<::cuda::mr::host_accessible>;
+
+  [[nodiscard]] resource_ref_type memory_resource() const
   {
-    return true;
+    return resource_ref_type{resource_};
   }
 
-  constexpr bool operator!=(const host_memory&) noexcept
+  friend bool operator==(const host_memory& lhs, const host_memory& rhs) noexcept
   {
-    return false;
+    return lhs.resource_ == rhs.resource_;
   }
+
+  friend bool operator!=(const host_memory& lhs, const host_memory& rhs) noexcept
+  {
+    return !(lhs == rhs);
+  }
+
+private:
+  resource_type resource_{};
+};
+
+class device_memory
+{
+public:
+  explicit device_memory(logical_device device)
+      : device_{::cuda::std::move(device)}
+  {}
+
+  explicit device_memory(::cuda::device_ref ref)
+      : device_memory{logical_device{ref}}
+  {}
+
+  [[nodiscard]] const logical_device& device() const
+  {
+    return device_;
+  }
+
+  friend bool operator==(const device_memory& lhs, const device_memory& rhs) noexcept
+  {
+    return lhs.device() == rhs.device() && lhs.resource() == rhs.resource();
+  }
+
+  friend bool operator!=(const device_memory& lhs, const device_memory& rhs) noexcept
+  {
+    return !(lhs == rhs);
+  }
+
+private:
+  logical_device device_{};
+  ::cuda::mr::any_resource<::cuda::mr::device_accessible> resource_{};
 };
 
 class memory
 {
-  class activated_memory
-  {
-  public:
-    activated_memory() = delete;
-
-    explicit activated_memory(memory& mem)
-        : mem_{&mem}
-    {
-      mem_->activate_();
-    }
-
-    ~activated_memory()
-    {
-      mem_->deactivate_();
-    }
-
-    activated_memory(activated_memory&)            = delete;
-    activated_memory& operator=(activated_memory&) = delete;
-
-  private:
-    memory* mem_{};
-  };
-
-  friend activated_memory;
-
 public:
   memory() = default;
 
-  memory(host_memory)
-      : proc_{::std::in_place_type<host_memory>}
+  memory(host_memory mem)
+      : memory_{::cuda::std::move(mem)}
   {}
 
-  memory(logical_device dev)
-      : proc_{::std::move(dev)}
+  memory(device_memory dev)
+      : memory_{::cuda::std::move(dev)}
   {}
 
   memory(::cuda::device_ref dev)
-      : memory{logical_device{dev}}
+      : memory{device_memory{dev}}
   {}
 
-  [[nodiscard]] activated_memory activate_guard()
-  {
-    return activated_memory{*this};
-  }
+  memory(::cuda::device_ref dev)
+      : memory{device_memory{dev}}
+  {}
 
   [[nodiscard]] bool operator==(const memory& other) const noexcept
   {
-    return other.proc_ == proc_;
+    return other.memory_ == memory_;
   }
 
   [[nodiscard]] bool operator!=(const memory& other) const noexcept
@@ -108,25 +111,7 @@ public:
   }
 
 private:
-  void activate_()
-  {
-    ::cuda::std::visit(proc_,
-                       detail::overload{[](const host_memory&) {},
-                                        [](const logical_device& dev) {
-                                          ::cuda::__driver::__ctxPush(dev.context());
-                                        }});
-  }
-
-  void deactivate_()
-  {
-    ::cuda::std::visit(proc_,
-                       detail::overload{[](const host_memory&) {},
-                                        [](const logical_device&) {
-                                          ::cuda::__driver::__ctxPop();
-                                        }});
-  }
-
-  ::cuda::std::variant<host_memory, logical_device> proc_{};
+  ::cuda::std::variant<host_memory, device_memory> memory_{};
 };
 
 template <typename MDSpan>
@@ -134,6 +119,7 @@ class basic_sharded_mdspan
 {
 public:
   using mdspan_type = MDSpan;
+  using value_type  = typename mdspan_type::value_type;
   using size_type   = typename mdspan_type::size_type;
 
   class shard_type
@@ -141,7 +127,6 @@ public:
   public:
     mdspan_type mdspan{};
     memory proc{};
-    ::std::thread::id owning_thread_id = ::std::this_thread::get_id();
   };
 
   [[nodiscard]] ::cuda::std::span<const shard_type> shards() const;
@@ -176,7 +161,7 @@ typename basic_sharded_mdspan<M>::size_type basic_sharded_mdspan<M>::size() cons
 
   for (auto&& s : shards())
   {
-    ret += s.subspan.size();
+    ret += s.mdspan.size();
   }
   return ret;
 }
@@ -192,6 +177,6 @@ bool basic_sharded_mdspan<M>::empty() const
 template <typename MDSpan, typename... Rest>
 basic_sharded_mdspan<MDSpan> make_sharded_mdspan(typename basic_sharded_mdspan<MDSpan>::shard first, Rest&&... rest)
 {
-  return basic_sharded_mdspan<MDSpan>{::std::move(first), ::std::move(rest)...};
+  return basic_sharded_mdspan<MDSpan>{::cuda::std::move(first), ::cuda::std::forward<Rest>(rest)...};
 }
 } // namespace cuda::experimental
