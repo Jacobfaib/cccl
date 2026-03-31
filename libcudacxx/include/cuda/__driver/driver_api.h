@@ -21,8 +21,9 @@
 #  pragma system_header
 #endif // no system header
 
-#if _CCCL_HAS_CTK() && !_CCCL_COMPILER(NVRTC)
+#if !_CCCL_COMPILER(NVRTC)
 
+#  include <cuda/__driver/driver_api_types.h>
 #  include <cuda/__runtime/api_wrapper.h>
 #  include <cuda/std/__cstddef/types.h>
 #  include <cuda/std/__exception/cuda_error.h>
@@ -45,25 +46,26 @@
 _CCCL_BEGIN_NAMESPACE_CUDA_DRIVER
 
 // Get the driver function by name using this macro
-#  define _CCCLRT_GET_DRIVER_FUNCTION(function_name) \
-    reinterpret_cast<decltype(::function_name)*>(::cuda::__driver::__get_driver_entry_point(#function_name))
+#  define _CCCLRT_GET_DRIVER_FUNCTION(function_name)                      \
+    reinterpret_cast<decltype(::cuda::__driver::api::function_name##_t)>( \
+      ::cuda::__driver::__get_driver_entry_point(#function_name))
 
 #  define _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(function_name, versioned_fn_name, major, minor) \
-    reinterpret_cast<decltype(::versioned_fn_name)*>(                                           \
+    reinterpret_cast<decltype(::cuda::__driver::api::versioned_fn_name##_t)>(                   \
       ::cuda::__driver::__get_driver_entry_point(#function_name, major, minor))
 
 // cudaGetDriverEntryPoint function is deprecated
 _CCCL_SUPPRESS_DEPRECATED_PUSH
 
 //! @brief Gets the cuGetProcAddress function pointer.
-[[nodiscard]] _CCCL_PUBLIC_HOST_API inline auto __getProcAddressFn() -> decltype(cuGetProcAddress)*
+[[nodiscard]] _CCCL_PUBLIC_HOST_API inline api::cuGetProcAddress_v2_t __getProcAddressFn()
 {
   const char* __fn_name = "cuGetProcAddress_v2";
 #  if _CCCL_OS(WINDOWS)
   static auto __driver_library = ::LoadLibraryExA("nvcuda.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (__driver_library == nullptr)
   {
-    _CCCL_THROW(::cuda::cuda_error, ::cudaErrorUnknown, "Failed to load nvcuda.dll");
+    _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_UNKNOWN, "Failed to load nvcuda.dll");
   }
   static void* __fn = ::GetProcAddress(__driver_library, __fn_name);
   if (__fn == nullptr)
@@ -79,7 +81,7 @@ _CCCL_SUPPRESS_DEPRECATED_PUSH
   static void* __driver_library = ::dlopen(__driver_library_name, RTLD_NOW);
   if (__driver_library == nullptr)
   {
-    _CCCL_THROW(::cuda::cuda_error, ::cudaErrorUnknown, "Failed to load libcuda.so.1");
+    _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_UNKNOWN, "Failed to load libcuda.so.1");
   }
   static void* __fn = ::dlsym(__driver_library, __fn_name);
   if (__fn == nullptr)
@@ -87,7 +89,7 @@ _CCCL_SUPPRESS_DEPRECATED_PUSH
     _CCCL_THROW(::cuda::cuda_error, ::cudaErrorInitializationError, "Failed to get cuGetProcAddress from libcuda.so.1");
   }
 #  endif // ^^^ !_CCCL_OS(WINDOWS) ^^^
-  return reinterpret_cast<decltype(cuGetProcAddress)*>(__fn);
+  return reinterpret_cast<api::GetProcAddress_v2_t>(__fn);
 }
 
 _CCCL_SUPPRESS_DEPRECATED_POP
@@ -110,26 +112,27 @@ _CCCL_SUPPRESS_DEPRECATED_POP
 //! @return The address of the symbol.
 //!
 //! @throws @c cuda::cuda_error if the symbol cannot be obtained.
-[[nodiscard]] _CCCL_HOST_API inline void* __get_driver_entry_point_impl(
-  decltype(cuGetProcAddress)* __get_proc_addr_fn, const char* __name, int __major, int __minor)
+[[nodiscard]] _CCCL_HOST_API inline void*
+__get_driver_entry_point_impl(api::GetProcAddress_V2 __get_proc_addr_fn, const char* __name, int __major, int __minor)
 {
   void* __fn;
-  ::CUdriverProcAddressQueryResult __result;
-  ::CUresult __status = __get_proc_addr_fn(
-    __name, &__fn, ::cuda::__driver::__make_version(__major, __minor), ::CU_GET_PROC_ADDRESS_DEFAULT, &__result);
-  if (__status != ::CUDA_SUCCESS || __result != ::CU_GET_PROC_ADDRESS_SUCCESS)
+  ::cuda::__driver::CUdriverProcAddressQueryResult __result;
+  ::cuda::__driver::CUresult __status = __get_proc_addr_fn(
+    __name, &__fn, ::cuda::__driver::__make_version(__major, __minor), CCCL_CU_GET_PROC_ADDRESS_DEFAULT, &__result);
+  if (__status != CCCL_CUDA_SUCCESS || __result != CCCL_CU_GET_PROC_ADDRESS_SUCCESS)
   {
-    if (__status == ::CUDA_ERROR_INVALID_VALUE)
+    if (__status == CCCL_CUDA_ERROR_INVALID_VALUE)
     {
-      _CCCL_THROW(::cuda::cuda_error, ::cudaErrorInvalidValue, "Driver version is too low to use this API", __name);
+      _CCCL_THROW(
+        ::cuda::cuda_error, CCCL_CUDA_ERROR_INVALID_VALUE, "Driver version is too low to use this API", __name);
     }
-    if (__result == ::CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT)
+    if (__result == CCCL_CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT)
     {
-      _CCCL_THROW(::cuda::cuda_error, ::cudaErrorNotSupported, "Driver does not support this API", __name);
+      _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_NOT_SUPPORTED, "Driver does not support this API", __name);
     }
     else
     {
-      _CCCL_THROW(::cuda::cuda_error, ::cudaErrorUnknown, "Failed to access driver API", __name);
+      _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_UNKNOWN, "Failed to access driver API", __name);
     }
   }
   return __fn;
@@ -145,8 +148,8 @@ _CCCL_SUPPRESS_DEPRECATED_POP
 template <typename Fn, typename... Args>
 _CCCL_HOST_API inline void __call_driver_fn(Fn __fn, const char* __err_msg, Args... __args)
 {
-  ::CUresult __status = __fn(__args...);
-  if (__status != ::CUDA_SUCCESS)
+  ::cuda::__driver::CUresult __status = __fn(__args...);
+  if (__status != CCCL_CUDA_SUCCESS)
   {
     _CCCL_THROW(::cuda::cuda_error, static_cast<::cudaError_t>(__status), __err_msg);
   }
@@ -161,7 +164,7 @@ _CCCL_HOST_API inline void __call_driver_fn(Fn __fn, const char* __err_msg, Args
 //! @warning This function should be called only once from __get_driver_entry_point function.
 [[nodiscard]] _CCCL_HOST_API inline bool __init(decltype(cuGetProcAddress)* __get_proc_addr_fn)
 {
-  auto __driver_fn = reinterpret_cast<decltype(::cuInit)*>(
+  auto __driver_fn = reinterpret_cast<::cuda::__driver::cuInit_t>(
     ::cuda::__driver::__get_driver_entry_point_impl(__get_proc_addr_fn, "cuInit", 12, 0));
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to initialize CUDA Driver", 0);
   return true;
@@ -189,7 +192,7 @@ __get_driver_entry_point(const char* __name, [[maybe_unused]] int __major = 12, 
 //! @brief Converts CUdevice to ordinal device id.
 //!
 //! @note Currently, CUdevice value is the same as the ordinal device id. But that might change in the future.
-[[nodiscard]] _CCCL_HOST_API inline int __cudevice_to_ordinal(::CUdevice __dev) noexcept
+[[nodiscard]] _CCCL_HOST_API inline int __cudevice_to_ordinal(::cuda::__driver::CUdevice __dev) noexcept
 {
   return static_cast<int>(__dev);
 }
@@ -219,15 +222,16 @@ __get_driver_entry_point(const char* __name, [[maybe_unused]] int __major = 12, 
 
 // Device management
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUdevice __deviceGet(int __ordinal)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUdevice __deviceGet(int __ordinal)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceGet);
-  ::CUdevice __result;
+  ::cuda::__driver::CUdevice __result;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get device", &__result, __ordinal);
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline int __deviceGetAttribute(::CUdevice_attribute __attr, ::CUdevice __device)
+[[nodiscard]] _CCCL_HOST_API inline int
+__deviceGetAttribute(::CUdevice_attribute __attr, ::cuda::__driver::CUdevice __device)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceGetAttribute);
   int __result;
@@ -248,13 +252,13 @@ _CCCL_HOST_API inline void __deviceGetName(char* __name_out, int __len, int __or
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceGetName);
 
   // TODO CUdevice is just an int, we probably could just cast, but for now do the safe thing
-  ::CUdevice __dev = __deviceGet(__ordinal);
+  ::cuda::__driver::CUdevice __dev = __deviceGet(__ordinal);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to query the name of a device", __name_out, __len, __dev);
 }
 
 // Primary context management
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUcontext __primaryCtxRetain(::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline ::CUcontext __primaryCtxRetain(::cuda::__driver::CUdevice __dev)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDevicePrimaryCtxRetain);
   ::CUcontext __result;
@@ -262,13 +266,13 @@ _CCCL_HOST_API inline void __deviceGetName(char* __name_out, int __len, int __or
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cudaError_t __primaryCtxReleaseNoThrow(::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline ::cudaError_t __primaryCtxReleaseNoThrow(::cuda::__driver::CUdevice __dev)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDevicePrimaryCtxRelease);
   return static_cast<::cudaError_t>(__driver_fn(__dev));
 }
 
-[[nodiscard]] _CCCL_HOST_API inline bool __isPrimaryCtxActive(::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline bool __isPrimaryCtxActive(::cuda::__driver::CUdevice __dev)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDevicePrimaryCtxGetState);
   int __result;
@@ -301,10 +305,10 @@ _CCCL_HOST_API inline ::CUcontext __ctxPop()
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUdevice __ctxGetDevice()
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUdevice __ctxGetDevice()
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuCtxGetDevice);
-  ::CUdevice __result{};
+  ::cuda::__driver::CUdevice __result{};
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get current context", &__result);
   return __result;
 }
@@ -479,7 +483,7 @@ __getDefaultMemPool(CUmemLocation __location, CUmemAllocationType_enum __allocat
   return __result;
 }
 #  else // ^^^ _CCCL_CTK_AT_LEAST(13, 0) ^^^ / vvv _CCCL_CTK_BELOW(13, 0) vvv
-_CCCL_HOST_API inline ::CUmemoryPool __deviceGetDefaultMemPool(::CUdevice __device)
+_CCCL_HOST_API inline ::CUmemoryPool __deviceGetDefaultMemPool(::cuda::__driver::CUdevice __device)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceGetDefaultMemPool);
   ::CUmemoryPool __result = nullptr;
@@ -619,7 +623,7 @@ _CCCL_HOST_API inline ::cudaError_t __streamSynchronizeNoThrow(::CUstream __stre
 _CCCL_HOST_API inline void __streamSynchronize(::CUstream __stream)
 {
   cudaError_t __status = __streamSynchronizeNoThrow(__stream);
-  if (__status != cudaSuccess)
+  if (__status != CCCL_CUDA_SUCCESS)
   {
     _CCCL_THROW(::cuda::cuda_error, __status, "Failed to synchronize a stream");
   }
@@ -674,10 +678,10 @@ struct __ctx_from_stream
 
 // TODO: make this available since CUDA 12.8
 #  if _CCCL_CTK_AT_LEAST(13, 0)
-[[nodiscard]] _CCCL_HOST_API inline ::CUdevice __streamGetDevice(::CUstream __stream)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUdevice __streamGetDevice(::CUstream __stream)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuStreamGetDevice, cuStreamGetDevice, 12, 8);
-  ::CUdevice __result{};
+  ::cuda::__driver::CUdevice __result{};
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get the device of the stream", __stream, &__result);
   return __result;
 }
@@ -771,7 +775,7 @@ _CCCL_HOST_API inline void __eventSynchronize(::CUevent __evnt)
 }
 
 [[nodiscard]] _CCCL_HOST_API inline int
-__kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::CUdevice __dev)
+__kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::cuda::__driver::CUdevice __dev)
 {
   int __value;
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuKernelGetAttribute);
@@ -916,7 +920,8 @@ __graphKernelNodeSetAttribute(::CUgraphNode __node, ::CUkernelNodeAttrID __id, c
 
 // Peer Context Memory Access
 
-[[nodiscard]] _CCCL_HOST_API inline bool __deviceCanAccessPeer(::CUdevice __dev, ::CUdevice __peer_dev)
+[[nodiscard]] _CCCL_HOST_API inline bool
+__deviceCanAccessPeer(::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevice __peer_dev)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceCanAccessPeer);
   int __result;
@@ -925,8 +930,8 @@ __graphKernelNodeSetAttribute(::CUgraphNode __node, ::CUkernelNodeAttrID __id, c
   return static_cast<bool>(__result);
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cudaError_t
-__deviceCanAccessPeerNoThrow(int& __result, ::CUdevice __dev, ::CUdevice __peer_dev) noexcept
+[[nodiscard]] _CCCL_HOST_API inline ::cudaError_t __deviceCanAccessPeerNoThrow(
+  int& __result, ::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevice __peer_dev) noexcept
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceCanAccessPeer);
   return static_cast<::cudaError_t>(__driver_fn(&__result, __dev, __peer_dev));
@@ -936,7 +941,7 @@ __deviceCanAccessPeerNoThrow(int& __result, ::CUdevice __dev, ::CUdevice __peer_
 
 #  if _CCCL_CTK_AT_LEAST(12, 5)
 // Add actual resource description input once exposure is ready
-[[nodiscard]] _CCCL_HOST_API inline ::CUgreenCtx __greenCtxCreate(::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline ::CUgreenCtx __greenCtxCreate(::cuda::__driver::CUdevice __dev)
 {
   ::CUgreenCtx __result;
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuGreenCtxCreate, cuGreenCtxCreate, 12, 5);
@@ -1073,6 +1078,6 @@ _CCCL_END_NAMESPACE_CUDA_DRIVER
 
 #  include <cuda/std/__cccl/epilogue.h>
 
-#endif // _CCCL_HAS_CTK() && !_CCCL_COMPILER(NVRTC)
+#endif // !_CCCL_COMPILER(NVRTC)
 
 #endif // _CUDA___DRIVER_DRIVER_API_H
