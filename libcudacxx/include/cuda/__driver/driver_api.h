@@ -32,6 +32,10 @@
 #  include <cuda/std/__internal/namespaces.h>
 #  include <cuda/std/__limits/numeric_limits.h>
 #  include <cuda/std/__type_traits/always_false.h>
+#  include <cuda/std/__type_traits/conditional.h>
+#  include <cuda/std/__type_traits/enable_if.h>
+#  include <cuda/std/__type_traits/integral_constant.h>
+#  include <cuda/std/__type_traits/is_enum.h>
 #  include <cuda/std/__type_traits/is_same.h>
 #  if _CCCL_OS(WINDOWS)
 #    include <windows.h>
@@ -39,20 +43,81 @@
 #    include <dlfcn.h>
 #  endif
 
-#  include <cuda.h>
+#  if __has_include(<cuda.h>)
+#    include <cuda.h>
+
+#    define _CCCLRT_CHECK_ABI_COMPATIBLE(cu_function, our_function)                                \
+      static_assert(::cuda::__driver::abi_detail::check_abi_compatible(cu_function, our_function), \
+                    #cu_function " and " #our_function " are not ABI compatible")
+#  else
+#    define _CCCLRT_CHECK_ABI_COMPATIBLE(cu_function, our_function) static_assert(true)
+#  endif
 
 #  include <cuda/std/__cccl/prologue.h>
 
 _CCCL_BEGIN_NAMESPACE_CUDA_DRIVER
 
+namespace abi_detail
+{
+template <typename T1, typename T2, typename = void>
+struct abi_compatible : ::cuda::std::false_type
+{}; // NOLINT(readability-identifier-naming)
+
+// Two types that are the same are always ABI compatible
+template <typename T>
+struct abi_compatible<T, T> : ::cuda::std::true_type
+{};
+
+// Specialization when either T1 or T2 is an enum. In this case, all that matters is that both
+// are the same size
+template <typename T1, typename T2>
+struct abi_compatible<T1, T2, ::cuda::std::enable_if_t<::cuda::std::is_enum_v<T1> || ::cuda::std::is_enum_v<T2>>>
+    : ::cuda::std::conditional_t<sizeof(T1) == sizeof(T2), ::cuda::std::true_type, ::cuda::std::false_type>
+{};
+
+// The enable_if_t is needed because without it
+//
+// abi_compatible<Type **, Type **>
+//
+// Is an ambiguous overload. It is either abi_compatible<T, T> (with T = Type **), or
+// abi_compatible<T1*, T2*> (where T1 = T2 = Type *). We still need to have this overload in that
+// case, because we still want to catch instances where we spoof enums with their underlying values:
+//
+// enum TheRealType { ... }; (underlying type is int)
+// using OurType : int;
+//
+// In this case, a function taking OurType, or OurType * is ABI compatible with the real enum,
+// but won't necessarily have the exact same pointed-to type.
+template <typename T1, typename T2>
+struct abi_compatible<T1*, T2*, ::cuda::std::enable_if_t<!::cuda::std::is_same_v<T1, T2>>> : abi_compatible<T1, T2>
+{};
+
+template <typename T1, typename T2>
+inline constexpr bool abi_compatible_v = abi_compatible<T1, T2>::value;
+
+// ==========================================================================================
+
+template <typename R1, typename... Args1, typename R2, typename... Args2>
+[[nodiscard]] constexpr bool check_abi_compatible(R1 (*)(Args1...), R2 (*)(Args2...))
+{
+  if constexpr (abi_compatible_v<R1, R2> && (sizeof...(Args1) == sizeof...(Args2)))
+  {
+    return std::conjunction_v<abi_compatible<Args1, Args2>...>;
+  }
+  return false;
+}
+} // namespace abi_detail
+
 // Get the driver function by name using this macro
-#  define _CCCLRT_GET_DRIVER_FUNCTION(function_name)            \
-    reinterpret_cast<::cuda::__driver::api::function_name##_t>( \
-      ::cuda::__driver::__get_driver_entry_point(#function_name))
+#  define _CCCLRT_GET_DRIVER_FUNCTION(function_name)               \
+    reinterpret_cast<::cuda::__driver::api::function_name##_t>(    \
+      ::cuda::__driver::__get_driver_entry_point(#function_name)); \
+    _CCCLRT_CHECK_ABI_COMPATIBLE(function_name, ::cuda::__driver::api::function_name##_t{})
 
 #  define _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(function_name, versioned_fn_name, major, minor) \
     reinterpret_cast<::cuda::__driver::api::versioned_fn_name##_t>(                             \
-      ::cuda::__driver::__get_driver_entry_point(#function_name, major, minor))
+      ::cuda::__driver::__get_driver_entry_point(#function_name, major, minor));                \
+    _CCCLRT_CHECK_ABI_COMPATIBLE(versioned_fn_name, ::cuda::__driver::api::function_name##_t{})
 
 // cudaGetDriverEntryPoint function is deprecated
 _CCCL_SUPPRESS_DEPRECATED_PUSH
@@ -70,7 +135,7 @@ _CCCL_SUPPRESS_DEPRECATED_PUSH
   static void* __fn = ::GetProcAddress(__driver_library, __fn_name);
   if (__fn == nullptr)
   {
-    _CCCL_THROW(::cuda::cuda_error, ::cudaErrorInitializationError, "Failed to get cuGetProcAddress from nvcuda.dll");
+    _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_NOT_INITIALIZED, "Failed to get cuGetProcAddress from nvcuda.dll");
   }
 #  else // ^^^ _CCCL_OS(WINDOWS) ^^^ / vvv !_CCCL_OS(WINDOWS) vvv
 #    if _CCCL_OS(ANDROID)
@@ -86,7 +151,7 @@ _CCCL_SUPPRESS_DEPRECATED_PUSH
   static void* __fn = ::dlsym(__driver_library, __fn_name);
   if (__fn == nullptr)
   {
-    _CCCL_THROW(::cuda::cuda_error, ::cudaErrorInitializationError, "Failed to get cuGetProcAddress from libcuda.so.1");
+    _CCCL_THROW(::cuda::cuda_error, CCCL_CUDA_ERROR_NOT_INITIALIZED, "Failed to get cuGetProcAddress from libcuda.so.1");
   }
 #  endif // ^^^ !_CCCL_OS(WINDOWS) ^^^
   return reinterpret_cast<api::cuGetProcAddress_v2_t>(__fn);
@@ -151,7 +216,7 @@ _CCCL_HOST_API inline void __call_driver_fn(Fn __fn, const char* __err_msg, Args
   ::cuda::__driver::CUresult __status = __fn(__args...);
   if (__status != CCCL_CUDA_SUCCESS)
   {
-    _CCCL_THROW(::cuda::cuda_error, static_cast<::cudaError_t>(__status), __err_msg);
+    _CCCL_THROW(::cuda::cuda_error, __status, __err_msg);
   }
 }
 
@@ -425,7 +490,7 @@ __memsetAsync(void* __dst, _Tp __value, ::cuda::std::size_t __count, ::cuda::__d
 __mempoolCreateNoThrow(::cuda::__driver::CUmemoryPool* __pool, ::cuda::__driver::CUmemPoolProps* __props)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemPoolCreate);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__pool, __props));
+  return __driver_fn(__pool, __props);
 }
 
 _CCCL_HOST_API inline void __mempoolSetAttribute(
@@ -474,32 +539,34 @@ __freeAsyncNoThrow(::cuda::__driver::CUdeviceptr __dptr, ::cuda::__driver::CUstr
   return __driver_fn(__dptr, __stream);
 }
 
-_CCCL_HOST_API inline void
-__mempoolSetAccess(::cuda::__driver::CUmemoryPool __pool, ::CUmemAccessDesc* __descs, ::cuda::std::size_t __count)
+_CCCL_HOST_API inline void __mempoolSetAccess(
+  ::cuda::__driver::CUmemoryPool __pool, ::cuda::__driver::CUmemAccessDesc* __descs, ::cuda::std::size_t __count)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemPoolSetAccess);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to set access of a memory pool", __pool, __descs, __count);
 }
 
-_CCCL_HOST_API inline ::CUmemAccess_flags
-__mempoolGetAccess(::cuda::__driver::CUmemoryPool __pool, ::CUmemLocation* __location)
+_CCCL_HOST_API inline ::cuda::__driver::CUmemAccess_flags
+__mempoolGetAccess(::cuda::__driver::CUmemoryPool __pool, ::cuda::__driver::CUmemLocation* __location)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemPoolGetAccess);
-  ::CUmemAccess_flags __flags;
+  ::cuda::__driver::CUmemAccess_flags __flags;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get access of a memory pool", &__flags, __pool, __location);
   return __flags;
 }
 
 _CCCL_HOST_API inline ::cuda::__driver::CUresult __mempoolGetAccessNoThrow(
-  ::CUmemAccess_flags& __flags, ::cuda::__driver::CUmemoryPool __pool, ::CUmemLocation* __location) noexcept
+  ::cuda::__driver::CUmemAccess_flags& __flags,
+  ::cuda::__driver::CUmemoryPool __pool,
+  ::cuda::__driver::CUmemLocation* __location) noexcept
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemPoolGetAccess);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(&__flags, __pool, __location));
+  return __driver_fn(&__flags, __pool, __location);
 }
 
 #  if _CCCL_CTK_AT_LEAST(13, 0)
-_CCCL_HOST_API inline ::cuda::__driver::CUmemoryPool
-__getDefaultMemPool(CUmemLocation __location, CUmemAllocationType_enum __allocation_type)
+_CCCL_HOST_API inline ::cuda::__driver::CUmemoryPool __getDefaultMemPool(
+  ::cuda::__driver::CUmemLocation __location, ::cuda::__driver::CUmemAllocationType_enum __allocation_type)
 {
   static auto __driver_fn =
     _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuMemGetDefaultMemPool, cuMemGetDefaultMemPool, 13, 0);
@@ -537,42 +604,43 @@ _CCCL_HOST_API inline void* __mallocHost(::cuda::std::size_t __bytes)
 _CCCL_HOST_API inline ::cuda::__driver::CUresult __freeNoThrow(::cuda::__driver::CUdeviceptr __dptr)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemFree);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__dptr));
+  return __driver_fn(__dptr);
 }
 
 _CCCL_HOST_API inline ::cuda::__driver::CUresult __freeHostNoThrow(void* __dptr)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuMemFreeHost);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__dptr));
+  return __driver_fn(__dptr);
 }
 
 // Unified Addressing
 
 // TODO: we don't want to have these functions here, refactoring expected
-template <::CUpointer_attribute _Attr>
+template <::cuda::__driver::CUpointer_attribute _Attr>
 [[nodiscard]] _CCCL_API _CCCL_CONSTEVAL auto __pointer_attribute_value_type_t_impl() noexcept
 {
-  if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_CONTEXT)
+  if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_CONTEXT)
   {
     return ::cuda::__driver::CUcontext{};
   }
-  else if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_MEMORY_TYPE)
+  else if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_MEMORY_TYPE)
   {
-    return ::CUmemorytype{};
+    return ::cuda::__driver::CUmemorytype{};
   }
-  else if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_DEVICE_POINTER || _Attr == ::CU_POINTER_ATTRIBUTE_HOST_POINTER)
+  else if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_DEVICE_POINTER
+                     || _Attr == CCCL_CU_POINTER_ATTRIBUTE_HOST_POINTER)
   {
     return static_cast<void*>(nullptr);
   }
-  else if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_IS_MANAGED || _Attr == ::CU_POINTER_ATTRIBUTE_MAPPED)
+  else if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_IS_MANAGED || _Attr == CCCL_CU_POINTER_ATTRIBUTE_MAPPED)
   {
     return bool{};
   }
-  else if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL)
+  else if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL)
   {
     return int{};
   }
-  else if constexpr (_Attr == ::CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE)
+  else if constexpr (_Attr == CCCL_CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE)
   {
     return ::cuda::__driver::CUmemoryPool{};
   }
@@ -582,10 +650,10 @@ template <::CUpointer_attribute _Attr>
   }
 }
 
-template <::CUpointer_attribute _Attr>
+template <::cuda::__driver::CUpointer_attribute _Attr>
 using __pointer_attribute_value_type_t = decltype(::cuda::__driver::__pointer_attribute_value_type_t_impl<_Attr>());
 
-template <::CUpointer_attribute _Attr>
+template <::cuda::__driver::CUpointer_attribute _Attr>
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
 __pointerGetAttributeNoThrow(__pointer_attribute_value_type_t<_Attr>& __result, const void* __ptr)
 {
@@ -594,19 +662,17 @@ __pointerGetAttributeNoThrow(__pointer_attribute_value_type_t<_Attr>& __result, 
   if constexpr (::cuda::std::is_same_v<__pointer_attribute_value_type_t<_Attr>, bool>)
   {
     int __result2{};
-    __status = static_cast<::cuda::__driver::CUresult>(
-      __driver_fn(&__result2, _Attr, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr)));
+    __status = __driver_fn(&__result2, _Attr, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr));
     __result = static_cast<bool>(__result2);
   }
   else
   {
-    __status = static_cast<::cuda::__driver::CUresult>(
-      __driver_fn((void*) &__result, _Attr, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr)));
+    __status = __driver_fn((void*) &__result, _Attr, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr));
   }
   return __status;
 }
 
-template <::CUpointer_attribute _Attr>
+template <::cuda::__driver::CUpointer_attribute _Attr>
 [[nodiscard]] _CCCL_HOST_API __pointer_attribute_value_type_t<_Attr> __pointerGetAttribute(const void* __ptr)
 {
   __pointer_attribute_value_type_t<_Attr> __result;
@@ -616,12 +682,12 @@ template <::CUpointer_attribute _Attr>
 }
 
 template <::cuda::std::size_t _Np>
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
-__pointerGetAttributesNoThrow(::CUpointer_attribute (&__attrs)[_Np], void* (&__results)[_Np], const void* __ptr)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __pointerGetAttributesNoThrow(
+  ::cuda::__driver::CUpointer_attribute (&__attrs)[_Np], void* (&__results)[_Np], const void* __ptr)
 {
   static const auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuPointerGetAttributes);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(
-    static_cast<unsigned>(_Np), __attrs, __results, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr)));
+  return __driver_fn(
+    static_cast<unsigned>(_Np), __attrs, __results, reinterpret_cast<::cuda::__driver::CUdeviceptr>(__ptr));
 }
 
 // Stream management
@@ -645,12 +711,12 @@ __streamCreateWithPriority(unsigned __flags, int __priority)
 _CCCL_HOST_API inline ::cuda::__driver::CUresult __streamSynchronizeNoThrow(::cuda::__driver::CUstream __stream)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuStreamSynchronize);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__stream));
+  return __driver_fn(__stream);
 }
 
 _CCCL_HOST_API inline void __streamSynchronize(::cuda::__driver::CUstream __stream)
 {
-  cudaError_t __status = __streamSynchronizeNoThrow(__stream);
+  auto __status = __streamSynchronizeNoThrow(__stream);
   if (__status != CCCL_CUDA_SUCCESS)
   {
     _CCCL_THROW(::cuda::cuda_error, __status, "Failed to synchronize a stream");
@@ -678,7 +744,7 @@ struct __ctx_from_stream
   union
   {
     ::cuda::__driver::CUcontext __ctx_device_;
-    ::CUgreenCtx __ctx_green_;
+    ::cuda::__driver::CUgreenCtx __ctx_green_;
   };
 };
 
@@ -686,8 +752,8 @@ struct __ctx_from_stream
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuStreamGetCtx, cuStreamGetCtx_v2, 12, 5);
 
-  ::cuda::__driver::CUcontext __ctx = nullptr;
-  ::CUgreenCtx __gctx               = nullptr;
+  ::cuda::__driver::CUcontext __ctx   = nullptr;
+  ::cuda::__driver::CUgreenCtx __gctx = nullptr;
   __ctx_from_stream __result;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get context from a stream", __stream, &__ctx, &__gctx);
   if (__gctx)
@@ -715,17 +781,17 @@ struct __ctx_from_stream
 }
 #  endif // _CCCL_CTK_AT_LEAST(13, 0)
 
-_CCCL_HOST_API inline void __streamWaitEvent(::cuda::__driver::CUstream __stream, ::CUevent __evnt)
+_CCCL_HOST_API inline void __streamWaitEvent(::cuda::__driver::CUstream __stream, ::cuda::__driver::CUevent __evnt)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuStreamWaitEvent);
   ::cuda::__driver::__call_driver_fn(
-    __driver_fn, "Failed to make a stream wait for an event", __stream, __evnt, ::CU_EVENT_WAIT_DEFAULT);
+    __driver_fn, "Failed to make a stream wait for an event", __stream, __evnt, CCCL_CU_EVENT_WAIT_DEFAULT);
 }
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __streamQueryNoThrow(::cuda::__driver::CUstream __stream)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuStreamQuery);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__stream));
+  return __driver_fn(__stream);
 }
 
 [[nodiscard]] _CCCL_HOST_API inline int __streamGetPriority(::cuda::__driver::CUstream __stream)
@@ -748,26 +814,27 @@ _CCCL_HOST_API inline void __streamWaitEvent(::cuda::__driver::CUstream __stream
 __streamDestroyNoThrow(::cuda::__driver::CUstream __stream)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuStreamDestroy);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__stream));
+  return __driver_fn(__stream);
 }
 
 // Event management
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUevent __eventCreate(unsigned __flags)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUevent __eventCreate(unsigned __flags)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventCreate);
-  ::CUevent __evnt;
+  ::cuda::__driver::CUevent __evnt;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to create a CUDA event", &__evnt, __flags);
   return __evnt;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __eventDestroyNoThrow(::CUevent __evnt)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __eventDestroyNoThrow(::cuda::__driver::CUevent __evnt)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventDestroy);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__evnt));
+  return __driver_fn(__evnt);
 }
 
-[[nodiscard]] _CCCL_HOST_API inline float __eventElapsedTime(::CUevent __start, ::CUevent __end)
+[[nodiscard]] _CCCL_HOST_API inline float
+__eventElapsedTime(::cuda::__driver::CUevent __start, ::cuda::__driver::CUevent __end)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventElapsedTime);
   float __result;
@@ -775,19 +842,19 @@ __streamDestroyNoThrow(::cuda::__driver::CUstream __stream)
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __eventQueryNoThrow(::CUevent __evnt)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __eventQueryNoThrow(::cuda::__driver::CUevent __evnt)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventQuery);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__evnt));
+  return __driver_fn(__evnt);
 }
 
-_CCCL_HOST_API inline void __eventRecord(::CUevent __evnt, ::cuda::__driver::CUstream __stream)
+_CCCL_HOST_API inline void __eventRecord(::cuda::__driver::CUevent __evnt, ::cuda::__driver::CUstream __stream)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventRecord);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to record an event", __evnt, __stream);
 }
 
-_CCCL_HOST_API inline void __eventSynchronize(::CUevent __evnt)
+_CCCL_HOST_API inline void __eventSynchronize(::cuda::__driver::CUevent __evnt)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuEventSynchronize);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to synchronize an event", __evnt);
@@ -795,16 +862,16 @@ _CCCL_HOST_API inline void __eventSynchronize(::CUevent __evnt)
 
 // Library management
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUfunction __kernelGetFunction(::CUkernel __kernel)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUfunction __kernelGetFunction(::cuda::__driver::CUkernel __kernel)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuKernelGetFunction);
-  ::CUfunction __result;
+  ::cuda::__driver::CUfunction __result;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get kernel function", &__result, __kernel);
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline int
-__kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::cuda::__driver::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline int __kernelGetAttribute(
+  ::cuda::__driver::CUfunction_attribute __attr, ::cuda::__driver::CUkernel __kernel, ::cuda::__driver::CUdevice __dev)
 {
   int __value;
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuKernelGetAttribute);
@@ -813,7 +880,7 @@ __kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::cuda:
 }
 
 #  if _CCCL_CTK_AT_LEAST(12, 3)
-[[nodiscard]] _CCCL_HOST_API inline const char* __kernelGetName(::CUkernel __kernel)
+[[nodiscard]] _CCCL_HOST_API inline const char* __kernelGetName(::cuda::__driver::CUkernel __kernel)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuKernelGetName, cuKernelGetName, 12, 3);
   const char* __name;
@@ -822,17 +889,17 @@ __kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::cuda:
 }
 #  endif // _CCCL_CTK_AT_LEAST(12, 3)
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUlibrary __libraryLoadData(
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUlibrary __libraryLoadData(
   const void* __code,
-  ::CUjit_option* __jit_opts,
+  ::cuda::__driver::CUjit_option* __jit_opts,
   void** __jit_opt_vals,
   unsigned __njit_opts,
-  ::CUlibraryOption* __lib_opts,
+  ::cuda::__driver::CUlibraryOption* __lib_opts,
   void** __lib_opt_vals,
   unsigned __nlib_opts)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryLoadData);
-  ::CUlibrary __result;
+  ::cuda::__driver::CUlibrary __result;
   ::cuda::__driver::__call_driver_fn(
     __driver_fn,
     "Failed to load a library from data",
@@ -847,82 +914,95 @@ __kernelGetAttribute(::CUfunction_attribute __attr, ::CUkernel __kernel, ::cuda:
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUkernel __libraryGetKernel(::CUlibrary __library, const char* __name)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUkernel
+__libraryGetKernel(::cuda::__driver::CUlibrary __library, const char* __name)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryGetKernel);
-  ::CUkernel __result;
+  ::cuda::__driver::CUkernel __result;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get kernel from library", &__result, __library, __name);
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __libraryUnloadNoThrow(::CUlibrary __library)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
+__libraryUnloadNoThrow(::cuda::__driver::CUlibrary __library)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryUnload);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__library));
+  return __driver_fn(__library);
 }
 
 #  if _CCCL_CTK_AT_LEAST(12, 5)
-[[nodiscard]] _CCCL_HOST_API inline ::CUlibrary __kernelGetLibrary(::CUkernel __kernel)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUlibrary __kernelGetLibrary(::cuda::__driver::CUkernel __kernel)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuKernelGetLibrary, cuKernelGetLibrary, 12, 5);
-  ::CUlibrary __lib;
+  ::cuda::__driver::CUlibrary __lib;
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to get the library from kernel", &__lib, __kernel);
   return __lib;
 }
 #  endif // _CCCL_CTK_AT_LEAST(12, 5)
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
-__libraryGetKernelNoThrow(::CUkernel& __kernel, ::CUlibrary __lib, const char* __name)
+__libraryGetKernelNoThrow(::cuda::__driver::CUkernel& __kernel, ::cuda::__driver::CUlibrary __lib, const char* __name)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryGetKernel);
-  return static_cast<cudaError_t>(__driver_fn(&__kernel, __lib, __name));
+  return __driver_fn(&__kernel, __lib, __name);
 }
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __libraryGetGlobalNoThrow(
-  ::cuda::__driver::CUdeviceptr& __dptr, ::cuda::std::size_t& __nbytes, ::CUlibrary __lib, const char* __name)
+  ::cuda::__driver::CUdeviceptr& __dptr,
+  ::cuda::std::size_t& __nbytes,
+  ::cuda::__driver::CUlibrary __lib,
+  const char* __name)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryGetGlobal);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(&__dptr, &__nbytes, __lib, __name));
+  return __driver_fn(&__dptr, &__nbytes, __lib, __name);
 }
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __libraryGetManagedNoThrow(
-  ::cuda::__driver::CUdeviceptr& __dptr, ::cuda::std::size_t& __nbytes, ::CUlibrary __lib, const char* __name)
+  ::cuda::__driver::CUdeviceptr& __dptr,
+  ::cuda::std::size_t& __nbytes,
+  ::cuda::__driver::CUlibrary __lib,
+  const char* __name)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLibraryGetManaged);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(&__dptr, &__nbytes, __lib, __name));
+  return __driver_fn(&__dptr, &__nbytes, __lib, __name);
 }
 
 // Execution control
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
-__functionGetAttributeNoThrow(int& __value, ::CUfunction_attribute __attr, ::CUfunction __kernel)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __functionGetAttributeNoThrow(
+  int& __value, ::cuda::__driver::CUfunction_attribute __attr, ::cuda::__driver::CUfunction __kernel)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuFuncGetAttribute);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(&__value, __attr, __kernel));
-}
-
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __functionLoadNoThrow(::CUfunction __kernel) noexcept
-{
-  static auto __driver_fn = reinterpret_cast<::CUresult(CUDAAPI*)(::CUfunction)>(
-    ::cuda::__driver::__get_driver_entry_point("cuFuncLoad", 12, 4));
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__kernel));
+  return __driver_fn(&__value, __attr, __kernel);
 }
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
-__functionSetAttributeNoThrow(::CUfunction __kernel, ::CUfunction_attribute __attr, int __value)
+__functionLoadNoThrow(::cuda::__driver::CUfunction __kernel) noexcept
 {
-  static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuFuncSetAttribute);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__kernel, __attr, __value));
+  static auto __driver_fn = reinterpret_cast<::cuda::__driver::CUresult (*)(::cuda::__driver::CUfunction)>(
+    ::cuda::__driver::__get_driver_entry_point("cuFuncLoad", 12, 4));
+  return __driver_fn(__kernel);
 }
 
-_CCCL_HOST_API inline void __launchHostFunc(::cuda::__driver::CUstream __stream, ::CUhostFn __fn, void* __data)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __functionSetAttributeNoThrow(
+  ::cuda::__driver::CUfunction __kernel, ::cuda::__driver::CUfunction_attribute __attr, int __value)
+{
+  static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuFuncSetAttribute);
+  return __driver_fn(__kernel, __attr, __value);
+}
+
+_CCCL_HOST_API inline void
+__launchHostFunc(::cuda::__driver::CUstream __stream, ::cuda::__driver::CUhostFn __fn, void* __data)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLaunchHostFunc);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to launch host function", __stream, __fn, __data);
 }
 
-_CCCL_HOST_API inline void
-__launchKernel(::CUlaunchConfig& __config, ::CUfunction __kernel, void* __args[], void* __extra[] = nullptr)
+_CCCL_HOST_API inline void __launchKernel(
+  ::cuda::__driver::CUlaunchConfig& __config,
+  ::cuda::__driver::CUfunction __kernel,
+  void* __args[],
+  void* __extra[] = nullptr)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuLaunchKernelEx);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to launch kernel", &__config, __kernel, __args, __extra);
@@ -930,18 +1010,23 @@ __launchKernel(::CUlaunchConfig& __config, ::CUfunction __kernel, void* __args[]
 
 // Graph management
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUgraphNode __graphAddKernelNode(
-  ::CUgraph __graph, const ::CUgraphNode __deps[], ::cuda::std::size_t __ndeps, ::CUDA_KERNEL_NODE_PARAMS& __node_params)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUgraphNode __graphAddKernelNode(
+  ::cuda::__driver::CUgraph __graph,
+  const ::cuda::__driver::CUgraphNode __deps[],
+  ::cuda::std::size_t __ndeps,
+  ::cuda::__driver::CUDA_KERNEL_NODE_PARAMS& __node_params)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuGraphAddKernelNode);
-  ::CUgraphNode __result;
+  ::cuda::__driver::CUgraphNode __result;
   ::cuda::__driver::__call_driver_fn(
     __driver_fn, "Failed to add a node to a graph", &__result, __graph, __deps, __ndeps, &__node_params);
   return __result;
 }
 
-_CCCL_HOST_API inline void
-__graphKernelNodeSetAttribute(::CUgraphNode __node, ::CUkernelNodeAttrID __id, const ::CUkernelNodeAttrValue& __value)
+_CCCL_HOST_API inline void __graphKernelNodeSetAttribute(
+  ::cuda::__driver::CUgraphNode __node,
+  ::cuda::__driver::CUkernelNodeAttrID __id,
+  const ::cuda::__driver::CUkernelNodeAttrValue& __value)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuGraphKernelNodeSetAttribute);
   ::cuda::__driver::__call_driver_fn(__driver_fn, "Failed to set kernel node parameters", __node, __id, &__value);
@@ -963,29 +1048,31 @@ __deviceCanAccessPeer(::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevi
   int& __result, ::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevice __peer_dev) noexcept
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuDeviceCanAccessPeer);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(&__result, __dev, __peer_dev));
+  return __driver_fn(&__result, __dev, __peer_dev);
 }
 
 // Green contexts
 
 #  if _CCCL_CTK_AT_LEAST(12, 5)
 // Add actual resource description input once exposure is ready
-[[nodiscard]] _CCCL_HOST_API inline ::CUgreenCtx __greenCtxCreate(::cuda::__driver::CUdevice __dev)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUgreenCtx __greenCtxCreate(::cuda::__driver::CUdevice __dev)
 {
-  ::CUgreenCtx __result;
+  ::cuda::__driver::CUgreenCtx __result;
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuGreenCtxCreate, cuGreenCtxCreate, 12, 5);
   ::cuda::__driver::__call_driver_fn(
-    __driver_fn, "Failed to create a green context", &__result, nullptr, __dev, ::CU_GREEN_CTX_DEFAULT_STREAM);
+    __driver_fn, "Failed to create a green context", &__result, nullptr, __dev, CCCL_CU_GREEN_CTX_DEFAULT_STREAM);
   return __result;
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult __greenCtxDestroyNoThrow(::CUgreenCtx __green_ctx)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUresult
+__greenCtxDestroyNoThrow(::cuda::__driver::CUgreenCtx __green_ctx)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuGreenCtxDestroy, cuGreenCtxDestroy, 12, 5);
-  return static_cast<::cuda::__driver::CUresult>(__driver_fn(__green_ctx));
+  return __driver_fn(__green_ctx);
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUcontext __ctxFromGreenCtx(::CUgreenCtx __green_ctx)
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUcontext
+__ctxFromGreenCtx(::cuda::__driver::CUgreenCtx __green_ctx)
 {
   ::cuda::__driver::CUcontext __result;
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuCtxFromGreenCtx, cuCtxFromGreenCtx, 12, 5);
@@ -995,7 +1082,7 @@ __deviceCanAccessPeer(::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevi
 #  endif // _CCCL_CTK_AT_LEAST(12, 5)
 
 #  if _CCCL_CTK_AT_LEAST(13, 0)
-[[nodiscard]] _CCCL_HOST_API inline unsigned long long __greenCtxGetId(::CUgreenCtx __green_ctx)
+[[nodiscard]] _CCCL_HOST_API inline unsigned long long __greenCtxGetId(::cuda::__driver::CUgreenCtx __green_ctx)
 {
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED(cuGreenCtxGetId, cuGreenCtxGetId, 13, 0);
   unsigned long long __id;
@@ -1005,66 +1092,66 @@ __deviceCanAccessPeer(::cuda::__driver::CUdevice __dev, ::cuda::__driver::CUdevi
 #  endif // _CCCL_CTK_AT_LEAST(13, 0)
 
 [[nodiscard]] _CCCL_HOST_API inline ::cuda::std::size_t
-__cutensormap_size_bytes(::cuda::std::size_t __num_items, ::CUtensorMapDataType __data_type)
+__cutensormap_size_bytes(::cuda::std::size_t __num_items, ::cuda::__driver::CUtensorMapDataType __data_type)
 {
   constexpr auto __max_size = ::cuda::std::numeric_limits<::cuda::std::size_t>::max();
   switch (__data_type)
   {
-    case ::CU_TENSOR_MAP_DATA_TYPE_UINT8:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_UINT8:
 #  if _CCCL_CTK_AT_LEAST(12, 8)
-    case ::CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_16U6_ALIGN16B:
 #  endif // _CCCL_CTK_AT_LEAST(12, 8)
       return __num_items;
-    case ::CU_TENSOR_MAP_DATA_TYPE_UINT16:
-    case ::CU_TENSOR_MAP_DATA_TYPE_BFLOAT16:
-    case ::CU_TENSOR_MAP_DATA_TYPE_FLOAT16:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_UINT16:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_BFLOAT16:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_FLOAT16:
       if (__num_items > __max_size / 2)
       {
         _CCCL_THROW(::std::invalid_argument, "Number of items must be less than or equal to 2^64 / 2");
       }
       return __num_items * 2;
-    case ::CU_TENSOR_MAP_DATA_TYPE_INT32:
-    case ::CU_TENSOR_MAP_DATA_TYPE_UINT32:
-    case ::CU_TENSOR_MAP_DATA_TYPE_FLOAT32:
-    case ::CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ:
-    case ::CU_TENSOR_MAP_DATA_TYPE_TFLOAT32:
-    case ::CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_INT32:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_UINT32:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_FLOAT32:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_FLOAT32_FTZ:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_TFLOAT32:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_TFLOAT32_FTZ:
       if (__num_items > __max_size / 4)
       {
         _CCCL_THROW(::std::invalid_argument, "Number of items must be less than or equal to 2^64 / 4");
       }
       return __num_items * 4;
-    case ::CU_TENSOR_MAP_DATA_TYPE_INT64:
-    case ::CU_TENSOR_MAP_DATA_TYPE_UINT64:
-    case ::CU_TENSOR_MAP_DATA_TYPE_FLOAT64:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_INT64:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_UINT64:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_FLOAT64:
       if (__num_items > __max_size / 8)
       {
         _CCCL_THROW(::std::invalid_argument, "Number of items must be less than or equal to 2^64 / 8");
       }
       return __num_items * 8;
 #  if _CCCL_CTK_AT_LEAST(12, 8)
-    case ::CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B:
-    case ::CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN8B:
+    case CCCL_CU_TENSOR_MAP_DATA_TYPE_16U4_ALIGN16B:
       return __num_items / 2;
 #  endif // _CCCL_CTK_AT_LEAST(12, 8)
   }
   return 0; // MSVC workaround
 }
 
-[[nodiscard]] _CCCL_HOST_API inline ::CUtensorMap __tensorMapEncodeTiled(
-  ::CUtensorMapDataType __tensorDataType,
+[[nodiscard]] _CCCL_HOST_API inline ::cuda::__driver::CUtensorMap __tensorMapEncodeTiled(
+  ::cuda::__driver::CUtensorMapDataType __tensorDataType,
   ::cuda::std::uint32_t __tensorRank,
   void* __globalAddress,
   const ::cuda::std::uint64_t* __globalDim,
   const ::cuda::std::uint64_t* __globalStrides,
   const ::cuda::std::uint32_t* __boxDim,
   const ::cuda::std::uint32_t* __elementStrides,
-  ::CUtensorMapInterleave __interleave,
-  ::CUtensorMapSwizzle __swizzle,
-  ::CUtensorMapL2promotion __l2Promotion,
-  ::CUtensorMapFloatOOBfill __oobFill)
+  ::cuda::__driver::CUtensorMapInterleave __interleave,
+  ::cuda::__driver::CUtensorMapSwizzle __swizzle,
+  ::cuda::__driver::CUtensorMapL2promotion __l2Promotion,
+  ::cuda::__driver::CUtensorMapFloatOOBfill __oobFill)
 {
-  ::CUtensorMap __tensorMap{};
+  ::cuda::__driver::CUtensorMap __tensorMap{};
   static auto __driver_fn = _CCCLRT_GET_DRIVER_FUNCTION(cuTensorMapEncodeTiled);
   __call_driver_fn(
     __driver_fn,
@@ -1102,6 +1189,7 @@ __cutensormap_size_bytes(::cuda::std::size_t __num_items, ::CUtensorMapDataType 
 
 #  undef _CCCLRT_GET_DRIVER_FUNCTION
 #  undef _CCCLRT_GET_DRIVER_FUNCTION_VERSIONED
+#  undef _CCCLRT_CHECK_ABI_COMPATIBLE
 
 _CCCL_END_NAMESPACE_CUDA_DRIVER
 
