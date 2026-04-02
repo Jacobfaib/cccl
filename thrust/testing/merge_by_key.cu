@@ -218,7 +218,7 @@ void TestMergeByKeyToDiscardIterator(size_t n)
   const thrust::device_vector<T> d_a_vals = h_a_vals;
   const thrust::device_vector<T> d_b_vals = h_b_vals;
 
-  using discard_pair = cuda::std::pair<cuda::discard_iterator<>, cuda::discard_iterator<>>;
+  using discard_pair = cuda::std::pair<cuda::discard_iterator, cuda::discard_iterator>;
 
   const discard_pair h_result = thrust::merge_by_key(
     h_a_keys.begin(),
@@ -240,7 +240,7 @@ void TestMergeByKeyToDiscardIterator(size_t n)
     cuda::make_discard_iterator(),
     cuda::make_discard_iterator());
 
-  const cuda::discard_iterator<> reference(2 * n);
+  const cuda::discard_iterator reference(2 * n);
 
   ASSERT_EQUAL_QUIET(reference, h_result.first);
   ASSERT_EQUAL_QUIET(reference, h_result.second);

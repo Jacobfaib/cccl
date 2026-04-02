@@ -135,8 +135,8 @@ void TestSetUnionToDiscardIterator(const size_t n)
   thrust::device_vector<T> d_a = h_a;
   thrust::device_vector<T> d_b = h_b;
 
-  cuda::discard_iterator<> h_result;
-  cuda::discard_iterator<> d_result;
+  cuda::discard_iterator h_result;
+  cuda::discard_iterator d_result;
 
   thrust::host_vector<T> h_reference(2 * n);
   typename thrust::host_vector<T>::iterator h_end =
@@ -147,7 +147,7 @@ void TestSetUnionToDiscardIterator(const size_t n)
 
   d_result = thrust::set_union(d_a.begin(), d_a.end(), d_b.begin(), d_b.end(), cuda::make_discard_iterator());
 
-  cuda::discard_iterator<> reference(h_reference.size());
+  cuda::discard_iterator reference(h_reference.size());
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

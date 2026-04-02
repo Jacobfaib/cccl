@@ -98,8 +98,7 @@ _CCCL_HOST_DEVICE void shuffle_copy(
   thrust::transform_iterator<construct_key_flag_op, decltype(indices), key_flag_tuple> key_flag_it(
     indices, construct_key_flag_op(m, bijection));
   write_output_op<RandomIterator, decltype(result)> write_functor{m, first, result};
-  auto gather_output_it =
-    thrust::make_transform_output_iterator(::cuda::discard_iterator<std::size_t>(), write_functor);
+  auto gather_output_it = thrust::make_transform_output_iterator(::cuda::discard_iterator(), write_functor);
   // the feistel_bijection outputs a stream of permuted indices in range [0,n)
   // flag each value < m and compact it, so we have a set of permuted indices in
   // range [0,m) each thread gathers an input element according to its

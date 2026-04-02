@@ -336,31 +336,31 @@ struct TestUniqueCopyByKeyToDiscardIterator
     size_t num_unique_keys = h_unique_keys.size();
 
     // mask both outputs
-    cuda::std::pair<cuda::discard_iterator<>, cuda::discard_iterator<>> h_result1 = thrust::unique_by_key_copy(
+    cuda::std::pair<cuda::discard_iterator, cuda::discard_iterator> h_result1 = thrust::unique_by_key_copy(
       h_keys.begin(), h_keys.end(), h_vals.begin(), cuda::make_discard_iterator(), cuda::make_discard_iterator());
 
-    cuda::std::pair<cuda::discard_iterator<>, cuda::discard_iterator<>> d_result1 = thrust::unique_by_key_copy(
+    cuda::std::pair<cuda::discard_iterator, cuda::discard_iterator> d_result1 = thrust::unique_by_key_copy(
       d_keys.begin(), d_keys.end(), d_vals.begin(), cuda::make_discard_iterator(), cuda::make_discard_iterator());
 
-    cuda::std::pair<cuda::discard_iterator<>, cuda::discard_iterator<>> reference1 =
+    cuda::std::pair<cuda::discard_iterator, cuda::discard_iterator> reference1 =
       cuda::std::make_pair(cuda::make_discard_iterator(num_unique_keys), cuda::make_discard_iterator(num_unique_keys));
 
     ASSERT_EQUAL_QUIET(reference1, h_result1);
     ASSERT_EQUAL_QUIET(reference1, d_result1);
 
     // mask values output
-    cuda::std::pair<typename thrust::host_vector<K>::iterator, cuda::discard_iterator<>> h_result2 =
+    cuda::std::pair<typename thrust::host_vector<K>::iterator, cuda::discard_iterator> h_result2 =
       thrust::unique_by_key_copy(
         h_keys.begin(), h_keys.end(), h_vals.begin(), h_keys_output.begin(), cuda::make_discard_iterator());
 
-    cuda::std::pair<typename thrust::device_vector<K>::iterator, cuda::discard_iterator<>> d_result2 =
+    cuda::std::pair<typename thrust::device_vector<K>::iterator, cuda::discard_iterator> d_result2 =
       thrust::unique_by_key_copy(
         d_keys.begin(), d_keys.end(), d_vals.begin(), d_keys_output.begin(), cuda::make_discard_iterator());
 
-    cuda::std::pair<typename thrust::host_vector<K>::iterator, cuda::discard_iterator<>> h_reference2 =
+    cuda::std::pair<typename thrust::host_vector<K>::iterator, cuda::discard_iterator> h_reference2 =
       cuda::std::make_pair(h_keys_output.begin() + num_unique_keys, cuda::make_discard_iterator(num_unique_keys));
 
-    cuda::std::pair<typename thrust::device_vector<K>::iterator, cuda::discard_iterator<>> d_reference2 =
+    cuda::std::pair<typename thrust::device_vector<K>::iterator, cuda::discard_iterator> d_reference2 =
       cuda::std::make_pair(d_keys_output.begin() + num_unique_keys, cuda::make_discard_iterator(num_unique_keys));
 
     ASSERT_EQUAL(h_keys_output, d_keys_output);
@@ -368,18 +368,18 @@ struct TestUniqueCopyByKeyToDiscardIterator
     ASSERT_EQUAL_QUIET(d_reference2, d_result2);
 
     // mask keys output
-    cuda::std::pair<cuda::discard_iterator<>, typename thrust::host_vector<V>::iterator> h_result3 =
+    cuda::std::pair<cuda::discard_iterator, typename thrust::host_vector<V>::iterator> h_result3 =
       thrust::unique_by_key_copy(
         h_keys.begin(), h_keys.end(), h_vals.begin(), cuda::make_discard_iterator(), h_vals_output.begin());
 
-    cuda::std::pair<cuda::discard_iterator<>, typename thrust::device_vector<V>::iterator> d_result3 =
+    cuda::std::pair<cuda::discard_iterator, typename thrust::device_vector<V>::iterator> d_result3 =
       thrust::unique_by_key_copy(
         d_keys.begin(), d_keys.end(), d_vals.begin(), cuda::make_discard_iterator(), d_vals_output.begin());
 
-    cuda::std::pair<cuda::discard_iterator<>, typename thrust::host_vector<V>::iterator> h_reference3 =
+    cuda::std::pair<cuda::discard_iterator, typename thrust::host_vector<V>::iterator> h_reference3 =
       cuda::std::make_pair(cuda::make_discard_iterator(num_unique_keys), h_vals_output.begin() + num_unique_keys);
 
-    cuda::std::pair<cuda::discard_iterator<>, typename thrust::device_vector<V>::iterator> d_reference3 =
+    cuda::std::pair<cuda::discard_iterator, typename thrust::device_vector<V>::iterator> d_reference3 =
       cuda::std::make_pair(cuda::make_discard_iterator(num_unique_keys), d_vals_output.begin() + num_unique_keys);
 
     ASSERT_EQUAL(h_vals_output, d_vals_output);

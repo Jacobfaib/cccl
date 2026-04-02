@@ -344,12 +344,12 @@ struct TestVectorLowerBoundDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(2 * n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::lower_bound(h_vec.begin(), h_vec.end(), h_input.begin(), h_input.end(), cuda::make_discard_iterator());
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::lower_bound(d_vec.begin(), d_vec.end(), d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> reference(2 * n);
+    cuda::discard_iterator reference(2 * n);
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);
@@ -369,12 +369,12 @@ struct TestVectorUpperBoundDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(2 * n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::upper_bound(h_vec.begin(), h_vec.end(), h_input.begin(), h_input.end(), cuda::make_discard_iterator());
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::upper_bound(d_vec.begin(), d_vec.end(), d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> reference(2 * n);
+    cuda::discard_iterator reference(2 * n);
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);
@@ -394,12 +394,12 @@ struct TestVectorBinarySearchDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(2 * n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::binary_search(h_vec.begin(), h_vec.end(), h_input.begin(), h_input.end(), cuda::make_discard_iterator());
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::binary_search(d_vec.begin(), d_vec.end(), d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> reference(2 * n);
+    cuda::discard_iterator reference(2 * n);
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);

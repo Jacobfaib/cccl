@@ -128,7 +128,7 @@ template <typename Vector>
 void SetIntersectionSize(const Vector& A, const Vector& B)
 {
   // computes the exact size of the intersection without allocating output
-  cuda::discard_iterator<> C_begin, C_end;
+  cuda::discard_iterator C_begin, C_end;
 
   C_end = thrust::set_intersection(A.begin(), A.end(), B.begin(), B.end(), C_begin);
 
