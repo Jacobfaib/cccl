@@ -24,6 +24,7 @@
 #include <cub/device/dispatch/kernels/scan_warpspeed_policy.cuh>
 #include <cub/thread/thread_reduce.cuh>
 #include <cub/thread/thread_scan.cuh>
+#include <cub/util_type.cuh>
 #include <cub/warp/warp_reduce.cuh>
 #include <cub/warp/warp_scan.cuh>
 
@@ -935,8 +936,8 @@ _CCCL_API constexpr bool use_warpspeed(
 template <typename InputIteratorT, typename OutputIteratorT, typename AccumT>
 _CCCL_API constexpr bool use_warpspeed(const scan_warpspeed_policy& policy)
 {
-  using InputT  = it_value_t<InputIteratorT>;
-  using OutputT = it_value_t<OutputIteratorT>;
+  using InputT  = non_void_value_t<InputIteratorT, it_value_t<OutputIteratorT>>;
+  using OutputT = non_void_value_t<OutputIteratorT, it_value_t<InputIteratorT>>;
   return use_warpspeed(
     policy,
     static_cast<int>(sizeof(InputT)),
