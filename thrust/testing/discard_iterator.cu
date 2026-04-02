@@ -1,3 +1,5 @@
+#define CCCL_IGNORE_DEPRECATED_API
+
 #include <thrust/iterator/discard_iterator.h>
 
 #include <cuda/std/tuple>
