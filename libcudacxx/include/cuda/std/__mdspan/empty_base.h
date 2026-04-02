@@ -127,7 +127,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __mdspan_ebco<_Elem1> : __mdspan_ebco_impl<0, 
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y)
+  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
   }
@@ -219,7 +219,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __mdspan_ebco<_Elem1, _Elem2>
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y)
+  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
     swap(__x.__get<1>(), __y.__get<1>());
@@ -346,7 +346,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __mdspan_ebco<_Elem1, _Elem2, _Elem3>
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y)
+  _CCCL_API friend constexpr void swap(__mdspan_ebco& __x, __mdspan_ebco& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
     swap(__x.__get<1>(), __y.__get<1>());

@@ -667,7 +667,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __compressed_movable_box<_Elem1> : __compresse
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y)
+  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
   }
@@ -752,7 +752,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __compressed_movable_box<_Elem1, _Elem2>
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y)
+  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
     swap(__x.__get<1>(), __y.__get<1>());
@@ -874,7 +874,7 @@ struct _CCCL_DECLSPEC_EMPTY_BASES __compressed_movable_box<_Elem1, _Elem2, _Elem
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y)
+  _CCCL_API friend constexpr void swap(__compressed_movable_box& __x, __compressed_movable_box& __y) noexcept
   {
     swap(__x.__get<0>(), __y.__get<0>());
     swap(__x.__get<1>(), __y.__get<1>());
