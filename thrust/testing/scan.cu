@@ -302,12 +302,12 @@ struct TestScanWithOperatorToDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> reference(n);
+    cuda::discard_iterator reference(n);
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::inclusive_scan(h_input.begin(), h_input.end(), cuda::make_discard_iterator(), cuda::maximum<T>{});
 
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::inclusive_scan(d_input.begin(), d_input.end(), cuda::make_discard_iterator(), cuda::maximum<T>{});
 
     ASSERT_EQUAL_QUIET(reference, h_result);
@@ -374,13 +374,13 @@ struct TestScanToDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::inclusive_scan(h_input.begin(), h_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::inclusive_scan(d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> reference(n);
+    cuda::discard_iterator reference(n);
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);

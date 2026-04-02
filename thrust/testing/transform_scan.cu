@@ -326,12 +326,12 @@ struct TestTransformScanToDiscardIterator
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> reference(n);
+    cuda::discard_iterator reference(n);
 
-    cuda::discard_iterator<> h_result = thrust::transform_inclusive_scan(
+    cuda::discard_iterator h_result = thrust::transform_inclusive_scan(
       h_input.begin(), h_input.end(), cuda::make_discard_iterator(), ::cuda::std::negate<T>(), ::cuda::std::plus<T>());
 
-    cuda::discard_iterator<> d_result = thrust::transform_inclusive_scan(
+    cuda::discard_iterator d_result = thrust::transform_inclusive_scan(
       d_input.begin(), d_input.end(), cuda::make_discard_iterator(), ::cuda::std::negate<T>(), ::cuda::std::plus<T>());
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);

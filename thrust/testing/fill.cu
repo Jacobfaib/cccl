@@ -43,11 +43,9 @@ DECLARE_VECTOR_UNITTEST(TestFillSimple);
 void TestFillDiscardIterator()
 {
   // there's no result to check because fill returns void
-  thrust::fill(
-    cuda::discard_iterator<thrust::host_system_tag>(), cuda::discard_iterator<thrust::host_system_tag>(10), 13);
+  thrust::fill(thrust::host, cuda::discard_iterator(), cuda::discard_iterator(10), 13);
 
-  thrust::fill(
-    cuda::discard_iterator<thrust::device_system_tag>(), cuda::discard_iterator<thrust::device_system_tag>(10), 13);
+  thrust::fill(thrust::device, cuda::discard_iterator(), cuda::discard_iterator(10), 13);
 }
 DECLARE_UNITTEST(TestFillDiscardIterator);
 
@@ -140,13 +138,11 @@ DECLARE_VECTOR_UNITTEST(TestFillNSimple);
 
 void TestFillNDiscardIterator()
 {
-  cuda::discard_iterator<thrust::host_system_tag> h_result =
-    thrust::fill_n(cuda::discard_iterator<thrust::host_system_tag>(), 10, 13);
+  cuda::discard_iterator h_result = thrust::fill_n(thrust::host, cuda::discard_iterator(), 10, 13);
 
-  cuda::discard_iterator<thrust::device_system_tag> d_result =
-    thrust::fill_n(cuda::discard_iterator<thrust::device_system_tag>(), 10, 13);
+  cuda::discard_iterator d_result = thrust::fill_n(thrust::device, cuda::discard_iterator(), 10, 13);
 
-  cuda::discard_iterator<> reference(10);
+  cuda::discard_iterator reference(10);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

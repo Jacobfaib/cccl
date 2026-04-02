@@ -113,12 +113,12 @@ TEMPLATE_LIST_TEST_CASE("AdjacentDifferenceDiscardIterator", "[adjacent_differen
     thrust::host_vector<T> h_input   = unittest::random_samples<T>(n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator<> h_result =
+    cuda::discard_iterator h_result =
       thrust::adjacent_difference(h_input.begin(), h_input.end(), cuda::make_discard_iterator());
-    cuda::discard_iterator<> d_result =
+    cuda::discard_iterator d_result =
       thrust::adjacent_difference(d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> reference(n);
+    cuda::discard_iterator reference(n);
 
     CHECK((reference == h_result));
     CHECK((reference == d_result));

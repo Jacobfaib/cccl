@@ -90,15 +90,9 @@ void TestSequence(size_t n)
 DECLARE_VARIABLE_UNITTEST(TestSequence);
 
 template <typename T>
-void TestSequenceToDiscardIterator(size_t n)
+void TestSequenceToDiscardIterator(size_t)
 {
-  thrust::host_vector<T> h_data(n);
-  thrust::device_vector<T> d_data(n);
-
-  thrust::sequence(cuda::discard_iterator<thrust::device_system_tag>(),
-                   cuda::discard_iterator<thrust::device_system_tag>(13),
-                   T(10),
-                   T(2));
+  thrust::sequence(thrust::device, cuda::discard_iterator(), cuda::discard_iterator(13), T(10), T(2));
 
   // nothing to check -- just make sure it compiles
 }

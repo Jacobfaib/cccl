@@ -238,15 +238,13 @@ struct TestUniqueCopyToDiscardIterator
     thrust::host_vector<T> h_unique = h_data;
     h_unique.erase(thrust::unique(h_unique.begin(), h_unique.end()), h_unique.end());
 
-    cuda::discard_iterator<> reference(h_unique.size());
+    cuda::discard_iterator reference(h_unique.size());
 
     typename thrust::device_vector<T>::iterator d_new_last;
 
-    cuda::discard_iterator<> h_result =
-      thrust::unique_copy(h_data.begin(), h_data.end(), cuda::make_discard_iterator());
+    cuda::discard_iterator h_result = thrust::unique_copy(h_data.begin(), h_data.end(), cuda::make_discard_iterator());
 
-    cuda::discard_iterator<> d_result =
-      thrust::unique_copy(d_data.begin(), d_data.end(), cuda::make_discard_iterator());
+    cuda::discard_iterator d_result = thrust::unique_copy(d_data.begin(), d_data.end(), cuda::make_discard_iterator());
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);

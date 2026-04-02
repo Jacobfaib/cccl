@@ -56,13 +56,13 @@ void TestCopyToDiscardIterator()
   thrust::host_vector<T> h_input(5, 1);
   thrust::device_vector<T> d_input = h_input;
 
-  cuda::discard_iterator<> reference(5);
+  cuda::discard_iterator reference(5);
 
   // copy from host_vector
-  cuda::discard_iterator<> h_result = thrust::copy(h_input.begin(), h_input.end(), cuda::make_discard_iterator());
+  cuda::discard_iterator h_result = thrust::copy(h_input.begin(), h_input.end(), cuda::make_discard_iterator());
 
   // copy from device_vector
-  cuda::discard_iterator<> d_result = thrust::copy(d_input.begin(), d_input.end(), cuda::make_discard_iterator());
+  cuda::discard_iterator d_result = thrust::copy(d_input.begin(), d_input.end(), cuda::make_discard_iterator());
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);
@@ -78,10 +78,10 @@ void TestCopyToDiscardIteratorZipped()
 
   thrust::host_vector<T> h_output(5);
   thrust::device_vector<T> d_output(5);
-  cuda::discard_iterator<> reference(5);
+  cuda::discard_iterator reference(5);
 
-  using Tuple1 = cuda::std::tuple<cuda::discard_iterator<>, thrust::host_vector<T>::iterator>;
-  using Tuple2 = cuda::std::tuple<cuda::discard_iterator<>, thrust::device_vector<T>::iterator>;
+  using Tuple1 = cuda::std::tuple<cuda::discard_iterator, thrust::host_vector<T>::iterator>;
+  using Tuple2 = cuda::std::tuple<cuda::discard_iterator, thrust::device_vector<T>::iterator>;
 
   using ZipIterator1 = thrust::zip_iterator<Tuple1>;
   using ZipIterator2 = thrust::zip_iterator<Tuple2>;

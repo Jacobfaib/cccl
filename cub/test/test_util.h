@@ -1149,10 +1149,10 @@ inline int CompareDeviceResults(
  * Verify the contents of a device array match those
  * of a host array
  */
-template <typename S, typename OffsetT>
+template <typename S>
 int CompareDeviceResults(
   S* /*h_reference*/,
-  cuda::discard_iterator<OffsetT> /*d_data*/,
+  cuda::discard_iterator /*d_data*/,
   std::size_t /*num_items*/,
   bool /*verbose*/      = true,
   bool /*display_data*/ = false)
