@@ -1,9 +1,8 @@
 #include <thrust/extrema.h>
 #include <thrust/functional.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/set_operations.h>
 #include <thrust/sort.h>
-
-#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 

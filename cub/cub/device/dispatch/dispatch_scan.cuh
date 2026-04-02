@@ -1031,7 +1031,7 @@ template <typename AccumT,
           typename OffsetT,
           typename PolicySelector =
             policy_selector_from_types<detail::non_void_value_t<InputIteratorT, detail::it_value_t<OutputIteratorT>>,
-                                       detail::it_value_t<OutputIteratorT>,
+                                       detail::non_void_value_t<OutputIteratorT, detail::it_value_t<InputIteratorT>>,
                                        AccumT,
                                        OffsetT,
                                        ScanOpT>,

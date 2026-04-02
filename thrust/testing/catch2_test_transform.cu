@@ -1,9 +1,9 @@
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/transform.h>
 
-#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <cuda/std/utility>
 
@@ -361,13 +361,13 @@ TEMPLATE_LIST_TEST_CASE("UnaryToDiscardIterator", "[transform]", variable_list)
     thrust::host_vector<T> h_input   = unittest::random_integers<T>(n);
     thrust::device_vector<T> d_input = h_input;
 
-    cuda::discard_iterator h_result =
-      thrust::transform(h_input.begin(), h_input.end(), cuda::make_discard_iterator(), ::cuda::std::negate<T>());
+    thrust::discard_iterator<> h_result =
+      thrust::transform(h_input.begin(), h_input.end(), thrust::make_discard_iterator(), ::cuda::std::negate<T>());
 
-    cuda::discard_iterator d_result =
-      thrust::transform(d_input.begin(), d_input.end(), cuda::make_discard_iterator(), ::cuda::std::negate<T>());
+    thrust::discard_iterator<> d_result =
+      thrust::transform(d_input.begin(), d_input.end(), thrust::make_discard_iterator(), ::cuda::std::negate<T>());
 
-    cuda::discard_iterator reference(n);
+    thrust::discard_iterator<> reference(n);
 
     CHECK((reference == h_result));
     CHECK((reference == d_result));
@@ -397,20 +397,20 @@ TEMPLATE_LIST_TEST_CASE("UnaryToDiscardIteratorZipped", "[transform]", variable_
     using Iterator1 = typename thrust::host_vector<T>::iterator;
     using Iterator2 = typename thrust::device_vector<T>::iterator;
 
-    using Tuple1 = cuda::std::tuple<Iterator1, cuda::discard_iterator>;
-    using Tuple2 = cuda::std::tuple<Iterator2, cuda::discard_iterator>;
+    using Tuple1 = cuda::std::tuple<Iterator1, thrust::discard_iterator<>>;
+    using Tuple2 = cuda::std::tuple<Iterator2, thrust::discard_iterator<>>;
 
     using ZipIterator1 = thrust::zip_iterator<Tuple1>;
     using ZipIterator2 = thrust::zip_iterator<Tuple2>;
 
-    ZipIterator1 z1(cuda::std::tuple(h_output.begin(), cuda::make_discard_iterator()));
-    ZipIterator2 z2(cuda::std::tuple(d_output.begin(), cuda::make_discard_iterator()));
+    ZipIterator1 z1(cuda::std::tuple(h_output.begin(), thrust::make_discard_iterator()));
+    ZipIterator2 z2(cuda::std::tuple(d_output.begin(), thrust::make_discard_iterator()));
 
     ZipIterator1 h_result = thrust::transform(h_input.begin(), h_input.end(), z1, repeat2());
 
     ZipIterator2 d_result = thrust::transform(d_input.begin(), d_input.end(), z2, repeat2());
 
-    cuda::discard_iterator reference(n);
+    thrust::discard_iterator<> reference(n);
 
     CHECK(h_output == d_output);
 
@@ -480,23 +480,23 @@ TEMPLATE_LIST_TEST_CASE("UnaryToDiscardIterator", "[transform_if]", variable_lis
     thrust::device_vector<T> d_input   = h_input;
     thrust::device_vector<T> d_stencil = h_stencil;
 
-    cuda::discard_iterator h_result = thrust::transform_if(
+    thrust::discard_iterator<> h_result = thrust::transform_if(
       h_input.begin(),
       h_input.end(),
       h_stencil.begin(),
-      cuda::make_discard_iterator(),
+      thrust::make_discard_iterator(),
       ::cuda::std::negate<T>(),
       is_positive());
 
-    cuda::discard_iterator d_result = thrust::transform_if(
+    thrust::discard_iterator<> d_result = thrust::transform_if(
       d_input.begin(),
       d_input.end(),
       d_stencil.begin(),
-      cuda::make_discard_iterator(),
+      thrust::make_discard_iterator(),
       ::cuda::std::negate<T>(),
       is_positive());
 
-    cuda::discard_iterator reference(n);
+    thrust::discard_iterator<> reference(n);
 
     CHECK((reference == h_result));
     CHECK((reference == d_result));
@@ -540,12 +540,12 @@ TEMPLATE_LIST_TEST_CASE("BinaryToDiscardIterator", "[transform]", variable_list)
     thrust::device_vector<T> d_input1 = h_input1;
     thrust::device_vector<T> d_input2 = h_input2;
 
-    cuda::discard_iterator h_result = thrust::transform(
-      h_input1.begin(), h_input1.end(), h_input2.begin(), cuda::make_discard_iterator(), ::cuda::std::minus<T>());
-    cuda::discard_iterator d_result = thrust::transform(
-      d_input1.begin(), d_input1.end(), d_input2.begin(), cuda::make_discard_iterator(), ::cuda::std::minus<T>());
+    thrust::discard_iterator<> h_result = thrust::transform(
+      h_input1.begin(), h_input1.end(), h_input2.begin(), thrust::make_discard_iterator(), ::cuda::std::minus<T>());
+    thrust::discard_iterator<> d_result = thrust::transform(
+      d_input1.begin(), d_input1.end(), d_input2.begin(), thrust::make_discard_iterator(), ::cuda::std::minus<T>());
 
-    cuda::discard_iterator reference(n);
+    thrust::discard_iterator<> reference(n);
 
     CHECK((reference == h_result));
     CHECK((reference == d_result));
@@ -625,25 +625,25 @@ TEMPLATE_LIST_TEST_CASE("BinaryToDiscardIterator", "[transform_if]", variable_li
     thrust::device_vector<T> d_input2  = h_input2;
     thrust::device_vector<T> d_stencil = h_stencil;
 
-    cuda::discard_iterator h_result = thrust::transform_if(
+    thrust::discard_iterator<> h_result = thrust::transform_if(
       h_input1.begin(),
       h_input1.end(),
       h_input2.begin(),
       h_stencil.begin(),
-      cuda::make_discard_iterator(),
+      thrust::make_discard_iterator(),
       ::cuda::std::minus<T>(),
       is_positive());
 
-    cuda::discard_iterator d_result = thrust::transform_if(
+    thrust::discard_iterator<> d_result = thrust::transform_if(
       d_input1.begin(),
       d_input1.end(),
       d_input2.begin(),
       d_stencil.begin(),
-      cuda::make_discard_iterator(),
+      thrust::make_discard_iterator(),
       ::cuda::std::minus<T>(),
       is_positive());
 
-    cuda::discard_iterator reference(n);
+    thrust::discard_iterator<> reference(n);
 
     CHECK((reference == h_result));
     CHECK((reference == d_result));

@@ -1,10 +1,9 @@
 #include <thrust/count.h>
 #include <thrust/functional.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/remove.h>
-
-#include <cuda/iterator>
 
 #include <stdexcept>
 
@@ -441,13 +440,13 @@ void TestRemoveCopyToDiscardIterator(const size_t n)
   size_t num_zeros    = thrust::count(h_data.begin(), h_data.end(), T(0));
   size_t num_nonzeros = h_data.size() - num_zeros;
 
-  cuda::discard_iterator h_result =
-    thrust::remove_copy(h_data.begin(), h_data.end(), cuda::make_discard_iterator(), T(0));
+  thrust::discard_iterator<> h_result =
+    thrust::remove_copy(h_data.begin(), h_data.end(), thrust::make_discard_iterator(), T(0));
 
-  cuda::discard_iterator d_result =
-    thrust::remove_copy(d_data.begin(), d_data.end(), cuda::make_discard_iterator(), T(0));
+  thrust::discard_iterator<> d_result =
+    thrust::remove_copy(d_data.begin(), d_data.end(), thrust::make_discard_iterator(), T(0));
 
-  cuda::discard_iterator reference(num_nonzeros);
+  thrust::discard_iterator<> reference(num_nonzeros);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);
@@ -466,8 +465,8 @@ void TestRemoveCopyToDiscardIteratorZipped(const size_t n)
   size_t num_zeros    = thrust::count(h_data.begin(), h_data.end(), T(0));
   size_t num_nonzeros = h_data.size() - num_zeros;
 
-  using Tuple1 = cuda::std::tuple<typename thrust::host_vector<T>::iterator, cuda::discard_iterator>;
-  using Tuple2 = cuda::std::tuple<typename thrust::device_vector<T>::iterator, cuda::discard_iterator>;
+  using Tuple1 = cuda::std::tuple<typename thrust::host_vector<T>::iterator, thrust::discard_iterator<>>;
+  using Tuple2 = cuda::std::tuple<typename thrust::device_vector<T>::iterator, thrust::discard_iterator<>>;
 
   using ZipIterator1 = thrust::zip_iterator<Tuple1>;
   using ZipIterator2 = thrust::zip_iterator<Tuple2>;
@@ -475,16 +474,16 @@ void TestRemoveCopyToDiscardIteratorZipped(const size_t n)
   ZipIterator1 h_result = thrust::remove_copy(
     thrust::make_zip_iterator(h_data.begin(), h_data.begin()),
     thrust::make_zip_iterator(h_data.end(), h_data.end()),
-    thrust::make_zip_iterator(h_output.begin(), cuda::make_discard_iterator()),
+    thrust::make_zip_iterator(h_output.begin(), thrust::make_discard_iterator()),
     cuda::std::tuple(T(0), T(0)));
 
   ZipIterator2 d_result = thrust::remove_copy(
     thrust::make_zip_iterator(d_data.begin(), d_data.begin()),
     thrust::make_zip_iterator(d_data.end(), d_data.end()),
-    thrust::make_zip_iterator(d_output.begin(), cuda::make_discard_iterator()),
+    thrust::make_zip_iterator(d_output.begin(), thrust::make_discard_iterator()),
     cuda::std::tuple(T(0), T(0)));
 
-  cuda::discard_iterator reference(num_nonzeros);
+  thrust::discard_iterator<> reference(num_nonzeros);
 
   ASSERT_EQUAL(h_output, d_output);
   ASSERT_EQUAL_QUIET(reference, cuda::std::get<1>(h_result.get_iterator_tuple()));
@@ -523,13 +522,13 @@ void TestRemoveCopyIfToDiscardIterator(const size_t n)
 
   size_t num_false = thrust::count_if(h_data.begin(), h_data.end(), ::cuda::std::not_fn(is_true<T>()));
 
-  cuda::discard_iterator h_result =
-    thrust::remove_copy_if(h_data.begin(), h_data.end(), cuda::make_discard_iterator(), is_true<T>());
+  thrust::discard_iterator<> h_result =
+    thrust::remove_copy_if(h_data.begin(), h_data.end(), thrust::make_discard_iterator(), is_true<T>());
 
-  cuda::discard_iterator d_result =
-    thrust::remove_copy_if(d_data.begin(), d_data.end(), cuda::make_discard_iterator(), is_true<T>());
+  thrust::discard_iterator<> d_result =
+    thrust::remove_copy_if(d_data.begin(), d_data.end(), thrust::make_discard_iterator(), is_true<T>());
 
-  cuda::discard_iterator reference(num_false);
+  thrust::discard_iterator<> reference(num_false);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);
@@ -575,13 +574,13 @@ void TestRemoveCopyIfStencilToDiscardIterator(const size_t n)
 
   size_t num_false = thrust::count_if(h_stencil.begin(), h_stencil.end(), ::cuda::std::not_fn(is_true<T>()));
 
-  cuda::discard_iterator h_result = thrust::remove_copy_if(
-    h_data.begin(), h_data.end(), h_stencil.begin(), cuda::make_discard_iterator(), is_true<T>());
+  thrust::discard_iterator<> h_result = thrust::remove_copy_if(
+    h_data.begin(), h_data.end(), h_stencil.begin(), thrust::make_discard_iterator(), is_true<T>());
 
-  cuda::discard_iterator d_result = thrust::remove_copy_if(
-    d_data.begin(), d_data.end(), d_stencil.begin(), cuda::make_discard_iterator(), is_true<T>());
+  thrust::discard_iterator<> d_result = thrust::remove_copy_if(
+    d_data.begin(), d_data.end(), d_stencil.begin(), thrust::make_discard_iterator(), is_true<T>());
 
-  cuda::discard_iterator reference(num_false);
+  thrust::discard_iterator<> reference(num_false);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

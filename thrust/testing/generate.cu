@@ -1,7 +1,6 @@
 #include <thrust/generate.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
-
-#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -97,11 +96,11 @@ void TestGenerateToDiscardIterator(const size_t)
   T value = 13;
   return_value<T> f(value);
 
-  cuda::discard_iterator h_first;
-  thrust::generate(thrust::host, h_first, h_first + 10, f);
+  thrust::discard_iterator<thrust::host_system_tag> h_first;
+  thrust::generate(h_first, h_first + 10, f);
 
-  cuda::discard_iterator d_first;
-  thrust::generate(thrust::device, d_first, d_first + 10, f);
+  thrust::discard_iterator<thrust::device_system_tag> d_first;
+  thrust::generate(d_first, d_first + 10, f);
 
   // there's nothing to actually check except that it compiles
 }
@@ -166,11 +165,13 @@ void TestGenerateNToDiscardIterator(const size_t n)
   T value = 13;
   return_value<T> f(value);
 
-  cuda::discard_iterator h_result = thrust::generate_n(thrust::host, cuda::discard_iterator(), n, f);
+  thrust::discard_iterator<thrust::host_system_tag> h_result =
+    thrust::generate_n(thrust::discard_iterator<thrust::host_system_tag>(), n, f);
 
-  cuda::discard_iterator d_result = thrust::generate_n(thrust::device, cuda::discard_iterator(), n, f);
+  thrust::discard_iterator<thrust::device_system_tag> d_result =
+    thrust::generate_n(thrust::discard_iterator<thrust::device_system_tag>(), n, f);
 
-  cuda::discard_iterator reference(n);
+  thrust::discard_iterator<> reference(n);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

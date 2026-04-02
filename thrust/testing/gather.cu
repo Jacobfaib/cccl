@@ -1,10 +1,9 @@
 #include <thrust/fill.h>
 #include <thrust/gather.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/sequence.h>
-
-#include <cuda/iterator>
 
 #include <algorithm>
 
@@ -122,13 +121,13 @@ void TestGatherToDiscardIterator(const size_t n)
 
   thrust::device_vector<unsigned int> d_map = h_map;
 
-  cuda::discard_iterator h_result =
-    thrust::gather(h_map.begin(), h_map.end(), h_source.begin(), cuda::make_discard_iterator());
+  thrust::discard_iterator<> h_result =
+    thrust::gather(h_map.begin(), h_map.end(), h_source.begin(), thrust::make_discard_iterator());
 
-  cuda::discard_iterator d_result =
-    thrust::gather(d_map.begin(), d_map.end(), d_source.begin(), cuda::make_discard_iterator());
+  thrust::discard_iterator<> d_result =
+    thrust::gather(d_map.begin(), d_map.end(), d_source.begin(), thrust::make_discard_iterator());
 
-  cuda::discard_iterator reference(n);
+  thrust::discard_iterator<> reference(n);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);
@@ -292,23 +291,23 @@ void TestGatherIfToDiscardIterator(const size_t n)
 
   thrust::device_vector<unsigned int> d_stencil = h_stencil;
 
-  cuda::discard_iterator h_result = thrust::gather_if(
+  thrust::discard_iterator<> h_result = thrust::gather_if(
     h_map.begin(),
     h_map.end(),
     h_stencil.begin(),
     h_source.begin(),
-    cuda::make_discard_iterator(),
+    thrust::make_discard_iterator(),
     is_even_gather_if<unsigned int>());
 
-  cuda::discard_iterator d_result = thrust::gather_if(
+  thrust::discard_iterator<> d_result = thrust::gather_if(
     d_map.begin(),
     d_map.end(),
     d_stencil.begin(),
     d_source.begin(),
-    cuda::make_discard_iterator(),
+    thrust::make_discard_iterator(),
     is_even_gather_if<unsigned int>());
 
-  cuda::discard_iterator reference(n);
+  thrust::discard_iterator<> reference(n);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

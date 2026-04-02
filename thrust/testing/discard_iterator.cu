@@ -1,13 +1,14 @@
-#include <cuda/iterator>
+#include <thrust/iterator/discard_iterator.h>
+
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
 #include <unittest/unittest.h>
 
-// ensure that we properly support cuda::discard_iterator from cuda::std
+// ensure that we properly support thrust::discard_iterator from cuda::std
 void TestDiscardIteratorTraits()
 {
-  using it       = cuda::discard_iterator;
+  using it       = thrust::discard_iterator<>;
   using traits   = cuda::std::iterator_traits<it>;
   using category = thrust::detail::iterator_category_with_system_and_traversal<::cuda::std::random_access_iterator_tag,
                                                                                thrust::any_system_tag,
@@ -34,8 +35,8 @@ DECLARE_UNITTEST(TestDiscardIteratorTraits);
 
 void TestDiscardIteratorIncrement()
 {
-  cuda::discard_iterator lhs(0);
-  cuda::discard_iterator rhs(0);
+  thrust::discard_iterator<> lhs(0);
+  thrust::discard_iterator<> rhs(0);
 
   ASSERT_EQUAL(0, lhs - rhs);
 
@@ -57,13 +58,13 @@ void TestDiscardIteratorIncrement()
   ASSERT_EQUAL(-2, lhs - rhs);
 }
 DECLARE_UNITTEST(TestDiscardIteratorIncrement);
-static_assert(cuda::std::is_trivially_copy_constructible<cuda::discard_iterator>::value, "");
-static_assert(cuda::std::is_trivially_copyable<cuda::discard_iterator>::value, "");
+static_assert(cuda::std::is_trivially_copy_constructible<thrust::discard_iterator<>>::value, "");
+static_assert(cuda::std::is_trivially_copyable<thrust::discard_iterator<>>::value, "");
 
 void TestDiscardIteratorComparison()
 {
-  cuda::discard_iterator iter1(0);
-  cuda::discard_iterator iter2(0);
+  thrust::discard_iterator<> iter1(0);
+  thrust::discard_iterator<> iter2(0);
 
   ASSERT_EQUAL(0, iter1 - iter2);
   ASSERT_EQUAL(true, iter1 == iter2);
@@ -88,11 +89,11 @@ DECLARE_UNITTEST(TestDiscardIteratorComparison);
 
 void TestMakeDiscardIterator()
 {
-  cuda::discard_iterator iter0 = cuda::make_discard_iterator(13);
+  thrust::discard_iterator<> iter0 = thrust::make_discard_iterator(13);
 
   *iter0 = 7;
 
-  cuda::discard_iterator iter1 = cuda::make_discard_iterator(7);
+  thrust::discard_iterator<> iter1 = thrust::make_discard_iterator(7);
 
   *iter1 = 13;
 
@@ -102,10 +103,10 @@ DECLARE_UNITTEST(TestMakeDiscardIterator);
 
 void TestZippedDiscardIterator()
 {
-  using IteratorTuple1 = cuda::std::tuple<cuda::discard_iterator>;
+  using IteratorTuple1 = cuda::std::tuple<thrust::discard_iterator<>>;
   using ZipIterator1   = thrust::zip_iterator<IteratorTuple1>;
 
-  IteratorTuple1 t = cuda::std::tuple(cuda::make_discard_iterator());
+  IteratorTuple1 t = cuda::std::tuple(thrust::make_discard_iterator());
 
   ZipIterator1 z_iter1_first = thrust::make_zip_iterator(t);
   ZipIterator1 z_iter1_last  = z_iter1_first + 10;
@@ -114,12 +115,12 @@ void TestZippedDiscardIterator()
     ;
   }
 
-  ASSERT_EQUAL(10, cuda::std::get<0>(z_iter1_first.get_iterator_tuple()) - cuda::make_discard_iterator());
+  ASSERT_EQUAL(10, cuda::std::get<0>(z_iter1_first.get_iterator_tuple()) - thrust::make_discard_iterator());
 
-  using IteratorTuple2 = cuda::std::tuple<int*, cuda::discard_iterator>;
+  using IteratorTuple2 = cuda::std::tuple<int*, thrust::discard_iterator<>>;
   using ZipIterator2   = thrust::zip_iterator<IteratorTuple2>;
 
-  ZipIterator2 z_iter_first = thrust::make_zip_iterator((int*) 0, cuda::make_discard_iterator());
+  ZipIterator2 z_iter_first = thrust::make_zip_iterator((int*) 0, thrust::make_discard_iterator());
   ZipIterator2 z_iter_last  = z_iter_first + 10;
 
   for (; z_iter_first != z_iter_last; ++z_iter_first)
@@ -127,6 +128,6 @@ void TestZippedDiscardIterator()
     ;
   }
 
-  ASSERT_EQUAL(10, cuda::std::get<1>(z_iter_first.get_iterator_tuple()) - cuda::make_discard_iterator());
+  ASSERT_EQUAL(10, cuda::std::get<1>(z_iter_first.get_iterator_tuple()) - thrust::make_discard_iterator());
 }
 DECLARE_UNITTEST(TestZippedDiscardIterator);
