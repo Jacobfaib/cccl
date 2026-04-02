@@ -1,8 +1,7 @@
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/reduce.h>
 #include <thrust/unique.h>
-
-#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -175,13 +174,13 @@ struct TestReduceByKeyToDiscardIterator
     // discard key output
     size_t h_size =
       thrust::reduce_by_key(
-        h_keys.begin(), h_keys.end(), h_vals.begin(), cuda::make_discard_iterator(), h_vals_output.begin())
+        h_keys.begin(), h_keys.end(), h_vals.begin(), thrust::make_discard_iterator(), h_vals_output.begin())
         .second
       - h_vals_output.begin();
 
     size_t d_size =
       thrust::reduce_by_key(
-        d_keys.begin(), d_keys.end(), d_vals.begin(), cuda::make_discard_iterator(), d_vals_output.begin())
+        d_keys.begin(), d_keys.end(), d_vals.begin(), thrust::make_discard_iterator(), d_vals_output.begin())
         .second
       - d_vals_output.begin();
 

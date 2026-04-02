@@ -3,12 +3,11 @@
 #include <thrust/functional.h>
 #include <thrust/host_vector.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
-
-#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -33,7 +32,7 @@ struct TestTransformOutputIteratorReduceByKey
       h_keys.begin(),
       h_keys.end(),
       thrust::make_transform_iterator(h_values.begin(), ::cuda::std::negate<T>()),
-      cuda::discard_iterator{},
+      thrust::discard_iterator<T>{},
       h_result.begin());
     // run on device
     thrust::reduce_by_key(
@@ -41,7 +40,7 @@ struct TestTransformOutputIteratorReduceByKey
       d_keys.begin(),
       d_keys.end(),
       d_values.begin(),
-      cuda::discard_iterator{},
+      thrust::discard_iterator<T>{},
       thrust::make_transform_output_iterator(d_result.begin(), ::cuda::std::negate<T>()));
 
     ASSERT_EQUAL(h_result, d_result);
