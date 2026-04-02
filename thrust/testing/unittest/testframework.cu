@@ -215,7 +215,11 @@ void report_results(std::vector<TestResult>& test_results, double elapsed_minute
           std::cout << "ERROR";
           num_errors++;
           break;
-        default:
+        case Pass:
+          break;
+        case UnknownException:
+          std::cout << "UNKNOWN EXCEPTION";
+          num_errors++;
           break;
       }
 
@@ -327,7 +331,8 @@ bool UnitTestDriver::run_tests(std::vector<UnitTest*>& tests_to_run, const Argum
           case Error:
             std::cout << "\r[ERROR]             ";
             break;
-          default:
+          case UnknownException:
+            std::cout << "\r[UNKNOWN EXCEPTION] ";
             break;
         }
 
@@ -349,7 +354,8 @@ bool UnitTestDriver::run_tests(std::vector<UnitTest*>& tests_to_run, const Argum
           case Error:
             std::cout << "E";
             break;
-          default:
+          case UnknownException:
+            std::cout << "U";
             break;
         }
       }
