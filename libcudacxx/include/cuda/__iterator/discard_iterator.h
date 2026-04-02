@@ -25,6 +25,7 @@
 #include <cuda/std/__iterator/concepts.h>
 #include <cuda/std/__iterator/default_sentinel.h>
 #include <cuda/std/__iterator/iterator_traits.h>
+#include <cuda/std/__iterator/readable_traits.h>
 #include <cuda/std/__type_traits/is_same.h>
 #include <cuda/std/__type_traits/remove_cvref.h>
 #include <cuda/std/cstdint>
@@ -319,6 +320,20 @@ _CCCL_REQUIRES(::cuda::std::__integer_like<_Integer>)
 //! @}
 
 _CCCL_END_NAMESPACE_CUDA
+
+_CCCL_BEGIN_NAMESPACE_CUDA_STD
+
+// We need to specialize these traits because discard_iterator's value_type is usually
+// void, but you are allowed to read (and write) to it nonetheless. If we don't specialize
+// here, then quite a few downstream algorithms (like zip's) break because they only see a
+// value_type of void.
+template <>
+struct indirectly_readable_traits<::cuda::discard_iterator>
+{
+  using value_type = ::cuda::discard_iterator::__discard_proxy;
+};
+
+_CCCL_END_NAMESPACE_CUDA_STD
 
 #include <cuda/std/__cccl/epilogue.h>
 
