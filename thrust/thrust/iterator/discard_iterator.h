@@ -84,7 +84,7 @@ _CCCL_DIAG_SUPPRESS_MSVC(4244 4267) // possible loss of data
 //!   // use discard_iterator to ignore the output keys
 //!   thrust::reduce_by_key(keys.begin(), keys.end(),
 //!                         values.begin(),
-//!                         cuda::make_discard_iterator(),
+//!                         thrust::make_discard_iterator(),
 //!                         result.begin());
 //!
 //!   // result is now [9, 21, 9, 3]
@@ -98,7 +98,7 @@ _CCCL_DIAG_SUPPRESS_MSVC(4244 4267) // possible loss of data
  *     .. versionadded:: 2.2.0
  *  \endverbatim
  */
-//! Deprecated [since 3.4]
+//! \deprecated since 3.4
 template <typename System = use_default>
 class CCCL_DEPRECATED_BECAUSE("Use cuda::discard_iterator instead") discard_iterator
     : public detail::make_discard_iterator_base<System>::type
@@ -142,6 +142,7 @@ private: // Core iterator interface
 //! parameter is \c 0.
 //! \return A new \p discard_iterator with index as given by \p i.
 //! \see constant_iterator
+//! \deprecated since 3.4
 template <typename System = use_default>
 inline CCCL_DEPRECATED_BECAUSE("Use cuda::make_discard_iterator instead") _CCCL_HOST_DEVICE discard_iterator<System>
 make_discard_iterator(::cuda::std::ptrdiff_t i = 0)
