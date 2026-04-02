@@ -1,9 +1,10 @@
 #include <thrust/functional.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/random.h>
 #include <thrust/scan.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -263,7 +264,7 @@ void TestScanByKeyDiscardOutput(std::size_t n)
   }
   thrust::device_vector<T> d_vals = h_vals;
 
-  auto out = thrust::make_discard_iterator();
+  auto out = cuda::make_discard_iterator();
 
   // These are no-ops, but they should compile.
   thrust::inclusive_scan_by_key(d_keys.cbegin(), d_keys.cend(), d_vals.cbegin(), out);

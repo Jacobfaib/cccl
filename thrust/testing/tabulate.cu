@@ -1,7 +1,8 @@
 #include <thrust/functional.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/tabulate.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -85,9 +86,7 @@ DECLARE_VARIABLE_UNITTEST(TestTabulate);
 template <typename T>
 void TestTabulateToDiscardIterator(size_t n)
 {
-  thrust::tabulate(thrust::discard_iterator<thrust::device_system_tag>(),
-                   thrust::discard_iterator<thrust::device_system_tag>(n),
-                   ::cuda::std::identity{});
+  thrust::tabulate(thrust::device, cuda::discard_iterator(), cuda::discard_iterator(n), ::cuda::std::identity{});
 
   // nothing to check -- just make sure it compiles
 }
