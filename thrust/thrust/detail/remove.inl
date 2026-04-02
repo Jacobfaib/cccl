@@ -16,6 +16,8 @@
 #include <thrust/remove.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/remove.h>
 #include <thrust/system/detail/sequential/remove.h>
@@ -69,7 +71,8 @@ _CCCL_HOST_DEVICE ForwardIterator remove_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_if");
   using thrust::system::detail::generic::remove_if;
-  return remove_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, pred);
+  return remove_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(pred));
 } // end remove_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -83,7 +86,8 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_copy_if");
   using thrust::system::detail::generic::remove_copy_if;
-  return remove_copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, pred);
+  return remove_copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -97,7 +101,8 @@ _CCCL_HOST_DEVICE ForwardIterator remove_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_if");
   using thrust::system::detail::generic::remove_if;
-  return remove_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, pred);
+  return remove_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, ::cuda::std::move(pred));
 } // end remove_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -117,7 +122,12 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_copy_if");
   using thrust::system::detail::generic::remove_copy_if;
   return remove_copy_if(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, result, pred);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    stencil,
+    result,
+    ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 template <typename ForwardIterator, typename T>
@@ -158,7 +168,7 @@ ForwardIterator remove_if(ForwardIterator first, ForwardIterator last, Predicate
 
   System system;
 
-  return thrust::remove_if(select_system(system), first, last, pred);
+  return thrust::remove_if(select_system(system), first, last, ::cuda::std::move(pred));
 } // end remove_if()
 
 template <typename ForwardIterator, typename InputIterator, typename Predicate>
@@ -173,7 +183,7 @@ ForwardIterator remove_if(ForwardIterator first, ForwardIterator last, InputIter
   System1 system1;
   System2 system2;
 
-  return thrust::remove_if(select_system(system1, system2), first, last, stencil, pred);
+  return thrust::remove_if(select_system(system1, system2), first, last, stencil, ::cuda::std::move(pred));
 } // end remove_if()
 
 template <typename InputIterator, typename OutputIterator, typename Predicate>
@@ -188,7 +198,7 @@ OutputIterator remove_copy_if(InputIterator first, InputIterator last, OutputIte
   System1 system1;
   System2 system2;
 
-  return thrust::remove_copy_if(select_system(system1, system2), first, last, result, pred);
+  return thrust::remove_copy_if(select_system(system1, system2), first, last, result, ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 template <typename InputIterator1, typename InputIterator2, typename OutputIterator, typename Predicate>
@@ -206,7 +216,8 @@ remove_copy_if(InputIterator1 first, InputIterator1 last, InputIterator2 stencil
   System2 system2;
   System3 system3;
 
-  return thrust::remove_copy_if(select_system(system1, system2, system3), first, last, stencil, result, pred);
+  return thrust::remove_copy_if(
+    select_system(system1, system2, system3), first, last, stencil, result, ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 THRUST_NAMESPACE_END

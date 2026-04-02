@@ -2,6 +2,8 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 
+#include <cuda/std/utility>
+
 #include <unittest/unittest.h>
 
 _CCCL_DIAG_PUSH
@@ -12,9 +14,9 @@ struct return_value
 {
   T val;
 
-  return_value() {}
-  return_value(T v)
-      : val(v)
+  _CCCL_HOST_DEVICE return_value() {};
+  _CCCL_HOST_DEVICE return_value(T v)
+      : val(::cuda::std::move(v))
   {}
 
   _CCCL_HOST_DEVICE T operator()(void)

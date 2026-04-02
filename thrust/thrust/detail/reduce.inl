@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2008-2013, NVIDIA Corporation. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2008-2013, NVIDIA Corporation. All
+// rights reserved. SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
@@ -18,7 +18,10 @@
 #include <thrust/reduce.h>
 #include <thrust/system/detail/generic/select_system.h>
 
-// Include all active backend system implementations (generic, sequential, host and device)
+#include <cuda/std/__utility/move.h>
+
+// Include all active backend system implementations (generic, sequential, host
+// and device)
 #include <thrust/system/detail/generic/reduce.h>
 #include <thrust/system/detail/generic/reduce_by_key.h>
 #include <thrust/system/detail/sequential/reduce.h>
@@ -59,7 +62,7 @@ _CCCL_HOST_DEVICE T reduce(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::reduce");
   using thrust::system::detail::generic::reduce;
-  return reduce(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, init);
+  return reduce(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(init));
 } // end reduce()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -73,7 +76,11 @@ _CCCL_HOST_DEVICE T reduce(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::reduce");
   using thrust::system::detail::generic::reduce;
-  return reduce(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, init, binary_op);
+  return reduce(thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+                first,
+                last,
+                ::cuda::std::move(init),
+                ::cuda::std::move(binary_op));
 } // end reduce()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -98,7 +105,8 @@ _CCCL_HOST_DEVICE void reduce_into(
   T init)
 {
   using thrust::system::detail::generic::reduce_into;
-  reduce_into(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, output, init);
+  reduce_into(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, output, ::cuda::std::move(init));
 } // end reduce_into()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -112,7 +120,12 @@ _CCCL_HOST_DEVICE void reduce_into(
   BinaryFunction binary_op)
 {
   using thrust::system::detail::generic::reduce_into;
-  reduce_into(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, output, init, binary_op);
+  reduce_into(thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+              first,
+              last,
+              output,
+              ::cuda::std::move(init),
+              ::cuda::std::move(binary_op));
 } // end reduce_into()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -165,7 +178,7 @@ _CCCL_HOST_DEVICE ::cuda::std::pair<OutputIterator1, OutputIterator2> reduce_by_
     values_first,
     keys_output,
     values_output,
-    binary_pred);
+    ::cuda::std::move(binary_pred));
 } // end reduce_by_key()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -195,8 +208,8 @@ _CCCL_HOST_DEVICE ::cuda::std::pair<OutputIterator1, OutputIterator2> reduce_by_
     values_first,
     keys_output,
     values_output,
-    binary_pred,
-    binary_op);
+    ::cuda::std::move(binary_pred),
+    ::cuda::std::move(binary_op));
 } // end reduce_by_key()
 
 template <typename InputIterator>
@@ -222,7 +235,7 @@ T reduce(InputIterator first, InputIterator last, T init)
 
   System system;
 
-  return thrust::reduce(select_system(system), first, last, init);
+  return thrust::reduce(select_system(system), first, last, ::cuda::std::move(init));
 }
 
 template <typename InputIterator, typename T, typename BinaryFunction>
@@ -235,7 +248,7 @@ T reduce(InputIterator first, InputIterator last, T init, BinaryFunction binary_
 
   System system;
 
-  return thrust::reduce(select_system(system), first, last, init, binary_op);
+  return thrust::reduce(select_system(system), first, last, ::cuda::std::move(init), ::cuda::std::move(binary_op));
 }
 
 template <typename InputIterator, typename OutputIterator>
@@ -263,7 +276,7 @@ void reduce_into(InputIterator first, InputIterator last, OutputIterator output,
   System1 system1;
   System2 system2;
 
-  thrust::reduce_into(select_system(system1, system2), first, last, output, init);
+  thrust::reduce_into(select_system(system1, system2), first, last, output, ::cuda::std::move(init));
 }
 
 template <typename InputIterator, typename OutputIterator, typename T, typename BinaryFunction>
@@ -277,7 +290,8 @@ void reduce_into(InputIterator first, InputIterator last, OutputIterator output,
   System1 system1;
   System2 system2;
 
-  thrust::reduce_into(select_system(system1, system2), first, last, output, init, binary_op);
+  thrust::reduce_into(
+    select_system(system1, system2), first, last, output, ::cuda::std::move(init), ::cuda::std::move(binary_op));
 }
 
 template <typename InputIterator1, typename InputIterator2, typename OutputIterator1, typename OutputIterator2>
@@ -338,7 +352,7 @@ template <typename InputIterator1,
     values_first,
     keys_output,
     values_output,
-    binary_pred);
+    ::cuda::std::move(binary_pred));
 }
 
 template <typename InputIterator1,
@@ -376,8 +390,8 @@ template <typename InputIterator1,
     values_first,
     keys_output,
     values_output,
-    binary_pred,
-    binary_op);
+    ::cuda::std::move(binary_pred),
+    ::cuda::std::move(binary_op));
 }
 
 THRUST_NAMESPACE_END

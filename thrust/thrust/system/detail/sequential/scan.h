@@ -22,6 +22,7 @@
 #include <thrust/system/detail/sequential/execution_policy.h>
 
 #include <cuda/std/__functional/invoke.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::sequential
@@ -120,7 +121,7 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan(
   if (first != last)
   {
     ValueType tmp = *first; // temporary value allows in-situ scan
-    ValueType sum = init;
+    ValueType sum = ::cuda::std::move(init);
 
     *result = sum;
     sum     = binary_op(sum, tmp);

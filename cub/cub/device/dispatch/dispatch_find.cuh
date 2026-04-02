@@ -32,6 +32,7 @@
 #include <thrust/type_traits/unwrap_contiguous_iterator.h>
 
 #include <cuda/__iterator/transform_iterator.h>
+#include <cuda/std/__utility/move.h>
 
 #if !_CCCL_COMPILER(NVRTC) && defined(CUB_DEBUG_LOG)
 #  include <sstream>
@@ -71,7 +72,7 @@ __launch_bounds__(int(PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).block
   __shared__ typename agent_find_t::TempStorage sresult;
 
   _CCCL_PDL_GRID_DEPENDENCY_SYNC();
-  agent_find_t{sresult.Alias(), d_in, predicate, found_pos_ptr, num_items}.Process();
+  agent_find_t{sresult.Alias(), d_in, ::cuda::std::move(predicate), found_pos_ptr, num_items}.Process();
 }
 
 template <typename ValueType, typename OutputIteratorT>
@@ -96,7 +97,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
   InputIteratorT d_in,
   OutputIteratorT d_out,
   OffsetT num_items,
-  PredicateT predicate,
+  PredicateT predicate, // NOLINT(performance-unnecessary-value-param)
   cudaStream_t stream,
   PolicySelector policy_selector = {})
 {

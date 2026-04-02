@@ -139,7 +139,8 @@ struct saxpy_functor
   View2 y;
   View3 z;
 
-  __host__ __device__ saxpy_functor(float _a, View1 _x, View2 _y, View3 _z)
+  __host__ __device__
+  saxpy_functor(float _a, View1 _x, View2 _y, View3 _z) // NOLINT(performance-unnecessary-value-param)
       : a(_a)
       , x(_x)
       , y(_y)
@@ -155,7 +156,7 @@ struct saxpy_functor
 // saxpy function, which can either be called form host or device
 // The views are passed by value
 template <class View1, class View2, class View3>
-__host__ __device__ void saxpy(float A, View1 X, View2 Y, View3 Z)
+__host__ __device__ void saxpy(float A, View1 X, View2 Y, View3 Z) // NOLINT(performance-unnecessary-value-param)
 {
   // Z = A * X + Y
   const int size = X.size();

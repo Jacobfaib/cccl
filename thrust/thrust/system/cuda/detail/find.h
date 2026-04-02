@@ -26,6 +26,7 @@
 #  include <thrust/system/cuda/detail/util.h>
 
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace cuda_cub
@@ -97,7 +98,9 @@ find_if_n(execution_policy<Derived>& policy, InputIt first, Size num_items, Pred
   Size result_idx = num_items;
   THRUST_CDP_DISPATCH(
     (result_idx = cuda_cub::detail::find_if_n_impl(policy, first, num_items, predicate);),
-    (result_idx = thrust::find_if(cvt_to_seq(derived_cast(policy)), first, first + num_items, predicate) - first;));
+    (result_idx =
+       thrust::find_if(cvt_to_seq(derived_cast(policy)), first, first + num_items, ::cuda::std::move(predicate))
+       - first;));
 
   return first + result_idx;
 }
@@ -105,14 +108,14 @@ find_if_n(execution_policy<Derived>& policy, InputIt first, Size num_items, Pred
 template <class Derived, class InputIt, class Predicate>
 InputIt _CCCL_HOST_DEVICE find_if(execution_policy<Derived>& policy, InputIt first, InputIt last, Predicate predicate)
 {
-  return cuda_cub::find_if_n(policy, first, ::cuda::std::distance(first, last), predicate);
+  return cuda_cub::find_if_n(policy, first, ::cuda::std::distance(first, last), ::cuda::std::move(predicate));
 }
 
 template <class Derived, class InputIt, class Predicate>
 InputIt _CCCL_HOST_DEVICE
 find_if_not(execution_policy<Derived>& policy, InputIt first, InputIt last, Predicate predicate)
 {
-  return cuda_cub::find_if(policy, first, last, ::cuda::std::not_fn(predicate));
+  return cuda_cub::find_if(policy, first, last, ::cuda::std::not_fn(::cuda::std::move(predicate)));
 }
 
 template <class Derived, class InputIt, class T>

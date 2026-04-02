@@ -15,6 +15,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/find.h>
 #include <thrust/system/detail/sequential/find.h>
@@ -54,7 +56,7 @@ _CCCL_HOST_DEVICE InputIterator find_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::find_if");
   using thrust::system::detail::generic::find_if;
-  return find_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, pred);
+  return find_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(pred));
 } // end find_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -67,7 +69,8 @@ _CCCL_HOST_DEVICE InputIterator find_if_not(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::find_if_not");
   using thrust::system::detail::generic::find_if_not;
-  return find_if_not(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, pred);
+  return find_if_not(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(pred));
 } // end find_if_not()
 
 template <typename InputIterator, typename T>
@@ -93,7 +96,7 @@ InputIterator find_if(InputIterator first, InputIterator last, Predicate pred)
 
   System system;
 
-  return thrust::find_if(select_system(system), first, last, pred);
+  return thrust::find_if(select_system(system), first, last, ::cuda::std::move(pred));
 }
 
 template <typename InputIterator, typename Predicate>
@@ -106,7 +109,7 @@ InputIterator find_if_not(InputIterator first, InputIterator last, Predicate pre
 
   System system;
 
-  return thrust::find_if_not(select_system(system), first, last, pred);
+  return thrust::find_if_not(select_system(system), first, last, ::cuda::std::move(pred));
 }
 
 THRUST_NAMESPACE_END

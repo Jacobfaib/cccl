@@ -20,6 +20,7 @@
 #include <thrust/system/detail/generic/tag.h>
 #include <thrust/system/detail/generic/transform.h>
 
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/tuple>
 
 THRUST_NAMESPACE_BEGIN
@@ -110,7 +111,10 @@ _CCCL_HOST_DEVICE OutputIterator transform(
   using ZipIterator   = thrust::zip_iterator<IteratorTuple>;
 
   ZipIterator zipped_result = thrust::for_each(
-    exec, thrust::make_zip_iterator(first, result), thrust::make_zip_iterator(last, result), UnaryTransformFunctor{op});
+    exec,
+    thrust::make_zip_iterator(first, result),
+    thrust::make_zip_iterator(last, result),
+    UnaryTransformFunctor{::cuda::std::move(op)});
 
   return ::cuda::std::get<1>(zipped_result.get_iterator_tuple());
 }
@@ -139,7 +143,7 @@ _CCCL_HOST_DEVICE OutputIterator transform(
     exec,
     thrust::make_zip_iterator(first1, first2, result),
     thrust::make_zip_iterator(last1, first2, result),
-    BinaryTransformFunctor{op});
+    BinaryTransformFunctor{::cuda::std::move(op)});
 
   return ::cuda::std::get<2>(zipped_result.get_iterator_tuple());
 }
@@ -197,7 +201,7 @@ _CCCL_HOST_DEVICE ForwardIterator transform_if(
     exec,
     thrust::make_zip_iterator(first, stencil, result),
     thrust::make_zip_iterator(last, stencil, result),
-    UnaryTransformIfFunctor{unary_op, pred});
+    UnaryTransformIfFunctor{::cuda::std::move(unary_op), ::cuda::std::move(pred)});
 
   return ::cuda::std::get<2>(zipped_result.get_iterator_tuple());
 }

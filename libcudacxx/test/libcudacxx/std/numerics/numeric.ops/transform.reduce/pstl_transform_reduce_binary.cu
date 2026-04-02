@@ -43,7 +43,7 @@
 inline constexpr int size = 1000;
 
 template <class Policy, class Iter>
-void test_transform_reduce(const Policy policy, const thrust::device_vector<int>& Input1, Iter input2)
+void test_transform_reduce(const Policy& policy, const thrust::device_vector<int>& Input1, Iter input2)
 {
   // N * (N + 1) / 2 for the first N integrals
   // 0 for multiplying by 1

@@ -394,7 +394,7 @@ public:
     T (&input)[ITEMS_PER_THREAD],
     OutputT (&output)[ITEMS_PER_THREAD],
     DifferenceOpT difference_op,
-    T tile_predecessor_item)
+    T tile_predecessor_item) // NOLINT(performance-unnecessary-value-param)
   {
     // Share last item
     temp_storage.last_items[linear_tid] = input[ITEMS_PER_THREAD - 1];
@@ -614,7 +614,7 @@ public:
     OutputType (&output)[ITEMS_PER_THREAD],
     DifferenceOpT difference_op,
     int valid_items,
-    T tile_predecessor_item)
+    T tile_predecessor_item) // NOLINT(performance-unnecessary-value-param)
   {
     // Share last item
     temp_storage.last_items[linear_tid] = input[ITEMS_PER_THREAD - 1];
@@ -835,7 +835,7 @@ public:
     T (&input)[ITEMS_PER_THREAD],
     OutputT (&output)[ITEMS_PER_THREAD],
     DifferenceOpT difference_op,
-    T tile_successor_item)
+    T tile_successor_item) // NOLINT(performance-unnecessary-value-param)
   {
     // Share first item
     temp_storage.first_items[linear_tid] = input[0];

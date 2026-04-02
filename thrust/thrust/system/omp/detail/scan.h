@@ -30,6 +30,7 @@
 #include <cuda/std/__numeric/reduce.h>
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__utility/move.h>
 
 #include <omp.h>
 
@@ -54,7 +55,7 @@ OutputIterator scan_impl(
   InputIterator first,
   InputIterator last,
   OutputIterator result,
-  [[maybe_unused]] InitialValueType init,
+  [[maybe_unused]] InitialValueType init, // NOLINT(performance-unnecessary-value-param)
   BinaryFunction binary_op)
 {
   using namespace thrust::detail;
@@ -71,7 +72,7 @@ OutputIterator scan_impl(
     return result;
   }
 
-  auto wrapped_binary_op = wrapped_function<BinaryFunction, accum_t>{binary_op};
+  auto wrapped_binary_op = wrapped_function<BinaryFunction, accum_t>{::cuda::std::move(binary_op)};
 
   const int num_threads = omp_get_max_threads();
 
@@ -83,16 +84,18 @@ OutputIterator scan_impl(
     {
       if constexpr (has_init)
       {
-        return ::cuda::std::inclusive_scan(first, last, result, wrapped_binary_op, init);
+        return ::cuda::std::inclusive_scan(
+          first, last, result, ::cuda::std::move(wrapped_binary_op), ::cuda::std::move(init));
       }
       else
       {
-        return ::cuda::std::inclusive_scan(first, last, result, wrapped_binary_op);
+        return ::cuda::std::inclusive_scan(first, last, result, ::cuda::std::move(wrapped_binary_op));
       }
     }
     else
     {
-      return ::cuda::std::exclusive_scan(first, last, result, init, wrapped_binary_op);
+      return ::cuda::std::exclusive_scan(
+        first, last, result, ::cuda::std::move(init), ::cuda::std::move(wrapped_binary_op));
     }
   }
 
@@ -179,7 +182,7 @@ OutputIterator inclusive_scan(
   OutputIterator result,
   BinaryFunction binary_op)
 {
-  return inclusive_scan(exec, first, last, result, __no_init_tag{}, binary_op);
+  return inclusive_scan(exec, first, last, result, __no_init_tag{}, ::cuda::std::move(binary_op));
 }
 
 template <typename DerivedPolicy,
@@ -195,7 +198,7 @@ OutputIterator inclusive_scan(
   InitialValueType init,
   BinaryFunction binary_op)
 {
-  return scan_impl<true>(exec, first, last, result, init, binary_op);
+  return scan_impl<true>(exec, first, last, result, ::cuda::std::move(init), ::cuda::std::move(binary_op));
 }
 
 template <typename DerivedPolicy,
@@ -211,7 +214,7 @@ OutputIterator exclusive_scan(
   InitialValueType init,
   BinaryFunction binary_op)
 {
-  return scan_impl<false>(exec, first, last, result, init, binary_op);
+  return scan_impl<false>(exec, first, last, result, ::cuda::std::move(init), ::cuda::std::move(binary_op));
 }
 } // namespace system::omp::detail
 THRUST_NAMESPACE_END

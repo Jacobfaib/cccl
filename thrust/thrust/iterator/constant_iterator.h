@@ -20,6 +20,7 @@
 #include <thrust/iterator/iterator_facade.h>
 
 #include <cuda/std/__type_traits/type_identity.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 THRUST_NAMESPACE_BEGIN
@@ -207,7 +208,7 @@ template <typename V>
 CCCL_DEPRECATED_BECAUSE("Use cuda::make_constant_iterator instead") inline _CCCL_HOST_DEVICE constant_iterator<V>
 make_constant_iterator(V x)
 {
-  return constant_iterator<V>(x, 0);
+  return constant_iterator<V>(::cuda::std::move(x), 0);
 } // end make_constant_iterator()
 
 //! \} // end fancyiterators

@@ -343,7 +343,7 @@ struct DispatchScan
     OutputIteratorT d_out,
     OffsetT num_items,
     ScanOpT scan_op,
-    InitValueT init_value,
+    InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
     cudaStream_t stream,
     int ptx_version,
     KernelSource kernel_source             = {},
@@ -1026,7 +1026,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch_with_accum(
   InputIteratorT d_in,
   OutputIteratorT d_out,
   ScanOpT scan_op,
-  InitValueT init_value,
+  InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
   OffsetT num_items,
   cudaStream_t stream,
   PolicySelector policy_selector         = {},

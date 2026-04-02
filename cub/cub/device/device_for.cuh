@@ -33,6 +33,7 @@
 #include <cuda/std/__type_traits/enable_if.h>
 #include <cuda/std/__type_traits/is_convertible.h>
 #include <cuda/std/__type_traits/is_integral.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/array>
 
 CUB_NAMESPACE_BEGIN
@@ -120,18 +121,21 @@ private:
 
         return detail::for_each::dispatch<OffsetT, wrapped_op_t>(
           num_vec_items,
-          wrapped_op_t{
-            unwrapped_first, op, num_items % wrapped_op_t::vec_size ? num_vec_items - 1 : num_vec_items, num_items},
+          wrapped_op_t{unwrapped_first,
+                       ::cuda::std::move(op),
+                       num_items % wrapped_op_t::vec_size ? num_vec_items - 1 : num_vec_items,
+                       num_items},
           stream);
       }
 
       // Fallback to non-vectorized version
-      return for_each_n<false>(first, num_items, op, stream);
+      return for_each_n<false>(first, num_items, ::cuda::std::move(op), stream);
     }
     else
     {
       using wrapped_op_t = detail::for_each::op_wrapper_t<OffsetT, OpT, RandomAccessOrContiguousIteratorT>;
-      return detail::for_each::dispatch<OffsetT, wrapped_op_t>(num_items, wrapped_op_t{first, op}, stream);
+      return detail::for_each::dispatch<OffsetT, wrapped_op_t>(
+        num_items, wrapped_op_t{first, ::cuda::std::move(op)}, stream);
     }
   }
 
@@ -597,7 +601,7 @@ public:
       return cudaSuccess;
     }
     auto stream = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStream_t{}}, env);
-    return detail::for_each::dispatch</* OffsetT */ ShapeT, OpT>(shape, op, stream.get());
+    return detail::for_each::dispatch</* OffsetT */ ShapeT, OpT>(shape, ::cuda::std::move(op), stream.get());
   }
 
   // we need this so the previous overload is not ambiguous with the next one
@@ -607,7 +611,7 @@ public:
   template <class ShapeT, class OpT>
   CUB_RUNTIME_FUNCTION static cudaError_t Bulk(ShapeT shape, OpT op, cudaStream_t stream)
   {
-    return Bulk(shape, op, ::cuda::stream_ref{stream});
+    return Bulk(shape, ::cuda::std::move(op), ::cuda::stream_ref{stream});
   }
 
 private:
@@ -622,7 +626,8 @@ private:
     //   detail::for_each::can_regain_copy_freedom<detail::it_value_t<RandomAccessIteratorT>, OpT>::value
     //   && THRUST_NS_QUALIFIER::is_contiguous_iterator_v<RandomAccessIteratorT>;
     constexpr bool use_vectorization = false;
-    return for_each_n<use_vectorization, RandomAccessIteratorT, offset_t, OpT>(first, num_items, op, stream);
+    return for_each_n<use_vectorization, RandomAccessIteratorT, offset_t, OpT>(
+      first, num_items, ::cuda::std::move(op), stream);
   }
 
 public:
@@ -713,7 +718,7 @@ public:
   {
     _CCCL_NVTX_RANGE_SCOPE("cub::DeviceFor::ForEachN");
     auto stream = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStream_t{}}, env);
-    return ForEachNNoNVTX(first, num_items, op, stream.get());
+    return ForEachNNoNVTX(first, num_items, ::cuda::std::move(op), stream.get());
   }
 
   // We keep this overload around to support types that are convertible to `cudaStream_t` but not copyable
@@ -721,7 +726,7 @@ public:
   CUB_RUNTIME_FUNCTION static cudaError_t
   ForEachN(RandomAccessIteratorT first, NumItemsT num_items, OpT op, cudaStream_t stream)
   {
-    return ForEachN(first, num_items, op, ::cuda::stream_ref{stream});
+    return ForEachN(first, num_items, ::cuda::std::move(op), ::cuda::stream_ref{stream});
   }
 
   //! @rst
@@ -809,7 +814,7 @@ public:
     auto stream          = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStream_t{}}, env);
     using offset_t       = detail::it_difference_t<RandomAccessIteratorT>;
     const auto num_items = static_cast<offset_t>(::cuda::std::distance(first, last));
-    return ForEachNNoNVTX(first, num_items, op, stream.get());
+    return ForEachNNoNVTX(first, num_items, ::cuda::std::move(op), stream.get());
   }
 
   // We keep this overload around to support types that are convertible to `cudaStream_t` but not copyable
@@ -817,7 +822,7 @@ public:
   CUB_RUNTIME_FUNCTION static cudaError_t
   ForEach(RandomAccessIteratorT first, RandomAccessIteratorT last, OpT op, cudaStream_t stream)
   {
-    return ForEach(first, last, op, ::cuda::stream_ref{stream});
+    return ForEach(first, last, ::cuda::std::move(op), ::cuda::stream_ref{stream});
   }
 
 private:
@@ -828,7 +833,8 @@ private:
   {
     using offset_t                   = NumItemsT;
     constexpr bool use_vectorization = THRUST_NS_QUALIFIER::is_contiguous_iterator_v<RandomAccessIteratorT>;
-    return for_each_n<use_vectorization, RandomAccessIteratorT, offset_t, OpT>(first, num_items, op, stream);
+    return for_each_n<use_vectorization, RandomAccessIteratorT, offset_t, OpT>(
+      first, num_items, ::cuda::std::move(op), stream);
   }
 
 public:
@@ -922,7 +928,7 @@ public:
   {
     _CCCL_NVTX_RANGE_SCOPE("cub::DeviceFor::ForEachCopyN");
     auto stream = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStream_t{}}, env);
-    return ForEachCopyNNoNVTX(first, num_items, op, stream.get());
+    return ForEachCopyNNoNVTX(first, num_items, ::cuda::std::move(op), stream.get());
   }
 
   // We keep this overload around to support types that are convertible to `cudaStream_t` but not copyable
@@ -930,7 +936,7 @@ public:
   CUB_RUNTIME_FUNCTION static cudaError_t
   ForEachCopyN(RandomAccessIteratorT first, NumItemsT num_items, OpT op, cudaStream_t stream)
   {
-    return ForEachCopyN(first, num_items, op, ::cuda::stream_ref{stream});
+    return ForEachCopyN(first, num_items, ::cuda::std::move(op), ::cuda::stream_ref{stream});
   }
 
   //! @rst

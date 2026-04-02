@@ -182,7 +182,7 @@ NVBENCH_DECLARE_TYPE_STRINGS(bit_entropy, "BE", "bit entropy");
   }
 }
 
-[[nodiscard]] inline bit_entropy str_to_entropy(std::string str)
+[[nodiscard]] inline bit_entropy str_to_entropy(const std::string& str)
 {
   if (str == "1.000")
   {

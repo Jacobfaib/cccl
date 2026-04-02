@@ -29,7 +29,7 @@ struct checked_value_receiver
   using receiver_concept = cudax_async::receiver_t;
 
   _CCCL_HOST_DEVICE checked_value_receiver(Values... values)
-      : _values{values...}
+      : _values{::cuda::std::move(values)...}
   {}
 
   _CCCL_HOST_DEVICE checked_value_receiver(checked_value_receiver&& other) noexcept
@@ -106,7 +106,7 @@ struct checked_error_receiver
   }
 
   template <class Ty>
-  _CCCL_HOST_DEVICE void set_error(Ty ty) && noexcept
+  _CCCL_HOST_DEVICE void set_error(const Ty& ty) && noexcept
   {
     if constexpr (::cuda::std::is_same_v<Error, Ty>)
     {

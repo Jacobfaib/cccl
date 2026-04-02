@@ -16,6 +16,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/copy_if.h>
 #include <thrust/system/detail/sequential/copy_if.h>
@@ -43,7 +45,8 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::copy_if");
   using thrust::system::detail::generic::copy_if;
-  return copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, pred);
+  return copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(pred));
 } // end copy_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -62,7 +65,13 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::copy_if");
   using thrust::system::detail::generic::copy_if;
-  return copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, result, pred);
+  return copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    stencil,
+    result,
+    ::cuda::std::move(pred));
 } // end copy_if()
 
 template <typename InputIterator, typename OutputIterator, typename Predicate>
@@ -77,7 +86,7 @@ OutputIterator copy_if(InputIterator first, InputIterator last, OutputIterator r
   System1 system1;
   System2 system2;
 
-  return thrust::copy_if(select_system(system1, system2), first, last, result, pred);
+  return thrust::copy_if(select_system(system1, system2), first, last, result, ::cuda::std::move(pred));
 } // end copy_if()
 
 template <typename InputIterator1, typename InputIterator2, typename OutputIterator, typename Predicate>
@@ -95,7 +104,8 @@ copy_if(InputIterator1 first, InputIterator1 last, InputIterator2 stencil, Outpu
   System2 system2;
   System3 system3;
 
-  return thrust::copy_if(select_system(system1, system2, system3), first, last, stencil, result, pred);
+  return thrust::copy_if(
+    select_system(system1, system2, system3), first, last, stencil, result, ::cuda::std::move(pred));
 } // end copy_if()
 
 THRUST_NAMESPACE_END

@@ -244,8 +244,11 @@ struct AgentScan
   //---------------------------------------------------------------------
 
   template <bool Inclusive = IS_INCLUSIVE>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void
-  ScanFirstTile(AccumT (&items)[ITEMS_PER_THREAD], InitValueT init_value, ScanOpT scan_op, AccumT& block_aggregate)
+  _CCCL_DEVICE _CCCL_FORCEINLINE void ScanFirstTile(
+    AccumT (&items)[ITEMS_PER_THREAD],
+    InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
+    ScanOpT scan_op,
+    AccumT& block_aggregate)
   {
     BlockScanT blockScan(temp_storage.scan_storage.scan);
     if constexpr (Inclusive)
@@ -303,7 +306,11 @@ struct AgentScan
    *   Initial value to seed the exclusive scan
    */
   _CCCL_DEVICE _CCCL_FORCEINLINE AgentScan(
-    TempStorage& temp_storage, InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op, InitValueT init_value)
+    TempStorage& temp_storage,
+    InputIteratorT d_in,
+    OutputIteratorT d_out,
+    ScanOpT scan_op,
+    InitValueT init_value) // NOLINT(performance-unnecessary-value-param)
       : temp_storage(temp_storage.Alias())
       , d_in(d_in)
       , d_out(d_out)

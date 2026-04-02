@@ -32,8 +32,11 @@ CUB_NAMESPACE_BEGIN
 namespace detail::for_each
 {
 template <typename PolicySelector, typename OffsetT, typename OpT>
-CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t
-invoke_dynamic_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_policy active_policy)
+CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_dynamic_block_size(
+  OffsetT num_items,
+  OpT op, // NOLINT(performance-unnecessary-value-param)
+  cudaStream_t stream,
+  const for_policy& active_policy)
 {
   int block_threads = 256;
   auto kernel       = detail::for_each::dynamic_kernel<PolicySelector, OffsetT, OpT>;
@@ -73,8 +76,11 @@ invoke_dynamic_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_po
 }
 
 template <class PolicySelector, class OffsetT, class OpT>
-CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t
-invoke_static_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_policy active_policy)
+CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_static_block_size(
+  OffsetT num_items,
+  OpT op, // NOLINT(performance-unnecessary-value-param)
+  cudaStream_t stream,
+  const for_policy& active_policy)
 {
   const int block_threads    = active_policy.block_threads;
   const int items_per_thread = active_policy.items_per_thread;
@@ -109,8 +115,11 @@ invoke_static_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_pol
 
 // The dispatch layer is in the detail namespace until we figure out tuning API
 template <class OffsetT, class OpT, class PolicySelector = policy_selector>
-CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t
-dispatch(OffsetT num_items, OpT op, cudaStream_t stream, PolicySelector policy_selector = {})
+CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
+  OffsetT num_items,
+  OpT op, // NOLINT(performance-unnecessary-value-param)
+  cudaStream_t stream,
+  PolicySelector policy_selector = {})
 {
   if (num_items == 0)
   {

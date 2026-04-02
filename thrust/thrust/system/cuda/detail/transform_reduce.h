@@ -32,6 +32,7 @@
 #  include <thrust/system/cuda/detail/util.h>
 
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 #  include <cuda/std/cstdint>
 
 THRUST_NAMESPACE_BEGIN
@@ -77,7 +78,7 @@ THRUST_RUNTIME_FUNCTION T transform_reduce_n_impl(
     status,
     cub::DeviceReduce::TransformReduce,
     num_items,
-    (tmp_ptr, tmp_size, first, ret_ptr, num_items_fixed, binary_op, unary_op, init, stream));
+    (tmp_ptr, tmp_size, first, ret_ptr, num_items_fixed, binary_op, unary_op, ::cuda::std::move(init), stream));
   cuda_cub::throw_on_error(status, "after reduction step 2");
 
   // Synchronize the stream and get the value.

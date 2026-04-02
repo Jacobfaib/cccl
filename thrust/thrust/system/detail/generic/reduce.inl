@@ -19,6 +19,8 @@
 #include <thrust/reduce.h>
 #include <thrust/system/detail/generic/reduce.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
 {
@@ -37,7 +39,7 @@ _CCCL_HOST_DEVICE T
 reduce(thrust::execution_policy<ExecutionPolicy>& exec, InputIterator first, InputIterator last, T init)
 {
   // use plus<T> by default
-  return thrust::reduce(exec, first, last, init, ::cuda::std::plus<T>());
+  return thrust::reduce(exec, first, last, ::cuda::std::move(init), ::cuda::std::plus<T>());
 } // end reduce()
 
 template <typename ExecutionPolicy, typename InputIterator, typename T, typename BinaryFunction>
@@ -66,7 +68,7 @@ _CCCL_HOST_DEVICE void reduce_into(
   T init)
 {
   // use plus<T> by default
-  thrust::reduce_into(exec, first, last, output, init, ::cuda::std::plus<T>());
+  thrust::reduce_into(exec, first, last, output, ::cuda::std::move(init), ::cuda::std::plus<T>());
 } // end reduce_into()
 
 template <typename ExecutionPolicy, typename InputIterator, typename OutputIterator, typename T, typename BinaryFunction>
@@ -79,7 +81,7 @@ _CCCL_HOST_DEVICE void reduce_into(
   BinaryFunction binary_op)
 {
   // use reduce by default
-  *output = thrust::reduce(exec, first, last, init, binary_op);
+  *output = thrust::reduce(exec, first, last, ::cuda::std::move(init), binary_op);
 } // end reduce_into()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

@@ -17,6 +17,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/for_each.h>
 #include <thrust/system/detail/sequential/for_each.h>
@@ -44,7 +46,7 @@ _CCCL_HOST_DEVICE InputIterator for_each(
   _CCCL_NVTX_RANGE_SCOPE_IF(detail::should_enable_nvtx_for_policy<DerivedPolicy>(), "thrust::for_each");
   using thrust::system::detail::generic::for_each;
 
-  return for_each(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, f);
+  return for_each(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(f));
 }
 
 template <typename InputIterator, typename UnaryFunction>
@@ -55,7 +57,7 @@ InputIterator for_each(InputIterator first, InputIterator last, UnaryFunction f)
   using thrust::system::detail::generic::select_system;
 
   System system;
-  return thrust::for_each(select_system(system), first, last, f);
+  return thrust::for_each(select_system(system), first, last, ::cuda::std::move(f));
 } // end for_each()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -66,7 +68,7 @@ _CCCL_HOST_DEVICE InputIterator for_each_n(
   _CCCL_NVTX_RANGE_SCOPE_IF(detail::should_enable_nvtx_for_policy<DerivedPolicy>(), "thrust::for_each_n");
   using thrust::system::detail::generic::for_each_n;
 
-  return for_each_n(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, n, f);
+  return for_each_n(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, n, ::cuda::std::move(f));
 } // end for_each_n()
 
 template <typename InputIterator, typename Size, typename UnaryFunction>
@@ -77,7 +79,7 @@ InputIterator for_each_n(InputIterator first, Size n, UnaryFunction f)
   using thrust::system::detail::generic::select_system;
 
   System system;
-  return thrust::for_each_n(select_system(system), first, n, f);
+  return thrust::for_each_n(select_system(system), first, n, ::cuda::std::move(f));
 } // end for_each_n()
 
 THRUST_NAMESPACE_END

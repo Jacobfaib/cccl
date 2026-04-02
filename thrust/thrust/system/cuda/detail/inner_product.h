@@ -21,6 +21,7 @@
 
 #  include <cuda/std/__functional/operations.h>
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 
@@ -36,10 +37,10 @@ T _CCCL_HOST_DEVICE inner_product(
   ReduceOp reduce_op,
   ProductOp product_op)
 {
-  const auto n = ::cuda::std::distance(first1, last1);
-  const auto first =
-    thrust::make_transform_iterator(thrust::make_zip_iterator(first1, first2), thrust::make_zip_function(product_op));
-  return cuda_cub::reduce_n(policy, first, n, init, reduce_op);
+  const auto n     = ::cuda::std::distance(first1, last1);
+  const auto first = thrust::make_transform_iterator(
+    thrust::make_zip_iterator(first1, first2), thrust::make_zip_function(::cuda::std::move(product_op)));
+  return cuda_cub::reduce_n(policy, first, n, ::cuda::std::move(init), ::cuda::std::move(reduce_op));
 }
 
 template <class Derived, class InputIt1, class InputIt2, class T>
@@ -47,7 +48,7 @@ T _CCCL_HOST_DEVICE
 inner_product(execution_policy<Derived>& policy, InputIt1 first1, InputIt1 last1, InputIt2 first2, T init)
 {
   return cuda_cub::inner_product(
-    policy, first1, last1, first2, init, ::cuda::std::plus<T>(), ::cuda::std::multiplies<T>());
+    policy, first1, last1, first2, ::cuda::std::move(init), ::cuda::std::plus<T>(), ::cuda::std::multiplies<T>());
 }
 } // namespace cuda_cub
 

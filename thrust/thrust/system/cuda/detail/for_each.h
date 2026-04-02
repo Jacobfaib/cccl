@@ -24,6 +24,7 @@
 #  include <thrust/system/cuda/detail/util.h>
 
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 
@@ -52,7 +53,7 @@ Input _CCCL_API _CCCL_FORCEINLINE for_each(execution_policy<Derived>& policy, In
   using size_type = thrust::detail::it_difference_t<Input>;
   size_type count = static_cast<size_type>(::cuda::std::distance(first, last));
 
-  return THRUST_NS_QUALIFIER::cuda_cub::for_each_n(policy, first, count, op);
+  return THRUST_NS_QUALIFIER::cuda_cub::for_each_n(policy, first, count, ::cuda::std::move(op));
 }
 } // namespace cuda_cub
 

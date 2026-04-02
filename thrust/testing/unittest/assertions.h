@@ -117,7 +117,7 @@ struct value_type<THRUST_NS_QUALIFIER::device_reference<T>>
 ////
 // check scalar values
 template <typename T1, typename T2>
-void assert_equal(T1 a, T2 b, const std::string& filename = "unknown", int lineno = -1)
+void assert_equal(const T1& a, const T2& b, const std::string& filename = "unknown", int lineno = -1)
 {
   if (!(a == b))
   {

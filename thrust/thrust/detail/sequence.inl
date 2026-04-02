@@ -21,6 +21,7 @@
 #include <thrust/system/detail/sequential/sequence.h>
 #include __THRUST_HOST_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(sequence.h)
 #include __THRUST_DEVICE_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(sequence.h)
+#include <cuda/std/__utility/move.h>
 
 // Some build systems need a hint to know which files we could include
 #if 0
@@ -49,7 +50,7 @@ _CCCL_HOST_DEVICE void sequence(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::sequence");
   using thrust::system::detail::generic::sequence;
-  return sequence(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, init);
+  return sequence(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(init));
 } // end sequence()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -63,7 +64,12 @@ _CCCL_HOST_DEVICE void sequence(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::sequence");
   using thrust::system::detail::generic::sequence;
-  return sequence(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, init, step);
+  return sequence(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    ::cuda::std::move(init),
+    ::cuda::std::move(step));
 } // end sequence()
 
 template <typename ForwardIterator>
@@ -89,7 +95,7 @@ void sequence(ForwardIterator first, ForwardIterator last, T init)
 
   System system;
 
-  return thrust::sequence(select_system(system), first, last, init);
+  return thrust::sequence(select_system(system), first, last, ::cuda::std::move(init));
 } // end sequence()
 
 template <typename ForwardIterator, typename T>
@@ -102,7 +108,7 @@ void sequence(ForwardIterator first, ForwardIterator last, T init, T step)
 
   System system;
 
-  return thrust::sequence(select_system(system), first, last, init, step);
+  return thrust::sequence(select_system(system), first, last, ::cuda::std::move(init), ::cuda::std::move(step));
 } // end sequence()
 
 THRUST_NAMESPACE_END

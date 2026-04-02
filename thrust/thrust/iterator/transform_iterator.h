@@ -41,6 +41,7 @@
 #include <cuda/std/__type_traits/is_copy_constructible.h>
 #include <cuda/std/__type_traits/remove_cvref.h>
 #include <cuda/std/__type_traits/remove_reference.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 
@@ -233,7 +234,7 @@ public:
   //! \param f An \c AdaptableUnaryFunction used to transform the objects pointed to by \p x.
   _CCCL_HOST_DEVICE transform_iterator(Iterator const& x, AdaptableUnaryFunction f)
       : super_t(x)
-      , m_f(f)
+      , m_f(::cuda::std::move(f))
   {}
 
   //! This explicit constructor copies the value of a given \c Iterator and creates this \p transform_iterator's \c

@@ -17,6 +17,7 @@
 #  include <thrust/system/cuda/detail/copy_if.h>
 
 #  include <cuda/__functional/equal_to_value.h>
+#  include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace cuda_cub
@@ -40,7 +41,7 @@ InputIt _CCCL_HOST_DEVICE remove_if(execution_policy<Derived>& policy, InputIt f
   THRUST_CDP_DISPATCH(
     (return cuda_cub::detail::copy_if<cub::SelectImpl::SelectPotentiallyInPlace>(
               policy, first, last, static_cast<cub::NullType*>(nullptr), first, ::cuda::std::not_fn(predicate));),
-    (return thrust::remove_if(cvt_to_seq(derived_cast(policy)), first, last, predicate);));
+    (return thrust::remove_if(cvt_to_seq(derived_cast(policy)), first, last, ::cuda::std::move(predicate));));
 }
 
 template <class Derived, class InputIt, class T>
@@ -69,7 +70,7 @@ template <class Derived, class InputIt, class OutputIt, class Predicate>
 OutputIt _CCCL_HOST_DEVICE
 remove_copy_if(execution_policy<Derived>& policy, InputIt first, InputIt last, OutputIt result, Predicate predicate)
 {
-  return cuda_cub::copy_if(policy, first, last, result, ::cuda::std::not_fn(predicate));
+  return cuda_cub::copy_if(policy, first, last, result, ::cuda::std::not_fn(::cuda::std::move(predicate)));
 }
 
 template <class Derived, class InputIt, class OutputIt, class T>
@@ -77,7 +78,7 @@ OutputIt _CCCL_HOST_DEVICE
 remove_copy(execution_policy<Derived>& policy, InputIt first, InputIt last, OutputIt result, const T& value)
 {
   ::cuda::equal_to_value<T> pred{value};
-  return cuda_cub::remove_copy_if(policy, first, last, result, pred);
+  return cuda_cub::remove_copy_if(policy, first, last, result, ::cuda::std::move(pred));
 }
 } // namespace cuda_cub
 THRUST_NAMESPACE_END

@@ -26,6 +26,7 @@
 #include <thrust/system/omp/detail/pragma_omp.h>
 
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::omp::detail
@@ -48,7 +49,7 @@ RandomAccessIterator for_each_n(execution_policy<DerivedPolicy>&, RandomAccessIt
   }
 
   // create a wrapped function for f
-  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{f};
+  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{::cuda::std::move(f)};
 
   // use a signed type for the iteration variable or suffer the consequences of warnings
   using DifferenceType    = thrust::detail::it_difference_t<RandomAccessIterator>;
@@ -68,7 +69,7 @@ template <typename DerivedPolicy, typename RandomAccessIterator, typename UnaryF
 RandomAccessIterator
 for_each(execution_policy<DerivedPolicy>& s, RandomAccessIterator first, RandomAccessIterator last, UnaryFunction f)
 {
-  return omp::detail::for_each_n(s, first, ::cuda::std::distance(first, last), f);
+  return omp::detail::for_each_n(s, first, ::cuda::std::distance(first, last), ::cuda::std::move(f));
 } // end for_each()
 } // end namespace system::omp::detail
 THRUST_NAMESPACE_END

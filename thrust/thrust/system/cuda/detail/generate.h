@@ -19,6 +19,7 @@
 #  include <thrust/system/cuda/detail/dispatch.h>
 
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 #  include <cuda/std/tuple>
 
 THRUST_NAMESPACE_BEGIN
@@ -29,24 +30,25 @@ template <class Derived, class OutputIt, class Size, class Generator>
 OutputIt _CCCL_HOST_DEVICE
 generate_n(execution_policy<Derived>& policy, OutputIt result, Size count, Generator generator)
 {
-  THRUST_CDP_DISPATCH(({
-                        cudaError_t status;
-                        THRUST_INDEX_TYPE_DISPATCH(
-                          status,
-                          (CUB_NS_QUALIFIER::DeviceTransform::Generate),
-                          count,
-                          (result, count_fixed, generator, cuda_cub::stream(policy)));
-                        throw_on_error(status, "generate_n: failed inside CUB");
-                        throw_on_error(synchronize_optional(policy), "generate_n: failed to synchronize");
-                        return result + count;
-                      }),
-                      ({ return thrust::generate_n(cvt_to_seq(derived_cast(policy)), result, count, generator); }));
+  THRUST_CDP_DISPATCH(
+    ({
+      cudaError_t status;
+      THRUST_INDEX_TYPE_DISPATCH(
+        status,
+        (CUB_NS_QUALIFIER::DeviceTransform::Generate),
+        count,
+        (result, count_fixed, generator, cuda_cub::stream(policy)));
+      throw_on_error(status, "generate_n: failed inside CUB");
+      throw_on_error(synchronize_optional(policy), "generate_n: failed to synchronize");
+      return result + count;
+    }),
+    ({ return thrust::generate_n(cvt_to_seq(derived_cast(policy)), result, count, ::cuda::std::move(generator)); }));
 }
 
 template <class Derived, class OutputIt, class Generator>
 void _CCCL_HOST_DEVICE generate(execution_policy<Derived>& policy, OutputIt first, OutputIt last, Generator generator)
 {
-  cuda_cub::generate_n(policy, first, ::cuda::std::distance(first, last), generator);
+  cuda_cub::generate_n(policy, first, ::cuda::std::distance(first, last), ::cuda::std::move(generator));
 }
 } // namespace cuda_cub
 THRUST_NAMESPACE_END

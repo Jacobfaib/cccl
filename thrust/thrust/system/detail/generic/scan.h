@@ -18,6 +18,7 @@
 #include <thrust/system/detail/generic/scan.h>
 
 #include <cuda/std/__functional/operations.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
@@ -57,7 +58,7 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan(
   T init)
 {
   // assume plus as the associative operator
-  return thrust::exclusive_scan(exec, first, last, result, init, ::cuda::std::plus<>());
+  return thrust::exclusive_scan(exec, first, last, result, ::cuda::std::move(init), ::cuda::std::plus<>());
 }
 
 // Note: it is an error to call this function: this should be provided by a backend system

@@ -18,6 +18,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/generate.h>
 #include <thrust/system/detail/sequential/generate.h>
@@ -44,7 +46,7 @@ generate(const thrust::detail::execution_policy_base<DerivedPolicy>& exec,
 {
   _CCCL_NVTX_RANGE_SCOPE_IF(detail::should_enable_nvtx_for_policy<DerivedPolicy>(), "thrust::generate");
   using thrust::system::detail::generic::generate;
-  return generate(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, gen);
+  return generate(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(gen));
 } // end generate()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -54,7 +56,7 @@ _CCCL_HOST_DEVICE OutputIterator generate_n(
 {
   _CCCL_NVTX_RANGE_SCOPE_IF(detail::should_enable_nvtx_for_policy<DerivedPolicy>(), "thrust::generate_n");
   using thrust::system::detail::generic::generate_n;
-  return generate_n(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, n, gen);
+  return generate_n(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, n, ::cuda::std::move(gen));
 } // end generate_n()
 
 template <typename ForwardIterator, typename Generator>
@@ -66,7 +68,7 @@ void generate(ForwardIterator first, ForwardIterator last, Generator gen)
 
   System system;
 
-  return thrust::generate(select_system(system), first, last, gen);
+  return thrust::generate(select_system(system), first, last, ::cuda::std::move(gen));
 } // end generate()
 
 template <typename OutputIterator, typename Size, typename Generator>
@@ -78,7 +80,7 @@ OutputIterator generate_n(OutputIterator first, Size n, Generator gen)
 
   System system;
 
-  return thrust::generate_n(select_system(system), first, n, gen);
+  return thrust::generate_n(select_system(system), first, n, ::cuda::std::move(gen));
 } // end generate_n()
 
 THRUST_NAMESPACE_END

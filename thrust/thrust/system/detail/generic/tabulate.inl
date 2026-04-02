@@ -19,6 +19,7 @@
 #include <thrust/transform.h>
 
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
@@ -35,7 +36,7 @@ _CCCL_HOST_DEVICE void tabulate(
   // to avoid this, specify the counting_iterator's difference_type to be the same as ForwardIterator's.
   thrust::counting_iterator<difference_type, thrust::use_default, thrust::use_default, difference_type> iter(0);
 
-  thrust::transform(exec, iter, iter + ::cuda::std::distance(first, last), first, unary_op);
+  thrust::transform(exec, iter, iter + ::cuda::std::distance(first, last), first, ::cuda::std::move(unary_op));
 } // end tabulate()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

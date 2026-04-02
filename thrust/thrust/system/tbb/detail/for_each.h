@@ -19,6 +19,7 @@
 #include <thrust/system/tbb/detail/execution_policy.h>
 
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -36,7 +37,7 @@ struct body
 
   body(RandomAccessIterator first, UnaryFunction f)
       : m_first(first)
-      , m_f(f)
+      , m_f(::cuda::std::move(f))
   {}
 
   void operator()(const ::tbb::blocked_range<Size>& r) const
@@ -49,14 +50,14 @@ struct body
 template <typename Size, typename RandomAccessIterator, typename UnaryFunction>
 body<RandomAccessIterator, Size, UnaryFunction> make_body(RandomAccessIterator first, UnaryFunction f)
 {
-  return body<RandomAccessIterator, Size, UnaryFunction>(first, f);
+  return body<RandomAccessIterator, Size, UnaryFunction>(first, ::cuda::std::move(f));
 } // end make_body()
 } // namespace for_each_detail
 
 template <typename DerivedPolicy, typename RandomAccessIterator, typename Size, typename UnaryFunction>
 RandomAccessIterator for_each_n(execution_policy<DerivedPolicy>&, RandomAccessIterator first, Size n, UnaryFunction f)
 {
-  ::tbb::parallel_for(::tbb::blocked_range<Size>(0, n), for_each_detail::make_body<Size>(first, f));
+  ::tbb::parallel_for(::tbb::blocked_range<Size>(0, n), for_each_detail::make_body<Size>(first, ::cuda::std::move(f)));
 
   // return the end of the range
   return first + n;
@@ -66,7 +67,7 @@ template <typename DerivedPolicy, typename RandomAccessIterator, typename UnaryF
 RandomAccessIterator
 for_each(execution_policy<DerivedPolicy>& s, RandomAccessIterator first, RandomAccessIterator last, UnaryFunction f)
 {
-  return tbb::detail::for_each_n(s, first, ::cuda::std::distance(first, last), f);
+  return tbb::detail::for_each_n(s, first, ::cuda::std::distance(first, last), ::cuda::std::move(f));
 } // end for_each()
 } // end namespace system::tbb::detail
 THRUST_NAMESPACE_END

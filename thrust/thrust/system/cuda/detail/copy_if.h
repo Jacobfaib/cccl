@@ -33,6 +33,7 @@
 
 #  include <cuda/std/__iterator/advance.h>
 #  include <cuda/std/__iterator/distance.h>
+#  include <cuda/std/__utility/move.h>
 #  include <cuda/std/cstdint>
 
 THRUST_NAMESPACE_BEGIN
@@ -135,7 +136,7 @@ struct DispatchCopyIf
           stencil,
           output,
           d_num_selected_out,
-          predicate,
+          ::cuda::std::move(predicate),
           equality_op_t{},
           num_items,
           stream);
@@ -188,7 +189,14 @@ THRUST_RUNTIME_FUNCTION OutputIt copy_if(
 
   // Run algorithm
   status = dispatch64_t::dispatch(
-    policy, temp_storage, temp_storage_bytes, first, stencil, output, predicate, static_cast<std::int64_t>(num_items));
+    policy,
+    temp_storage,
+    temp_storage_bytes,
+    first,
+    stencil,
+    output,
+    ::cuda::std::move(predicate),
+    static_cast<std::int64_t>(num_items));
   cuda_cub::throw_on_error(status, "copy_if failed on 2nd step");
 
   return output;
@@ -203,9 +211,10 @@ template <class Derived, class InputIterator, class OutputIterator, class Predic
 OutputIterator _CCCL_HOST_DEVICE copy_if(
   execution_policy<Derived>& policy, InputIterator first, InputIterator last, OutputIterator result, Predicate pred)
 {
-  THRUST_CDP_DISPATCH((return detail::copy_if<cub::SelectImpl::Select>(
-                                policy, first, last, static_cast<cub::NullType*>(nullptr), result, pred);),
-                      (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, result, pred);));
+  THRUST_CDP_DISPATCH(
+    (return detail::copy_if<cub::SelectImpl::Select>(
+              policy, first, last, static_cast<cub::NullType*>(nullptr), result, pred);),
+    (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, result, ::cuda::std::move(pred));));
 }
 
 _CCCL_EXEC_CHECK_DISABLE
