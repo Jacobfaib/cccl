@@ -5,11 +5,11 @@
 
 #include <cub/device/device_select.cuh>
 
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/logical.h>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 
 #include <algorithm>
 
@@ -38,7 +38,7 @@ get_reference(c2h::device_vector<T> const& in, c2h::device_vector<FlagT> const& 
   auto zipped_in_it = thrust::make_zip_iterator(h_flags.cbegin(), reference.cbegin());
 
   // Discards the flags part and only keeps the items
-  auto zipped_out_it = thrust::make_zip_iterator(thrust::make_discard_iterator(), reference.begin());
+  auto zipped_out_it = thrust::make_zip_iterator(cuda::make_discard_iterator(), reference.begin());
 
   auto end =
     std::copy_if(zipped_in_it, zipped_in_it + in.size(), zipped_out_it, predicate_op_wrapper_t<Pred>{if_predicate});

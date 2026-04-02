@@ -1,7 +1,8 @@
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/partition.h>
+
+#include <cuda/iterator>
 
 #include "thrust/detail/raw_pointer_cast.h"
 #include <unittest/unittest.h>
@@ -634,7 +635,7 @@ void TestPartitionIfWithMagnitude(int magnitude)
     constexpr bool negate_matches = false;
     auto select_op                = mod_n<offset_t>{match_every_nth, negate_matches};
     auto partitioned_out_ends =
-      thrust::stable_partition_copy(begin, end, partitioned_out.begin(), thrust::make_discard_iterator(), select_op);
+      thrust::stable_partition_copy(begin, end, partitioned_out.begin(), cuda::make_discard_iterator(), select_op);
     const auto selected_out_end = partitioned_out_ends.first;
 
     // Ensure number of selected items are correct
@@ -658,7 +659,7 @@ void TestPartitionIfWithMagnitude(int magnitude)
     constexpr bool negate_matches = true;
     auto select_op                = mod_n<offset_t>{match_every_nth, negate_matches};
     const auto partitioned_out_ends =
-      thrust::stable_partition_copy(begin, end, thrust::make_discard_iterator(), partitioned_out.begin(), select_op);
+      thrust::stable_partition_copy(begin, end, cuda::make_discard_iterator(), partitioned_out.begin(), select_op);
     const auto rejected_out_end = partitioned_out_ends.second;
 
     // Ensure number of rejected items are correct

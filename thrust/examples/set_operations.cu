@@ -1,8 +1,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/merge.h>
 #include <thrust/set_operations.h>
+
+#include <cuda/iterator>
 
 #include <iostream>
 
@@ -127,7 +128,7 @@ template <typename Vector>
 void SetIntersectionSize(const Vector& A, const Vector& B)
 {
   // computes the exact size of the intersection without allocating output
-  thrust::discard_iterator<> C_begin, C_end;
+  cuda::discard_iterator<> C_begin, C_end;
 
   C_end = thrust::set_intersection(A.begin(), A.end(), B.begin(), B.end(), C_begin);
 
