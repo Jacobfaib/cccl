@@ -92,7 +92,7 @@ TEST_CASE("Test nvrtc", "[test][nvrtc]")
 
     #include <thrust/iterator/constant_iterator.h>
     #include <thrust/iterator/counting_iterator.h>
-    #include <thrust/iterator/discard_iterator.h>
+    #include <cuda/iterator>
     #include <thrust/iterator/permutation_iterator.h>
     #include <thrust/iterator/reverse_iterator.h>
     #include <thrust/iterator/tabulate_output_iterator.h>

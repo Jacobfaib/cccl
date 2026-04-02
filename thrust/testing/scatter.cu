@@ -1,9 +1,10 @@
 #include <thrust/fill.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/scatter.h>
 #include <thrust/sequence.h>
+
+#include <cuda/iterator>
 
 #include <algorithm>
 
@@ -103,8 +104,8 @@ void TestScatterToDiscardIterator(const size_t n)
 
   thrust::device_vector<unsigned int> d_map = h_map;
 
-  thrust::scatter(h_input.begin(), h_input.end(), h_map.begin(), thrust::make_discard_iterator());
-  thrust::scatter(d_input.begin(), d_input.end(), d_map.begin(), thrust::make_discard_iterator());
+  thrust::scatter(h_input.begin(), h_input.end(), h_map.begin(), cuda::make_discard_iterator());
+  thrust::scatter(d_input.begin(), d_input.end(), d_map.begin(), cuda::make_discard_iterator());
 
   // there's nothing to check -- just make sure it compiles
 }
@@ -224,14 +225,14 @@ void TestScatterIfToDiscardIterator(const size_t n)
     h_input.end(),
     h_map.begin(),
     h_map.begin(),
-    thrust::make_discard_iterator(),
+    cuda::make_discard_iterator(),
     is_even_scatter_if<unsigned int>());
   thrust::scatter_if(
     d_input.begin(),
     d_input.end(),
     d_map.begin(),
     d_map.begin(),
-    thrust::make_discard_iterator(),
+    cuda::make_discard_iterator(),
     is_even_scatter_if<unsigned int>());
 }
 DECLARE_VARIABLE_UNITTEST(TestScatterIfToDiscardIterator);

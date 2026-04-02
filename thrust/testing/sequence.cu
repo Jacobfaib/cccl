@@ -1,6 +1,7 @@
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/sequence.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -94,8 +95,8 @@ void TestSequenceToDiscardIterator(size_t n)
   thrust::host_vector<T> h_data(n);
   thrust::device_vector<T> d_data(n);
 
-  thrust::sequence(thrust::discard_iterator<thrust::device_system_tag>(),
-                   thrust::discard_iterator<thrust::device_system_tag>(13),
+  thrust::sequence(cuda::discard_iterator<thrust::device_system_tag>(),
+                   cuda::discard_iterator<thrust::device_system_tag>(13),
                    T(10),
                    T(2));
 

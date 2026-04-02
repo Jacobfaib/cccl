@@ -1,10 +1,11 @@
 #include <thrust/extrema.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/merge.h>
 #include <thrust/sort.h>
 #include <thrust/unique.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -110,10 +111,10 @@ void TestMergeToDiscardIterator(size_t n)
   const thrust::device_vector<T> d_a = h_a;
   const thrust::device_vector<T> d_b = h_b;
 
-  const auto h_result = thrust::merge(h_a.begin(), h_a.end(), h_b.begin(), h_b.end(), thrust::make_discard_iterator());
-  const auto d_result = thrust::merge(d_a.begin(), d_a.end(), d_b.begin(), d_b.end(), thrust::make_discard_iterator());
+  const auto h_result = thrust::merge(h_a.begin(), h_a.end(), h_b.begin(), h_b.end(), cuda::make_discard_iterator());
+  const auto d_result = thrust::merge(d_a.begin(), d_a.end(), d_b.begin(), d_b.end(), cuda::make_discard_iterator());
 
-  thrust::discard_iterator<> reference(2 * n);
+  cuda::discard_iterator<> reference(2 * n);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

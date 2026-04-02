@@ -1,6 +1,5 @@
 #include <thrust/copy.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
@@ -44,14 +43,12 @@ void TestCopyNToDiscardIterator()
   thrust::device_vector<T> d_input = h_input;
 
   // copy from host_vector
-  thrust::discard_iterator<> h_result =
-    thrust::copy_n(h_input.begin(), h_input.size(), thrust::make_discard_iterator());
+  cuda::discard_iterator<> h_result = thrust::copy_n(h_input.begin(), h_input.size(), cuda::make_discard_iterator());
 
   // copy from device_vector
-  thrust::discard_iterator<> d_result =
-    thrust::copy_n(d_input.begin(), d_input.size(), thrust::make_discard_iterator());
+  cuda::discard_iterator<> d_result = thrust::copy_n(d_input.begin(), d_input.size(), cuda::make_discard_iterator());
 
-  thrust::discard_iterator<> reference(5);
+  cuda::discard_iterator<> reference(5);
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

@@ -1,7 +1,6 @@
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/random.h>
 #include <thrust/reduce.h>
@@ -45,7 +44,7 @@ int main()
   // Sum each row, storing the result in a new vector.
   thrust::universal_vector<int> sums(rows);
   thrust::reduce_by_key(
-    thrust::device, row_idx_begin, row_idx_end, M.data_handle(), thrust::make_discard_iterator(), sums.begin());
+    thrust::device, row_idx_begin, row_idx_end, M.data_handle(), cuda::make_discard_iterator(), sums.begin());
 
   // Output the result.
   thrust::for_each_n(thrust::seq, flat_idx, rows, [&](int i) {

@@ -1,6 +1,7 @@
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/reverse.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -156,13 +157,13 @@ struct TestReverseCopyToDiscardIterator
     thrust::host_vector<T> h_data   = unittest::random_integers<T>(n);
     thrust::device_vector<T> d_data = h_data;
 
-    thrust::discard_iterator<> h_result =
-      thrust::reverse_copy(h_data.begin(), h_data.end(), thrust::make_discard_iterator());
+    cuda::discard_iterator<> h_result =
+      thrust::reverse_copy(h_data.begin(), h_data.end(), cuda::make_discard_iterator());
 
-    thrust::discard_iterator<> d_result =
-      thrust::reverse_copy(d_data.begin(), d_data.end(), thrust::make_discard_iterator());
+    cuda::discard_iterator<> d_result =
+      thrust::reverse_copy(d_data.begin(), d_data.end(), cuda::make_discard_iterator());
 
-    thrust::discard_iterator<> reference(n);
+    cuda::discard_iterator<> reference(n);
 
     ASSERT_EQUAL_QUIET(reference, h_result);
     ASSERT_EQUAL_QUIET(reference, d_result);

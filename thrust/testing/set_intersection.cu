@@ -1,9 +1,10 @@
 #include <thrust/extrema.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/set_operations.h>
 #include <thrust/sort.h>
+
+#include <cuda/iterator>
 
 #include <unittest/unittest.h>
 
@@ -118,19 +119,19 @@ void TestSetIntersectionToDiscardIterator(const size_t n)
   thrust::device_vector<T> d_a = h_a;
   thrust::device_vector<T> d_b = h_b;
 
-  thrust::discard_iterator<> h_result;
-  thrust::discard_iterator<> d_result;
+  cuda::discard_iterator<> h_result;
+  cuda::discard_iterator<> d_result;
 
   thrust::host_vector<T> h_reference(n);
   typename thrust::host_vector<T>::iterator h_end =
     thrust::set_intersection(h_a.begin(), h_a.end(), h_b.begin(), h_b.end(), h_reference.begin());
   h_reference.erase(h_end, h_reference.end());
 
-  h_result = thrust::set_intersection(h_a.begin(), h_a.end(), h_b.begin(), h_b.end(), thrust::make_discard_iterator());
+  h_result = thrust::set_intersection(h_a.begin(), h_a.end(), h_b.begin(), h_b.end(), cuda::make_discard_iterator());
 
-  d_result = thrust::set_intersection(d_a.begin(), d_a.end(), d_b.begin(), d_b.end(), thrust::make_discard_iterator());
+  d_result = thrust::set_intersection(d_a.begin(), d_a.end(), d_b.begin(), d_b.end(), cuda::make_discard_iterator());
 
-  thrust::discard_iterator<> reference(h_reference.size());
+  cuda::discard_iterator<> reference(h_reference.size());
 
   ASSERT_EQUAL_QUIET(reference, h_result);
   ASSERT_EQUAL_QUIET(reference, d_result);

@@ -19,8 +19,7 @@
 #include <cub/util_ptx.cuh>
 #include <cub/util_type.cuh>
 
-#include <thrust/iterator/discard_iterator.h>
-
+#include <cuda/iterator>
 #include <cuda/std/algorithm>
 
 #include <nv/target>
@@ -1153,7 +1152,7 @@ inline int CompareDeviceResults(
 template <typename S, typename OffsetT>
 int CompareDeviceResults(
   S* /*h_reference*/,
-  THRUST_NS_QUALIFIER::discard_iterator<OffsetT> /*d_data*/,
+  cuda::discard_iterator<OffsetT> /*d_data*/,
   std::size_t /*num_items*/,
   bool /*verbose*/      = true,
   bool /*display_data*/ = false)

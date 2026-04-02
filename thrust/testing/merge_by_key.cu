@@ -1,5 +1,4 @@
 #include <thrust/functional.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/retag.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/merge.h>
@@ -219,7 +218,7 @@ void TestMergeByKeyToDiscardIterator(size_t n)
   const thrust::device_vector<T> d_a_vals = h_a_vals;
   const thrust::device_vector<T> d_b_vals = h_b_vals;
 
-  using discard_pair = cuda::std::pair<thrust::discard_iterator<>, thrust::discard_iterator<>>;
+  using discard_pair = cuda::std::pair<cuda::discard_iterator<>, cuda::discard_iterator<>>;
 
   const discard_pair h_result = thrust::merge_by_key(
     h_a_keys.begin(),
@@ -228,8 +227,8 @@ void TestMergeByKeyToDiscardIterator(size_t n)
     h_b_keys.end(),
     h_a_vals.begin(),
     h_b_vals.begin(),
-    thrust::make_discard_iterator(),
-    thrust::make_discard_iterator());
+    cuda::make_discard_iterator(),
+    cuda::make_discard_iterator());
 
   const discard_pair d_result = thrust::merge_by_key(
     d_a_keys.begin(),
@@ -238,10 +237,10 @@ void TestMergeByKeyToDiscardIterator(size_t n)
     d_b_keys.end(),
     d_a_vals.begin(),
     d_b_vals.begin(),
-    thrust::make_discard_iterator(),
-    thrust::make_discard_iterator());
+    cuda::make_discard_iterator(),
+    cuda::make_discard_iterator());
 
-  const thrust::discard_iterator<> reference(2 * n);
+  const cuda::discard_iterator<> reference(2 * n);
 
   ASSERT_EQUAL_QUIET(reference, h_result.first);
   ASSERT_EQUAL_QUIET(reference, h_result.second);
@@ -307,7 +306,7 @@ void TestMergeByKeyFromCuDFDremel()
     thrust::make_counting_iterator(curr_rep_values_size),
     input_parent_zip_it,
     input_child_zip_it,
-    thrust::make_discard_iterator(),
+    cuda::make_discard_iterator(),
     output_zip_it);
 
   thrust::device_vector<std::uint8_t> reference_rep_level(max_vals_size);
