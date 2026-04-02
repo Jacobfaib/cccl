@@ -49,7 +49,7 @@ namespace __detect_hidden_friend_swap
 // This will intentionally create an ambiguity with std::swap if that is find-able by ADL. But it will not interfere
 // with hidden friend swap
 template <class _Tp>
-_CCCL_HOST_DEVICE void swap(_Tp&, _Tp&);
+_CCCL_HOST_DEVICE void swap(_Tp&, _Tp&); // NOLINT(performance-noexcept-swap)
 
 struct __hidden_friend_swap_found
 {};

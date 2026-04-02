@@ -427,7 +427,7 @@ public:
   /*! This method swaps the contents of this vector_base with another vector_base.
    *  \param v The vector_base with which to swap.
    */
-  void swap(vector_base& v)
+  void swap(vector_base& v) noexcept
   {
     using ::cuda::std::swap;
     swap(m_storage, v.m_storage);

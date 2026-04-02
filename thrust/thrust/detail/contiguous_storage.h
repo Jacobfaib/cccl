@@ -101,7 +101,7 @@ public:
   _CCCL_HOST_DEVICE void deallocate() noexcept;
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_HOST_DEVICE void swap(contiguous_storage& other)
+  _CCCL_HOST_DEVICE void swap(contiguous_storage& other) // NOLINT(performance-noexcept-swap)
   {
     using ::cuda::std::swap;
     swap(m_begin, other.m_begin);
