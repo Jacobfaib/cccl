@@ -197,7 +197,10 @@ function(cccl_build_compiler_targets)
       "-Wmissing-field-initializers"
       cxx_compile_options
     )
-    append_option_if_available("-pedantic" cxx_compile_options)
+    # Inundated with error: ISO C++11 requires at least one argument for the "..." in a
+    # variadic macro for _CCCL_REQUIRES_EXPR(), so cannot enable this.
+    #
+    # append_option_if_available("-pedantic" cxx_compile_options)
     append_option_if_available("-Wsign-compare" cxx_compile_options)
     append_option_if_available("-Wshadow" cxx_compile_options)
     append_option_if_available(
