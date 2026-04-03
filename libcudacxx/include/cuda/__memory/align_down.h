@@ -58,9 +58,10 @@ template <typename _Tp>
   return (_Tp*) _CCCL_BUILTIN_ALIGN_DOWN(__ptr, __alignment);
 #else // ^^^ _CCCL_BUILTIN_ALIGN_DOWN ^^^ / vvv !_CCCL_BUILTIN_ALIGN_DOWN vvv
   // all code below is translated to a single LOP3.LUT instruction
-  using _Up                = ::cuda::std::remove_cv_t<_Tp>;
-  const auto __char_ptr    = reinterpret_cast<char*>(const_cast<_Up*>(__ptr));
-  const auto __tmp         = static_cast<uintptr_t>(__alignment - 1);
+  using _Up             = ::cuda::std::remove_cv_t<_Tp>;
+  const auto __char_ptr = reinterpret_cast<char*>(const_cast<_Up*>(__ptr));
+  const auto __tmp      = static_cast<uintptr_t>(__alignment - 1);
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) pointer alignment requires int round-trip
   const auto __aligned_ptr = reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(__ptr) & ~__tmp);
   // __aligned_ptr and __ptr must be pointers (not values) to apply the optimization
   // __ptr - (ptr - aligned_ptr) -> __ptr + (aligned_ptr - ptr)
