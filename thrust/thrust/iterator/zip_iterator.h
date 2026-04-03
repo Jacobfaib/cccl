@@ -34,6 +34,7 @@
 
 #include <cuda/std/__iterator/advance.h>
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__iterator/readable_traits.h>
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/enable_if.h>
 #include <cuda/std/__type_traits/is_constructible.h>
@@ -69,7 +70,7 @@ struct make_zip_iterator_base<::cuda::std::tuple<Its...>>
   using reference = tuple_of_iterator_references<zip_iterator_reference_t<Its>...>;
 
   // Boost's Value type is the same as reference type. using value_type = reference;
-  using value_type = ::cuda::std::tuple<it_value_t<Its>...>;
+  using value_type = ::cuda::std::tuple<::cuda::std::iter_value_t<Its>...>;
 
   // Difference type is the first iterator's difference type
   using difference_type = it_difference_t<::cuda::std::tuple_element_t<0, ::cuda::std::tuple<Its...>>>;
