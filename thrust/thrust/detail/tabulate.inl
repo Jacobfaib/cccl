@@ -16,6 +16,8 @@
 #include <thrust/system/detail/generic/select_system.h>
 #include <thrust/tabulate.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/tabulate.h>
 #include <thrust/system/detail/sequential/tabulate.h>
@@ -42,7 +44,8 @@ tabulate(const thrust::detail::execution_policy_base<DerivedPolicy>& exec,
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::tabulate");
   using thrust::system::detail::generic::tabulate;
-  return tabulate(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, unary_op);
+  return tabulate(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(unary_op));
 } // end tabulate()
 
 template <typename ForwardIterator, typename UnaryOperation>

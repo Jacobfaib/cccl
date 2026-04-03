@@ -19,6 +19,7 @@
 
 #include <cuda/std/__iterator/advance.h>
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_scan.h>
@@ -41,7 +42,7 @@ struct body
       : first(first)
       , stencil(stencil)
       , result(result)
-      , pred{pred}
+      , pred{::cuda::std::move(pred)}
       , sum(0)
   {}
 
@@ -106,7 +107,7 @@ copy_if(tag, InputIterator1 first, InputIterator1 last, InputIterator2 stencil, 
 
   if (n != 0)
   {
-    Body body(first, stencil, result, pred);
+    Body body(first, stencil, result, ::cuda::std::move(pred));
     ::tbb::parallel_scan(::tbb::blocked_range<Size>(0, n), body);
     ::cuda::std::advance(result, body.sum);
   }

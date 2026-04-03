@@ -24,6 +24,7 @@
 #include <cuda/std/__functional/invoke.h>
 #include <cuda/std/__iterator/advance.h>
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_scan.h>
@@ -45,8 +46,8 @@ struct inclusive_body
   inclusive_body(InputIterator input, OutputIterator output, BinaryFunction binary_op, ValueType init)
       : input(input)
       , output(output)
-      , binary_op{binary_op}
-      , sum(init)
+      , binary_op{::cuda::std::move(binary_op)}
+      , sum(::cuda::std::move(init))
       , first_call(true)
   {}
 
@@ -146,8 +147,8 @@ struct exclusive_body
   exclusive_body(InputIterator input, OutputIterator output, BinaryFunction binary_op, ValueType init)
       : input(input)
       , output(output)
-      , binary_op{binary_op}
-      , sum(init)
+      , binary_op{::cuda::std::move(binary_op)}
+      , sum(::cuda::std::move(init))
       , first_call(true)
   {}
 
@@ -258,7 +259,7 @@ OutputIterator inclusive_scan(
   if (n != 0)
   {
     using Body = typename scan_detail::inclusive_body<InputIterator, OutputIterator, BinaryFunction, ValueType, true>;
-    Body scan_body(first, result, binary_op, init);
+    Body scan_body(first, result, binary_op, ::cuda::std::move(init));
     ::tbb::parallel_scan(::tbb::blocked_range<Size>(0, n), scan_body);
   }
 
@@ -282,7 +283,7 @@ OutputIterator exclusive_scan(
   if (n != 0)
   {
     using Body = typename scan_detail::exclusive_body<InputIterator, OutputIterator, BinaryFunction, ValueType>;
-    Body scan_body(first, result, binary_op, init);
+    Body scan_body(first, result, binary_op, ::cuda::std::move(init));
     ::tbb::parallel_scan(::tbb::blocked_range<Size>(0, n), scan_body);
   }
 

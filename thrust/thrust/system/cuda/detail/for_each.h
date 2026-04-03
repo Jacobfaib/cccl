@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 #  include <thrust/system/cuda/config.h>
 
@@ -52,7 +53,7 @@ Input _CCCL_API _CCCL_FORCEINLINE for_each(execution_policy<Derived>& policy, In
   using size_type = thrust::detail::it_difference_t<Input>;
   size_type count = static_cast<size_type>(::cuda::std::distance(first, last));
 
-  return THRUST_NS_QUALIFIER::cuda_cub::for_each_n(policy, first, count, op);
+  return THRUST_NS_QUALIFIER::cuda_cub::for_each_n(policy, first, count, ::cuda::std::move(op));
 }
 } // namespace cuda_cub
 

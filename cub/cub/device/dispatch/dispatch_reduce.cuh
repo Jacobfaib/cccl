@@ -611,7 +611,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_passes(
   OutputIteratorT d_out,
   OffsetT num_items,
   ReductionOpT reduction_op,
-  InitT init,
+  InitT init, // NOLINT(performance-unnecessary-value-param)
   cudaStream_t stream,
   TransformOpT transform_op,
   reduce_policy active_policy,
@@ -767,7 +767,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
   OutputIteratorT d_out,
   OffsetT num_items,
   ReductionOpT reduction_op,
-  InitT init,
+  InitT init, // NOLINT(performance-unnecessary-value-param)
   cudaStream_t stream,
   TransformOpT transform_op              = {},
   PolicySelector policy_selector         = {},

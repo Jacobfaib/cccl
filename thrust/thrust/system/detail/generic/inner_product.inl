@@ -18,6 +18,8 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/zip_function.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
 {
@@ -31,7 +33,7 @@ _CCCL_HOST_DEVICE OutputType inner_product(
 {
   ::cuda::std::plus<OutputType> binary_op1;
   ::cuda::std::multiplies<OutputType> binary_op2;
-  return thrust::inner_product(exec, first1, last1, first2, init, binary_op1, binary_op2);
+  return thrust::inner_product(exec, first1, last1, first2, ::cuda::std::move(init), binary_op1, binary_op2);
 } // end inner_product()
 
 template <typename DerivedPolicy,
@@ -51,7 +53,8 @@ _CCCL_HOST_DEVICE OutputType inner_product(
 {
   const auto first = thrust::make_zip_iterator(first1, first2);
   const auto last  = thrust::make_zip_iterator(last1, first2); // only first iterator matters
-  return thrust::transform_reduce(exec, first, last, thrust::make_zip_function(binary_op2), init, binary_op1);
+  return thrust::transform_reduce(
+    exec, first, last, thrust::make_zip_function(binary_op2), ::cuda::std::move(init), binary_op1);
 } // end inner_product()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

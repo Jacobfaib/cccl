@@ -268,7 +268,7 @@ C2H_TEST("then can be customized early", "[adaptors][then]")
 {
   // The customization will return a different value
   dummy_scheduler<then_test_domain> sched;
-  auto snd = ex::just(string{"hello"}) | ex::continues_on(sched) | ex::then([](string x) {
+  auto snd = ex::just(string{"hello"}) | ex::continues_on(sched) | ex::then([](const string& x) {
                return x + ", world";
              });
   wait_for_value(std::move(snd), string{"ciao"});
@@ -279,7 +279,7 @@ C2H_TEST("then can be customized late", "[adaptors][then]")
   // The customization will return a different value
   dummy_scheduler<then_test_domain> sched;
   auto snd = ex::just(string{"hello"})
-           | ex::on(sched, ex::then([](string x) {
+           | ex::on(sched, ex::then([](const string& x) {
                       return x + ", world";
                     }))
            | ex::write_env(ex::prop{ex::get_scheduler, dummy_scheduler()});

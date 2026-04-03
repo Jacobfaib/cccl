@@ -129,7 +129,7 @@ __launch_bounds__(int(ChainedPolicyT::ActivePolicy::ScanByKeyPolicyT::BLOCK_THRE
     _CCCL_GRID_CONSTANT const int start_tile,
     EqualityOp equality_op,
     _CCCL_GRID_CONSTANT const ScanOpT scan_op,
-    _CCCL_GRID_CONSTANT const InitValueT init_value,
+    _CCCL_GRID_CONSTANT const InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
     _CCCL_GRID_CONSTANT const OffsetT num_items)
 {
   using ScanByKeyPolicyT = typename ChainedPolicyT::ActivePolicy::ScanByKeyPolicyT;
@@ -313,7 +313,7 @@ struct DispatchScanByKey
     ValuesOutputIteratorT d_values_out,
     EqualityOp equality_op,
     ScanOpT scan_op,
-    InitValueT init_value,
+    InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
     OffsetT num_items,
     cudaStream_t stream,
     int ptx_version)
@@ -511,7 +511,7 @@ struct DispatchScanByKey
     ValuesOutputIteratorT d_values_out,
     EqualityOp equality_op,
     ScanOpT scan_op,
-    InitValueT init_value,
+    InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
     OffsetT num_items,
     cudaStream_t stream)
   {

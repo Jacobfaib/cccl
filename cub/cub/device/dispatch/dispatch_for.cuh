@@ -73,8 +73,11 @@ invoke_dynamic_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_po
 }
 
 template <class PolicySelector, class OffsetT, class OpT>
-CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t
-invoke_static_block_size(OffsetT num_items, OpT op, cudaStream_t stream, for_policy active_policy)
+CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_static_block_size(
+  OffsetT num_items,
+  OpT op,
+  cudaStream_t stream,
+  for_policy active_policy) // NOLINT(performance-unnecessary-value-param)
 {
   const int block_threads    = active_policy.block_threads;
   const int items_per_thread = active_policy.items_per_thread;

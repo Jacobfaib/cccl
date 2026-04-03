@@ -20,6 +20,7 @@
 #include <thrust/reduce.h>
 
 #include <cuda/std/__algorithm/min.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/tuple>
 
 // Contributed by Erich Elsen
@@ -84,8 +85,8 @@ find_if(thrust::execution_policy<DerivedPolicy>& exec, InputIterator first, Inpu
   using IteratorTuple = ::cuda::std::tuple<XfrmIterator, thrust::counting_iterator<difference_type>>;
   using ZipIterator   = thrust::zip_iterator<IteratorTuple>;
 
-  IteratorTuple iter_tuple =
-    ::cuda::std::make_tuple(XfrmIterator(first, pred), thrust::counting_iterator<difference_type>(0));
+  IteratorTuple iter_tuple = ::cuda::std::make_tuple(
+    XfrmIterator(first, ::cuda::std::move(pred)), thrust::counting_iterator<difference_type>(0));
 
   ZipIterator begin = thrust::make_zip_iterator(iter_tuple);
   ZipIterator end   = begin + n;
@@ -116,7 +117,7 @@ template <typename DerivedPolicy, typename InputIterator, typename Predicate>
 _CCCL_HOST_DEVICE InputIterator
 find_if_not(thrust::execution_policy<DerivedPolicy>& exec, InputIterator first, InputIterator last, Predicate pred)
 {
-  return thrust::find_if(exec, first, last, ::cuda::std::not_fn(pred));
+  return thrust::find_if(exec, first, last, ::cuda::std::not_fn(::cuda::std::move(pred)));
 } // end find()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

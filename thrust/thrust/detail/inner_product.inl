@@ -21,6 +21,7 @@
 #include <thrust/system/detail/sequential/inner_product.h>
 #include __THRUST_HOST_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(inner_product.h)
 #include __THRUST_DEVICE_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(inner_product.h)
+#include <cuda/std/__utility/move.h>
 
 // Some build systems need a hint to know which files we could include
 #if 0
@@ -43,7 +44,8 @@ _CCCL_HOST_DEVICE OutputType inner_product(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::inner_product");
   using thrust::system::detail::generic::inner_product;
-  return inner_product(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first1, last1, first2, init);
+  return inner_product(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first1, last1, first2, ::cuda::std::move(init));
 } // end inner_product()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -69,9 +71,9 @@ _CCCL_HOST_DEVICE OutputType inner_product(
     first1,
     last1,
     first2,
-    init,
-    binary_op1,
-    binary_op2);
+    ::cuda::std::move(init),
+    ::cuda::std::move(binary_op1),
+    ::cuda::std::move(binary_op2));
 } // end inner_product()
 
 template <typename InputIterator1, typename InputIterator2, typename OutputType>
@@ -86,7 +88,7 @@ OutputType inner_product(InputIterator1 first1, InputIterator1 last1, InputItera
   System1 system1;
   System2 system2;
 
-  return thrust::inner_product(select_system(system1, system2), first1, last1, first2, init);
+  return thrust::inner_product(select_system(system1, system2), first1, last1, first2, ::cuda::std::move(init));
 } // end inner_product()
 
 template <typename InputIterator1,
@@ -111,7 +113,8 @@ OutputType inner_product(
   System1 system1;
   System2 system2;
 
-  return thrust::inner_product(select_system(system1, system2), first1, last1, first2, init, binary_op1, binary_op2);
+  return thrust::inner_product(
+    select_system(system1, system2), first1, last1, first2, ::cuda::std::move(init), binary_op1, binary_op2);
 } // end inner_product()
 
 THRUST_NAMESPACE_END

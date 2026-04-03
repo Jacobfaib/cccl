@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 #  include <thrust/system/cuda/detail/core/triple_chevron_launch.h>
 #  include <thrust/system/cuda/detail/core/util.h>
@@ -83,7 +84,7 @@ struct AgentLauncher : Agent
 
   template <class Size>
   THRUST_RUNTIME_FUNCTION AgentLauncher(AgentPlan plan_, Size count_, cudaStream_t stream_, char const* name_)
-      : plan(plan_)
+      : plan(::cuda::std::move(plan_))
       , count((size_t) count_)
       , stream(stream_)
       , name(name_)
@@ -98,7 +99,7 @@ struct AgentLauncher : Agent
   template <class Size>
   THRUST_RUNTIME_FUNCTION
   AgentLauncher(AgentPlan plan_, Size count_, cudaStream_t stream_, char* vshmem, char const* name_)
-      : plan(plan_)
+      : plan(::cuda::std::move(plan_))
       , count((size_t) count_)
       , stream(stream_)
       , name(name_)
@@ -111,7 +112,7 @@ struct AgentLauncher : Agent
   }
 
   THRUST_RUNTIME_FUNCTION AgentLauncher(AgentPlan plan_, cudaStream_t stream_, char const* name_)
-      : plan(plan_)
+      : plan(cuda::std::move(plan_))
       , count(0)
       , stream(stream_)
       , name(name_)
@@ -124,7 +125,7 @@ struct AgentLauncher : Agent
   }
 
   THRUST_RUNTIME_FUNCTION AgentLauncher(AgentPlan plan_, cudaStream_t stream_, char* vshmem, char const* name_)
-      : plan(plan_)
+      : plan(cuda::std::move(plan_))
       , count(0)
       , stream(stream_)
       , name(name_)
@@ -205,7 +206,7 @@ struct AgentLauncher : Agent
   }
 
   template <class... Args>
-  static cuda_optional<int> THRUST_RUNTIME_FUNCTION get_max_blocks_per_sm(AgentPlan plan)
+  static cuda_optional<int> THRUST_RUNTIME_FUNCTION get_max_blocks_per_sm(const AgentPlan& plan)
   {
     return max_blocks_per_sm_impl(_kernel_agent<Agent, Args...>, plan.block_threads);
   }

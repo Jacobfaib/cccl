@@ -24,6 +24,7 @@
 #include <thrust/system/omp/detail/reduce_intervals.h>
 
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::omp::detail
@@ -49,13 +50,14 @@ OutputType reduce(execution_policy<DerivedPolicy>& exec,
   thrust::detail::temporary_array<OutputType, DerivedPolicy> partial_sums(exec, decomp1.size() + 1);
 
   // set first element of temp array to init
-  partial_sums[0] = init;
+  partial_sums[0] = ::cuda::std::move(init);
 
   // accumulate partial sums (first level reduction)
   thrust::system::omp::detail::reduce_intervals(exec, first, partial_sums.begin() + 1, binary_op, decomp1);
 
   // reduce partial sums (second level reduction)
-  thrust::system::omp::detail::reduce_intervals(exec, partial_sums.begin(), partial_sums.begin(), binary_op, decomp2);
+  thrust::system::omp::detail::reduce_intervals(
+    exec, partial_sums.begin(), partial_sums.begin(), ::cuda::std::move(binary_op), ::cuda::std::move(decomp2));
 
   return partial_sums[0];
 } // end reduce()

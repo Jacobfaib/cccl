@@ -40,6 +40,7 @@
 #include <cuda/std/__type_traits/is_same.h>
 #include <cuda/std/__utility/declval.h>
 #include <cuda/std/__utility/forward.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/tuple>
 
 THRUST_NAMESPACE_BEGIN
@@ -189,7 +190,7 @@ public:
   //!
   //! \param iterator_tuple The \p tuple of iterators to copy from.
   inline _CCCL_HOST_DEVICE zip_iterator(IteratorTuple iterator_tuple)
-      : m_iterator_tuple(iterator_tuple)
+      : m_iterator_tuple(::cuda::std::move(iterator_tuple))
   {}
 
   //! This constructor creates a new \p zip_iterator from multiple iterators.
@@ -318,7 +319,7 @@ template <typename... Iterators>
 inline _CCCL_HOST_DEVICE zip_iterator<::cuda::std::tuple<Iterators...>>
 make_zip_iterator(::cuda::std::tuple<Iterators...> t)
 {
-  return zip_iterator<::cuda::std::tuple<Iterators...>>{t};
+  return zip_iterator<::cuda::std::tuple<Iterators...>>{::cuda::std::move(t)};
 }
 
 //! \p make_zip_iterator creates a \p zip_iterator from

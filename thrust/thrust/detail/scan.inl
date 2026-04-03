@@ -25,6 +25,7 @@
 #include __THRUST_DEVICE_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(scan.h)
 #include __THRUST_HOST_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(scan_by_key.h)
 #include __THRUST_DEVICE_SYSTEM_ALGORITH_DETAIL_HEADER_INCLUDE(scan_by_key.h)
+#include <cuda/std/__utility/move.h>
 
 // Some build systems need a hint to know which files we could include
 #if 0
@@ -80,7 +81,12 @@ _CCCL_HOST_DEVICE OutputIterator inclusive_scan(
   _CCCL_NVTX_RANGE_SCOPE("thrust::inclusive_scan");
   using thrust::system::detail::generic::inclusive_scan;
   return inclusive_scan(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, init, binary_op);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    result,
+    ::cuda::std::move(init),
+    binary_op);
 } // end inclusive_scan()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -107,7 +113,8 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::exclusive_scan");
   using thrust::system::detail::generic::exclusive_scan;
-  return exclusive_scan(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, init);
+  return exclusive_scan(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(init));
 } // end exclusive_scan()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -123,7 +130,12 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan(
   _CCCL_NVTX_RANGE_SCOPE("thrust::exclusive_scan");
   using thrust::system::detail::generic::exclusive_scan;
   return exclusive_scan(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, init, binary_op);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    result,
+    ::cuda::std::move(init),
+    binary_op);
 } // end exclusive_scan()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -217,7 +229,12 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
   _CCCL_NVTX_RANGE_SCOPE("thrust::exclusive_scan_by_key");
   using thrust::system::detail::generic::exclusive_scan_by_key;
   return exclusive_scan_by_key(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first1, last1, first2, result, init);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first1,
+    last1,
+    first2,
+    result,
+    ::cuda::std::move(init));
 } // end exclusive_scan_by_key()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -239,7 +256,13 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
   _CCCL_NVTX_RANGE_SCOPE("thrust::exclusive_scan_by_key");
   using thrust::system::detail::generic::exclusive_scan_by_key;
   return exclusive_scan_by_key(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first1, last1, first2, result, init, binary_pred);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first1,
+    last1,
+    first2,
+    result,
+    ::cuda::std::move(init),
+    binary_pred);
 } // end exclusive_scan_by_key()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -268,7 +291,7 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
     last1,
     first2,
     result,
-    init,
+    ::cuda::std::move(init),
     binary_pred,
     binary_op);
 } // end exclusive_scan_by_key()
@@ -316,7 +339,8 @@ inclusive_scan(InputIterator first, InputIterator last, OutputIterator result, T
   System1 system1;
   System2 system2;
 
-  return thrust::inclusive_scan(select_system(system1, system2), first, last, result, init, binary_op);
+  return thrust::inclusive_scan(
+    select_system(system1, system2), first, last, result, ::cuda::std::move(init), binary_op);
 } // end inclusive_scan()
 
 template <typename InputIterator, typename OutputIterator>
@@ -346,7 +370,7 @@ OutputIterator exclusive_scan(InputIterator first, InputIterator last, OutputIte
   System1 system1;
   System2 system2;
 
-  return thrust::exclusive_scan(select_system(system1, system2), first, last, result, init);
+  return thrust::exclusive_scan(select_system(system1, system2), first, last, result, ::cuda::std::move(init));
 } // end exclusive_scan()
 
 template <typename InputIterator, typename OutputIterator, typename T, typename BinaryFunction>
@@ -362,7 +386,8 @@ exclusive_scan(InputIterator first, InputIterator last, OutputIterator result, T
   System1 system1;
   System2 system2;
 
-  return thrust::exclusive_scan(select_system(system1, system2), first, last, result, init, binary_op);
+  return thrust::exclusive_scan(
+    select_system(system1, system2), first, last, result, ::cuda::std::move(init), binary_op);
 } // end exclusive_scan()
 
 template <typename InputIterator1, typename InputIterator2, typename OutputIterator>
@@ -463,7 +488,8 @@ exclusive_scan_by_key(InputIterator1 first1, InputIterator1 last1, InputIterator
   System2 system2;
   System3 system3;
 
-  return thrust::exclusive_scan_by_key(select_system(system1, system2, system3), first1, last1, first2, result, init);
+  return thrust::exclusive_scan_by_key(
+    select_system(system1, system2, system3), first1, last1, first2, result, ::cuda::std::move(init));
 }
 
 template <typename InputIterator1, typename InputIterator2, typename OutputIterator, typename T, typename BinaryPredicate>
@@ -487,7 +513,7 @@ OutputIterator exclusive_scan_by_key(
   System3 system3;
 
   return thrust::exclusive_scan_by_key(
-    select_system(system1, system2, system3), first1, last1, first2, result, init, binary_pred);
+    select_system(system1, system2, system3), first1, last1, first2, result, ::cuda::std::move(init), binary_pred);
 }
 
 template <typename InputIterator1,
@@ -517,7 +543,14 @@ OutputIterator exclusive_scan_by_key(
   System3 system3;
 
   return thrust::exclusive_scan_by_key(
-    select_system(system1, system2, system3), first1, last1, first2, result, init, binary_pred, binary_op);
+    select_system(system1, system2, system3),
+    first1,
+    last1,
+    first2,
+    result,
+    ::cuda::std::move(init),
+    binary_pred,
+    binary_op);
 }
 
 THRUST_NAMESPACE_END

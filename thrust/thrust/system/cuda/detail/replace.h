@@ -18,6 +18,7 @@
 #  include <thrust/system/cuda/detail/transform.h>
 
 #  include <cuda/__functional/equal_to_value.h>
+#  include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace cuda_cub
@@ -66,7 +67,7 @@ OutputIt _CCCL_HOST_DEVICE replace_copy_if(
 {
   using output_type    = thrust::detail::it_value_t<OutputIt>;
   using new_value_if_t = thrust::detail::new_value_if_f<Predicate, T, output_type>;
-  return cuda_cub::transform(policy, first, last, result, new_value_if_t{predicate, new_value});
+  return cuda_cub::transform(policy, first, last, result, new_value_if_t{::cuda::std::move(predicate), new_value});
 }
 
 template <class Derived, class InputIt, class StencilIt, class OutputIt, class Predicate, class T>

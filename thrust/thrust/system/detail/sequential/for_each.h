@@ -19,6 +19,8 @@
 #include <thrust/detail/function.h>
 #include <thrust/system/detail/sequential/execution_policy.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::sequential
 {
@@ -28,7 +30,7 @@ _CCCL_HOST_DEVICE InputIterator
 for_each(sequential::execution_policy<DerivedPolicy>&, InputIterator first, InputIterator last, UnaryFunction f)
 {
   // wrap f
-  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{f};
+  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{::cuda::std::move(f)};
 
   for (; first != last; ++first)
   {
@@ -43,7 +45,7 @@ _CCCL_HOST_DEVICE InputIterator
 for_each_n(sequential::execution_policy<DerivedPolicy>&, InputIterator first, Size n, UnaryFunction f)
 {
   // wrap f
-  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{f};
+  thrust::detail::wrapped_function<UnaryFunction, void> wrapped_f{::cuda::std::move(f)};
 
   for (Size i = 0; i != n; i++)
   {

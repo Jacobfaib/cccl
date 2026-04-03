@@ -15,6 +15,8 @@
 #include <thrust/system/detail/generic/remove.h>
 #include <thrust/system/tbb/detail/execution_policy.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::tbb::detail
 {
@@ -23,7 +25,7 @@ ForwardIterator
 remove_if(execution_policy<DerivedPolicy>& exec, ForwardIterator first, ForwardIterator last, Predicate pred)
 {
   // tbb prefers generic::remove_if to cpp::remove_if
-  return thrust::system::detail::generic::remove_if(exec, first, last, pred);
+  return thrust::system::detail::generic::remove_if(exec, first, last, ::cuda::std::move(pred));
 }
 
 template <typename DerivedPolicy, typename ForwardIterator, typename InputIterator, typename Predicate>
@@ -35,7 +37,7 @@ ForwardIterator remove_if(
   Predicate pred)
 {
   // tbb prefers generic::remove_if to cpp::remove_if
-  return thrust::system::detail::generic::remove_if(exec, first, last, stencil, pred);
+  return thrust::system::detail::generic::remove_if(exec, first, last, stencil, ::cuda::std::move(pred));
 }
 
 template <typename DerivedPolicy, typename InputIterator, typename OutputIterator, typename Predicate>
@@ -43,7 +45,7 @@ OutputIterator remove_copy_if(
   execution_policy<DerivedPolicy>& exec, InputIterator first, InputIterator last, OutputIterator result, Predicate pred)
 {
   // tbb prefers generic::remove_copy_if to cpp::remove_copy_if
-  return thrust::system::detail::generic::remove_copy_if(exec, first, last, result, pred);
+  return thrust::system::detail::generic::remove_copy_if(exec, first, last, result, ::cuda::std::move(pred));
 }
 
 template <typename DerivedPolicy,
@@ -60,7 +62,7 @@ OutputIterator remove_copy_if(
   Predicate pred)
 {
   // tbb prefers generic::remove_copy_if to cpp::remove_copy_if
-  return thrust::system::detail::generic::remove_copy_if(exec, first, last, stencil, result, pred);
+  return thrust::system::detail::generic::remove_copy_if(exec, first, last, stencil, result, ::cuda::std::move(pred));
 }
 } // end namespace system::tbb::detail
 THRUST_NAMESPACE_END

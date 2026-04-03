@@ -401,7 +401,7 @@ struct AgentScanByKey
     ValuesOutputIteratorT d_values_out,
     EqualityOp equality_op,
     ScanOpT scan_op,
-    InitValueT init_value)
+    InitValueT init_value) // NOLINT(performance-unnecessary-value-param)
       : storage(storage.Alias())
       , d_keys_in(d_keys_in)
       , d_keys_prev_in(d_keys_prev_in)

@@ -25,6 +25,7 @@
 
 #include <cuda/std/__functional/operations.h>
 #include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 #if !_CCCL_COMPILER(NVRTC)
@@ -727,8 +728,12 @@ public:
   //! @param[out] block_aggregate
   //!   block-wide aggregate reduction of input items
   template <typename ScanOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void
-  ExclusiveScan(T input, T& output, T initial_value, ScanOp scan_op, T& block_aggregate)
+  _CCCL_DEVICE _CCCL_FORCEINLINE void ExclusiveScan(
+    T input, // NOLINT(performance-unnecessary-value-param)
+    T& output,
+    T initial_value, // NOLINT(performance-unnecessary-value-param)
+    ScanOp scan_op,
+    T& block_aggregate)
   {
     InternalBlockScan(temp_storage).ExclusiveScan(input, output, initial_value, scan_op, block_aggregate);
   }
@@ -838,7 +843,7 @@ public:
   _CCCL_DEVICE _CCCL_FORCEINLINE void
   ExclusiveScan(T input, T& output, ScanOp scan_op, BlockPrefixCallbackOp& block_prefix_callback_op)
   {
-    InternalBlockScan(temp_storage).ExclusiveScan(input, output, scan_op, block_prefix_callback_op);
+    InternalBlockScan(temp_storage).ExclusiveScan(::cuda::std::move(input), output, scan_op, block_prefix_callback_op);
   }
 
   //! @}
@@ -989,7 +994,11 @@ public:
   //!   block-wide aggregate reduction of input items
   template <int ITEMS_PER_THREAD, typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void ExclusiveScan(
-    T (&input)[ITEMS_PER_THREAD], T (&output)[ITEMS_PER_THREAD], T initial_value, ScanOp scan_op, T& block_aggregate)
+    T (&input)[ITEMS_PER_THREAD],
+    T (&output)[ITEMS_PER_THREAD],
+    T initial_value, // NOLINT(performance-unnecessary-value-param)
+    ScanOp scan_op,
+    T& block_aggregate)
   {
     // Reduce consecutive thread items in registers
     T thread_prefix = cub::ThreadReduce(input, scan_op);
@@ -1151,7 +1160,7 @@ public:
   template <typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void ExclusiveScan(T input, T& output, ScanOp scan_op, T& block_aggregate)
   {
-    InternalBlockScan(temp_storage).ExclusiveScan(input, output, scan_op, block_aggregate);
+    InternalBlockScan(temp_storage).ExclusiveScan(::cuda::std::move(input), output, scan_op, block_aggregate);
   }
 
   //! @}
@@ -1752,7 +1761,7 @@ public:
   template <typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void InclusiveScan(T input, T& output, ScanOp scan_op, T& block_aggregate)
   {
-    InternalBlockScan(temp_storage).InclusiveScan(input, output, scan_op, block_aggregate);
+    InternalBlockScan(temp_storage).InclusiveScan(::cuda::std::move(input), output, scan_op, block_aggregate);
   }
 
   //! @rst
@@ -1824,7 +1833,7 @@ public:
   _CCCL_DEVICE _CCCL_FORCEINLINE void
   InclusiveScan(T input, T& output, ScanOp scan_op, BlockPrefixCallbackOp& block_prefix_callback_op)
   {
-    InternalBlockScan(temp_storage).InclusiveScan(input, output, scan_op, block_prefix_callback_op);
+    InternalBlockScan(temp_storage).InclusiveScan(::cuda::std::move(input), output, scan_op, block_prefix_callback_op);
   }
 
   //! @}
@@ -2099,7 +2108,11 @@ public:
   //!   Block-wide aggregate reduction of input items
   template <int ITEMS_PER_THREAD, typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void InclusiveScan(
-    T (&input)[ITEMS_PER_THREAD], T (&output)[ITEMS_PER_THREAD], T initial_value, ScanOp scan_op, T& block_aggregate)
+    T (&input)[ITEMS_PER_THREAD],
+    T (&output)[ITEMS_PER_THREAD],
+    T initial_value, // NOLINT(performance-unnecessary-value-param)
+    ScanOp scan_op,
+    T& block_aggregate)
   {
     // Reduce consecutive thread items in registers
     T thread_prefix = cub::ThreadReduce(input, scan_op);

@@ -86,7 +86,7 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
   InputIterator1 last1,
   InputIterator2 first2,
   OutputIterator result,
-  T init,
+  T init, // NOLINT(performance-unnecessary-value-param)
   BinaryPredicate binary_pred,
   BinaryFunction binary_op)
 {

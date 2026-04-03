@@ -16,6 +16,8 @@
 #include <thrust/reduce.h>
 #include <thrust/system/detail/generic/transform_reduce.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
 {
@@ -35,7 +37,7 @@ _CCCL_HOST_DEVICE OutputType transform_reduce(
   thrust::transform_iterator<UnaryFunction, InputIterator, OutputType> xfrm_first(first, unary_op);
   thrust::transform_iterator<UnaryFunction, InputIterator, OutputType> xfrm_last(last, unary_op);
 
-  return thrust::reduce(exec, xfrm_first, xfrm_last, init, binary_op);
+  return thrust::reduce(exec, xfrm_first, xfrm_last, ::cuda::std::move(init), binary_op);
 } // end transform_reduce()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

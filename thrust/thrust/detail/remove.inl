@@ -16,6 +16,8 @@
 #include <thrust/remove.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/remove.h>
 #include <thrust/system/detail/sequential/remove.h>
@@ -69,7 +71,8 @@ _CCCL_HOST_DEVICE ForwardIterator remove_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_if");
   using thrust::system::detail::generic::remove_if;
-  return remove_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, pred);
+  return remove_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(pred));
 } // end remove_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -83,7 +86,8 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_copy_if");
   using thrust::system::detail::generic::remove_copy_if;
-  return remove_copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, pred);
+  return remove_copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -117,7 +121,12 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
   _CCCL_NVTX_RANGE_SCOPE("thrust::remove_copy_if");
   using thrust::system::detail::generic::remove_copy_if;
   return remove_copy_if(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, result, pred);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    stencil,
+    result,
+    ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 template <typename ForwardIterator, typename T>

@@ -16,6 +16,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/copy_if.h>
 #include <thrust/system/detail/sequential/copy_if.h>
@@ -43,7 +45,8 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::copy_if");
   using thrust::system::detail::generic::copy_if;
-  return copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, pred);
+  return copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(pred));
 } // end copy_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -62,7 +65,13 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::copy_if");
   using thrust::system::detail::generic::copy_if;
-  return copy_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, result, pred);
+  return copy_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    stencil,
+    result,
+    ::cuda::std::move(pred));
 } // end copy_if()
 
 template <typename InputIterator, typename OutputIterator, typename Predicate>

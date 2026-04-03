@@ -19,6 +19,8 @@
 #include <thrust/detail/function.h>
 #include <thrust/system/detail/sequential/execution_policy.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::sequential
 {
@@ -28,7 +30,7 @@ _CCCL_HOST_DEVICE InputIterator
 find_if(execution_policy<DerivedPolicy>&, InputIterator first, InputIterator last, Predicate pred)
 {
   // wrap pred
-  thrust::detail::wrapped_function<Predicate, bool> wrapped_pred{pred};
+  thrust::detail::wrapped_function<Predicate, bool> wrapped_pred{::cuda::std::move(pred)};
 
   while (first != last)
   {

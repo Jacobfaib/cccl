@@ -28,6 +28,7 @@
 #include <cuda/__ptx/instructions/get_sreg.h>
 #include <cuda/atomic>
 #include <cuda/std/__algorithm/min.h>
+#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 namespace detail
@@ -238,8 +239,9 @@ struct BlockReduceWarpReductions
         : num_valid - warp_offset;
 
     // Warp reduction in every warp
-    const T warp_aggregate = WarpReduceInternal(temp_storage.warp_reduce[warp_id])
-                               .template Reduce<(FullTile && even_warp_multiple)>(input, warp_num_valid, reduction_op);
+    const T warp_aggregate =
+      WarpReduceInternal(temp_storage.warp_reduce[warp_id])
+        .template Reduce<(FullTile && even_warp_multiple)>(::cuda::std::move(input), warp_num_valid, reduction_op);
 
     // Update outputs and block_aggregate with warp-wide aggregates from lane-0s
     if constexpr (IsDeterministic)

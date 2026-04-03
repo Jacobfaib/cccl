@@ -34,6 +34,7 @@
 #include <cuda/std/__concepts/concept_macros.h>
 #include <cuda/std/__functional/operations.h>
 #include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 
@@ -692,7 +693,8 @@ public:
   template <typename ReductionOp, typename FlagT>
   [[nodiscard]] _CCCL_DEVICE _CCCL_FORCEINLINE T TailSegmentedReduce(T input, FlagT tail_flag, ReductionOp reduction_op)
   {
-    return InternalWarpReduce{temp_storage}.template SegmentedReduce<false>(input, tail_flag, reduction_op);
+    return InternalWarpReduce{temp_storage}.template SegmentedReduce<false>(
+      ::cuda::std::move(input), tail_flag, reduction_op);
   }
 
   //! @}

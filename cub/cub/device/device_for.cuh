@@ -33,6 +33,7 @@
 #include <cuda/std/__type_traits/enable_if.h>
 #include <cuda/std/__type_traits/is_convertible.h>
 #include <cuda/std/__type_traits/is_integral.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/array>
 
 CUB_NAMESPACE_BEGIN
@@ -597,7 +598,7 @@ public:
       return cudaSuccess;
     }
     auto stream = ::cuda::__call_or(::cuda::get_stream, ::cuda::stream_ref{cudaStream_t{}}, env);
-    return detail::for_each::dispatch</* OffsetT */ ShapeT, OpT>(shape, op, stream.get());
+    return detail::for_each::dispatch</* OffsetT */ ShapeT, OpT>(shape, ::cuda::std::move(op), stream.get());
   }
 
   // we need this so the previous overload is not ambiguous with the next one
@@ -607,7 +608,7 @@ public:
   template <class ShapeT, class OpT>
   CUB_RUNTIME_FUNCTION static cudaError_t Bulk(ShapeT shape, OpT op, cudaStream_t stream)
   {
-    return Bulk(shape, op, ::cuda::stream_ref{stream});
+    return Bulk(shape, ::cuda::std::move(op), ::cuda::stream_ref{stream});
   }
 
 private:

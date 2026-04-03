@@ -2,6 +2,8 @@
 
 #include <thrust/execution_policy.h>
 
+#include <cuda/std/utility>
+
 #include <iosfwd>
 
 template <typename T, unsigned int N>
@@ -81,8 +83,8 @@ struct key_value
   {}
 
   _CCCL_HOST_DEVICE key_value(key_type k, value_type v)
-      : key(k)
-      , value(v)
+      : key(::cuda::std::move(k))
+      , value(::cuda::std::move(v))
   {}
 
   _CCCL_HOST_DEVICE bool operator<(const key_value& rhs) const

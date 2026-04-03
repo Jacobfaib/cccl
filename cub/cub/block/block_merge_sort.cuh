@@ -80,7 +80,7 @@ _CCCL_DEVICE _CCCL_FORCEINLINE void SerialMerge(
   KeyT (&output)[ItemsPerThread],
   int (&indices)[ItemsPerThread],
   CompareOp compare_op,
-  KeyT oob_default)
+  KeyT oob_default) // NOLINT(performance-unnecessary-value-param)
 {
   const int keys1_end = keys1_beg + keys1_count;
   const int keys2_end = keys2_beg + keys2_count;
@@ -392,7 +392,7 @@ public:
        ValueT (&items)[ItemsPerThread],
        CompareOp compare_op,
        int valid_items,
-       KeyT oob_default)
+       KeyT oob_default) // NOLINT(performance-unnecessary-value-param)
   {
     if constexpr (IS_LAST_TILE)
     {

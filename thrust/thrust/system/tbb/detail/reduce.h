@@ -23,6 +23,7 @@
 #include <thrust/system/tbb/detail/execution_policy.h>
 
 #include <cuda/std/__iterator/distance.h>
+#include <cuda/std/__utility/move.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_reduce.h>
@@ -43,7 +44,7 @@ struct body
   // note: we only initialize sum with init to avoid calling OutputType's default constructor
   body(RandomAccessIterator first, OutputType init, BinaryFunction binary_op)
       : first(first)
-      , sum(init)
+      , sum(::cuda::std::move(init))
       , first_call(true)
       , binary_op{binary_op}
   {}
@@ -114,7 +115,7 @@ OutputType reduce(
     using Body = typename reduce_detail::body<InputIterator, OutputType, BinaryFunction>;
     Body reduce_body(begin, init, binary_op);
     ::tbb::parallel_reduce(::tbb::blocked_range<Size>(0, n), reduce_body);
-    return binary_op(init, reduce_body.sum);
+    return binary_op(::cuda::std::move(init), reduce_body.sum);
   }
 }
 } // end namespace system::tbb::detail

@@ -191,7 +191,7 @@ __launch_bounds__(get_device_scan_launch_bounds<PolicySelector, InputIteratorT, 
 #if _CCCL_CUDACC_AT_LEAST(12, 8)
     _CCCL_GRID_CONSTANT
 #endif // _CCCL_CUDACC_AT_LEAST(12, 8)
-    const InitValueT init_value,
+    const InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
     _CCCL_GRID_CONSTANT const OffsetT num_items,
     _CCCL_GRID_CONSTANT const int num_stages)
 {

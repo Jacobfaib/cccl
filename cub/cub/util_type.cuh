@@ -267,11 +267,11 @@ struct InputValue
   }
   explicit _CCCL_HOST_DEVICE _CCCL_FORCEINLINE InputValue(T immediate_value)
       : m_is_future(false)
-      , m_immediate_value(immediate_value)
+      , m_immediate_value(::cuda::std::move(immediate_value))
   {}
   explicit _CCCL_HOST_DEVICE _CCCL_FORCEINLINE InputValue(FutureValue<T, IterT> future_value)
       : m_is_future(true)
-      , m_future_value(future_value)
+      , m_future_value(::cuda::std::move(future_value))
   {}
   _CCCL_HOST_DEVICE _CCCL_FORCEINLINE InputValue(const InputValue& other)
       : m_is_future(other.m_is_future)

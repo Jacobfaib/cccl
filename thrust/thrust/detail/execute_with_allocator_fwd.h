@@ -15,6 +15,8 @@
 
 #include <thrust/detail/type_traits.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 
 namespace detail
@@ -35,7 +37,7 @@ public:
 
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_HOST_DEVICE execute_with_allocator(Allocator alloc_)
-      : alloc(alloc_)
+      : alloc(::cuda::std::move(alloc_))
   {}
 
   _CCCL_HOST_DEVICE ::cuda::std::remove_reference_t<Allocator>& get_allocator()

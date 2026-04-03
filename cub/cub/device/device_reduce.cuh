@@ -46,6 +46,7 @@
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/is_integral.h>
 #include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 #include <cuda/std/limits>
 
@@ -300,7 +301,7 @@ private:
 
       // Dispatch with environment - handles all boilerplate
       return detail::dispatch_with_env(
-        env, [&]([[maybe_unused]] auto tuning, void* storage, size_t& bytes, auto stream) {
+        ::cuda::std::move(env), [&]([[maybe_unused]] auto tuning, void* storage, size_t& bytes, auto stream) {
           using tuning_t = decltype(tuning);
           return reduce_impl<tuning_t>(
             storage, bytes, d_in, d_out, num_items, reduction_op, transform_op, init, determinism_t{}, stream);
@@ -423,7 +424,7 @@ public:
     OutputIteratorT d_out,
     NumItemsT num_items,
     ReductionOpT reduction_op,
-    T init,
+    T init, // NOLINT(performance-unnecessary-value-param)
     cudaStream_t stream = 0)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceReduce::Reduce");
@@ -515,7 +516,8 @@ public:
   {
     _CCCL_NVTX_RANGE_SCOPE("cub::DeviceReduce::Reduce");
     using accum_t = ::cuda::std::__accumulator_t<ReductionOpT, detail::it_value_t<InputIteratorT>, T>;
-    return __transform_reduce<accum_t>(d_in, d_out, num_items, reduction_op, ::cuda::std::identity{}, init, env);
+    return __transform_reduce<accum_t>(
+      d_in, d_out, num_items, reduction_op, ::cuda::std::identity{}, init, ::cuda::std::move(env));
   }
 
   //! @rst
@@ -2102,7 +2104,7 @@ public:
     NumItemsT num_items,
     ReductionOpT reduction_op,
     TransformOpT transform_op,
-    T init,
+    T init, // NOLINT(performance-unnecessary-value-param)
     cudaStream_t stream = 0)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceReduce::TransformReduce");
