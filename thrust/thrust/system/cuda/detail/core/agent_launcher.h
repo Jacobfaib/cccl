@@ -112,7 +112,7 @@ struct AgentLauncher : Agent
   }
 
   THRUST_RUNTIME_FUNCTION AgentLauncher(AgentPlan plan_, cudaStream_t stream_, char const* name_)
-      : plan(cuda::std::move(plan_))
+      : plan(::cuda::std::move(plan_))
       , count(0)
       , stream(stream_)
       , name(name_)
@@ -125,7 +125,7 @@ struct AgentLauncher : Agent
   }
 
   THRUST_RUNTIME_FUNCTION AgentLauncher(AgentPlan plan_, cudaStream_t stream_, char* vshmem, char const* name_)
-      : plan(cuda::std::move(plan_))
+      : plan(::cuda::std::move(plan_))
       , count(0)
       , stream(stream_)
       , name(name_)
