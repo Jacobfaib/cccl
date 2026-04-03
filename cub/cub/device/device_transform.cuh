@@ -23,6 +23,7 @@
 #include <cuda/__iterator/zip_iterator.h>
 #include <cuda/__stream/get_stream.h>
 #include <cuda/std/__execution/env.h>
+#include <cuda/std/__iterator/iterator_traits.h>
 #include <cuda/std/tuple>
 
 CUB_NAMESPACE_BEGIN
@@ -433,7 +434,7 @@ struct DeviceTransform
   {
     static_assert(::cuda::std::is_invocable_v<Generator>, "The passed generator must be a nullary function object");
     static_assert(
-      ::cuda::std::is_assignable_v<detail::it_reference_t<RandomAccessIteratorOut>,
+      ::cuda::std::is_assignable_v<::cuda::std::iter_reference_t<RandomAccessIteratorOut>,
                                    ::cuda::std::invoke_result_t<Generator>>,
       "The return value of the generator's call operator must be assignable to the dereferenced output iterator");
 
@@ -499,7 +500,7 @@ struct DeviceTransform
   CUB_RUNTIME_FUNCTION static cudaError_t
   Fill(RandomAccessIteratorOut output, NumItemsT num_items, Value value, Env env = {})
   {
-    static_assert(::cuda::std::is_assignable_v<detail::it_reference_t<RandomAccessIteratorOut>, Value>,
+    static_assert(::cuda::std::is_assignable_v<::cuda::std::iter_reference_t<RandomAccessIteratorOut>, Value>,
                   "The passed value must be assignable to the dereferenced output iterator");
 
     _CCCL_NVTX_RANGE_SCOPE("cub::DeviceTransform::Fill");
