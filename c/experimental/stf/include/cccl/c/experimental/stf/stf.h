@@ -65,6 +65,8 @@
 
 #pragma once
 
+// NOLINTBEGIN
+
 #ifndef CCCL_C_EXPERIMENTAL
 #  error "C exposure is experimental and subject to change. Define CCCL_C_EXPERIMENTAL to acknowledge this notice."
 #endif // !CCCL_C_EXPERIMENTAL
@@ -1403,3 +1405,5 @@ void* stf_host_launch_deps_get_user_data(stf_host_launch_deps_handle deps);
 #ifdef __cplusplus
 }
 #endif
+
+// NOLINTEND
