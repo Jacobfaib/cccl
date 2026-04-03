@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 
 #  include <thrust/system/cuda/config.h>
@@ -60,7 +61,7 @@ void _CCCL_HOST_DEVICE reduce_into(
   InputIterator first,
   InputIterator last,
   OutputIterator output,
-  T init,
+  T init, // NOLINT(performance-unnecessary-value-param)
   BinaryFunction binary_op);
 
 namespace cuda_cub
@@ -592,15 +593,19 @@ THRUST_RUNTIME_FUNCTION size_t get_reduce_n_temporary_storage_size(
     status,
     cub::DeviceReduce::Reduce,
     num_items,
-    (nullptr, tmp_size, first, static_cast<T*>(nullptr), num_items_fixed, binary_op, init, stream));
+    (nullptr, tmp_size, first, static_cast<T*>(nullptr), num_items_fixed, binary_op, ::cuda::std::move(init), stream));
   cuda_cub::throw_on_error(status, "after determining reduce temporary storage size");
 
   return tmp_size;
 }
 
 template <typename Derived, typename InputIt, typename Size, typename T, typename BinaryOp>
-THRUST_RUNTIME_FUNCTION T
-reduce_n_impl(execution_policy<Derived>& policy, InputIt first, Size num_items, T init, BinaryOp binary_op)
+THRUST_RUNTIME_FUNCTION T reduce_n_impl(
+  execution_policy<Derived>& policy,
+  InputIt first,
+  Size num_items,
+  T init, // NOLINT(performance-unnecessary-value-param)
+  BinaryOp binary_op) // NOLINT(performance-unnecessary-value-param)
 {
   cudaStream_t stream = cuda_cub::stream(policy);
   cudaError_t status;
@@ -660,7 +665,7 @@ THRUST_RUNTIME_FUNCTION void reduce_n_into_impl(
     status,
     cub::DeviceReduce::Reduce,
     num_items,
-    (tmp_ptr, tmp_size, first, output, num_items_fixed, binary_op, init, stream));
+    (tmp_ptr, tmp_size, first, output, num_items_fixed, binary_op, ::cuda::std::move(init), stream));
   cuda_cub::throw_on_error(status, "after reduce invocation");
 
   // Synchronize the stream and get the value.
@@ -692,7 +697,8 @@ _CCCL_HOST_DEVICE void reduce_n_into(
 {
   THRUST_CDP_DISPATCH(
     (thrust::cuda_cub::detail::reduce_n_into_impl(policy, first, num_items, output, init, binary_op);),
-    (thrust::reduce_into(cvt_to_seq(derived_cast(policy)), first, first + num_items, output, init, binary_op);));
+    (thrust::reduce_into(
+       cvt_to_seq(derived_cast(policy)), first, first + num_items, output, ::cuda::std::move(init), binary_op);));
 }
 
 template <class Derived, class InputIt, class T, class BinaryOp>
@@ -701,13 +707,13 @@ _CCCL_HOST_DEVICE T reduce(execution_policy<Derived>& policy, InputIt first, Inp
   using size_type = thrust::detail::it_difference_t<InputIt>;
   // FIXME: Check for RA iterator.
   size_type num_items = static_cast<size_type>(::cuda::std::distance(first, last));
-  return cuda_cub::reduce_n(policy, first, num_items, init, binary_op);
+  return cuda_cub::reduce_n(policy, first, num_items, ::cuda::std::move(init), binary_op);
 }
 
 template <class Derived, class InputIt, class T>
 _CCCL_HOST_DEVICE T reduce(execution_policy<Derived>& policy, InputIt first, InputIt last, T init)
 {
-  return cuda_cub::reduce(policy, first, last, init, ::cuda::std::plus<T>());
+  return cuda_cub::reduce(policy, first, last, ::cuda::std::move(init), ::cuda::std::plus<T>());
 }
 
 template <class Derived, class InputIt>
@@ -725,14 +731,14 @@ reduce_into(execution_policy<Derived>& policy, InputIt first, InputIt last, Outp
   using size_type = thrust::detail::it_difference_t<InputIt>;
   // FIXME: Check for RA iterator.
   size_type num_items = static_cast<size_type>(::cuda::std::distance(first, last));
-  cuda_cub::reduce_n_into(policy, first, num_items, output, init, binary_op);
+  cuda_cub::reduce_n_into(policy, first, num_items, output, ::cuda::std::move(init), binary_op);
 }
 
 template <class Derived, class InputIt, class OutputIt, class T>
 _CCCL_HOST_DEVICE void
 reduce_into(execution_policy<Derived>& policy, InputIt first, InputIt last, OutputIt output, T init)
 {
-  cuda_cub::reduce_into(policy, first, last, output, init, ::cuda::std::plus<T>());
+  cuda_cub::reduce_into(policy, first, last, output, ::cuda::std::move(init), ::cuda::std::plus<T>());
 }
 
 template <class Derived, class InputIt, class OutputIt>

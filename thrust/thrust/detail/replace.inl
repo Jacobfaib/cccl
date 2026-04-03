@@ -16,6 +16,8 @@
 #include <thrust/replace.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/replace.h>
 #include <thrust/system/detail/sequential/replace.h>
@@ -57,7 +59,8 @@ _CCCL_HOST_DEVICE void replace_if(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::replace_if");
   using thrust::system::detail::generic::replace_if;
-  return replace_if(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, pred, new_value);
+  return replace_if(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, ::cuda::std::move(pred), new_value);
 } // end replace_if()
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -105,7 +108,12 @@ _CCCL_HOST_DEVICE OutputIterator replace_copy_if(
   _CCCL_NVTX_RANGE_SCOPE("thrust::replace_copy_if");
   using thrust::system::detail::generic::replace_copy_if;
   return replace_copy_if(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, pred, new_value);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    result,
+    ::cuda::std::move(pred),
+    new_value);
 } // end replace_copy_if()
 
 _CCCL_EXEC_CHECK_DISABLE

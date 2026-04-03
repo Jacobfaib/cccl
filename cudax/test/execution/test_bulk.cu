@@ -147,7 +147,7 @@ void bulk_keeps_values_type_from_input_sender()
   check_value_types<types<double>>(ex::just(4.2) //
                                    | ex::bulk(ex::par, n, [] _CCCL_HOST_DEVICE(int, double) {}));
   check_value_types<types<double, string>>(ex::just(4.2, string{}) //
-                                           | ex::bulk(ex::par, n, [] _CCCL_HOST_DEVICE(int, double, string) {}));
+                                           | ex::bulk(ex::par, n, [] _CCCL_HOST_DEVICE(int, double, const string&) {}));
 }
 
 void bulk_chunked_keeps_values_type_from_input_sender()
@@ -158,7 +158,7 @@ void bulk_chunked_keeps_values_type_from_input_sender()
   check_value_types<types<double>>(ex::just(4.2) //
                                    | ex::bulk_chunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, int, double) {}));
   check_value_types<types<double, string>>(
-    ex::just(4.2, string{}) | ex::bulk_chunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, int, double, string) {}));
+    ex::just(4.2, string{}) | ex::bulk_chunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, int, double, const string&) {}));
 }
 
 void bulk_unchunked_keeps_values_type_from_input_sender()
@@ -170,7 +170,7 @@ void bulk_unchunked_keeps_values_type_from_input_sender()
                                    | ex::bulk_unchunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, double) {}));
   check_value_types<types<double, string>>(
     ex::just(4.2, string{}) //
-    | ex::bulk_unchunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, double, string) {}));
+    | ex::bulk_unchunked(ex::par, n, [] _CCCL_HOST_DEVICE(int, double, const string&) {}));
 }
 
 void bulk_keeps_error_types_from_input_sender()

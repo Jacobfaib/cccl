@@ -917,7 +917,8 @@ struct name_source_t
 };
 
 template <class ValueT, class StateT>
-iterator_t<ValueT, StateT> make_iterator(name_source_t state, operation_t advance, operation_t dereference)
+iterator_t<ValueT, StateT>
+make_iterator(const name_source_t& state, const operation_t& advance, const operation_t& dereference)
 {
   iterator_t<ValueT, StateT> it;
   it.state_name                = state.name;
@@ -977,7 +978,10 @@ inline std::tuple<std::string, std::string, std::string> make_random_access_iter
 
 template <class ValueT>
 iterator_t<ValueT, random_access_iterator_state_t<ValueT>> make_random_access_iterator(
-  iterator_kind kind, std::string_view value_type, std::string prefix = "", std::string transform = "")
+  iterator_kind kind,
+  std::string_view value_type,
+  std::string prefix    = "",
+  std::string transform = "") // NOLINT(performance-unnecessary-value-param)
 {
   std::string iterator_state_name = std::format("{0}state_t", prefix);
   std::string advance_fn_name     = std::format("{0}advance", prefix);

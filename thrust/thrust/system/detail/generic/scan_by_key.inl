@@ -22,6 +22,7 @@
 #include <thrust/system/detail/generic/scan_by_key.h>
 #include <thrust/transform.h>
 
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 THRUST_NAMESPACE_BEGIN
@@ -140,7 +141,8 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
   OutputIterator result,
   T init)
 {
-  return thrust::exclusive_scan_by_key(exec, first1, last1, first2, result, init, ::cuda::std::equal_to<>());
+  return thrust::exclusive_scan_by_key(
+    exec, first1, last1, first2, result, ::cuda::std::move(init), ::cuda::std::equal_to<>());
 }
 
 template <typename DerivedPolicy,
@@ -158,7 +160,8 @@ _CCCL_HOST_DEVICE OutputIterator exclusive_scan_by_key(
   T init,
   BinaryPredicate binary_pred)
 {
-  return thrust::exclusive_scan_by_key(exec, first1, last1, first2, result, init, binary_pred, ::cuda::std::plus<>());
+  return thrust::exclusive_scan_by_key(
+    exec, first1, last1, first2, result, ::cuda::std::move(init), binary_pred, ::cuda::std::plus<>());
 }
 
 template <typename DerivedPolicy,

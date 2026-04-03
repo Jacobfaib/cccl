@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 
 #  include <thrust/system/cuda/config.h>
@@ -88,7 +89,7 @@ _CCCL_HOST_DEVICE OutputIt inclusive_scan_n_impl(
   InputIt first,
   Size num_items,
   OutputIt result,
-  InitValueT init,
+  InitValueT init, // NOLINT(performance-unnecessary-value-param)
   ScanOp scan_op)
 {
   using InputValueT   = cub::detail::InputValue<InitValueT>;
@@ -141,7 +142,7 @@ _CCCL_HOST_DEVICE OutputIt exclusive_scan_n_impl(
   InputIt first,
   Size num_items,
   OutputIt result,
-  InitValueT init,
+  InitValueT init, // NOLINT(performance-unnecessary-value-param)
   ScanOp scan_op)
 {
   using InputValueT   = cub::detail::InputValue<InitValueT>;
@@ -201,8 +202,8 @@ _CCCL_HOST_DEVICE OutputIt inclusive_scan_n(
 {
   THRUST_CDP_DISPATCH(
     (result = thrust::cuda_cub::detail::inclusive_scan_n_impl(policy, first, num_items, result, init, scan_op);),
-    (result =
-       thrust::inclusive_scan(cvt_to_seq(derived_cast(policy)), first, first + num_items, result, init, scan_op);));
+    (result = thrust::inclusive_scan(
+       cvt_to_seq(derived_cast(policy)), first, first + num_items, result, ::cuda::std::move(init), scan_op);));
   return result;
 }
 
@@ -236,7 +237,7 @@ _CCCL_HOST_DEVICE OutputIt inclusive_scan(
 {
   using diff_t           = thrust::detail::it_difference_t<InputIt>;
   diff_t const num_items = ::cuda::std::distance(first, last);
-  return thrust::cuda_cub::inclusive_scan_n(policy, first, num_items, result, init, scan_op);
+  return thrust::cuda_cub::inclusive_scan_n(policy, first, num_items, result, ::cuda::std::move(init), scan_op);
 }
 
 template <typename Derived, typename InputIt, typename OutputIt>
@@ -258,8 +259,8 @@ _CCCL_HOST_DEVICE OutputIt exclusive_scan_n(
 {
   THRUST_CDP_DISPATCH(
     (result = thrust::cuda_cub::detail::exclusive_scan_n_impl(policy, first, num_items, result, init, scan_op);),
-    (result =
-       thrust::exclusive_scan(cvt_to_seq(derived_cast(policy)), first, first + num_items, result, init, scan_op);));
+    (result = thrust::exclusive_scan(
+       cvt_to_seq(derived_cast(policy)), first, first + num_items, result, ::cuda::std::move(init), scan_op);));
   return result;
 }
 
@@ -274,14 +275,14 @@ _CCCL_HOST_DEVICE OutputIt exclusive_scan(
 {
   using diff_t           = thrust::detail::it_difference_t<InputIt>;
   diff_t const num_items = ::cuda::std::distance(first, last);
-  return thrust::cuda_cub::exclusive_scan_n(policy, first, num_items, result, init, scan_op);
+  return thrust::cuda_cub::exclusive_scan_n(policy, first, num_items, result, ::cuda::std::move(init), scan_op);
 }
 
 template <typename Derived, typename InputIt, typename OutputIt, typename T>
 _CCCL_HOST_DEVICE OutputIt exclusive_scan(
   thrust::cuda_cub::execution_policy<Derived>& policy, InputIt first, InputIt last, OutputIt result, T init)
 {
-  return thrust::cuda_cub::exclusive_scan(policy, first, last, result, init, ::cuda::std::plus<>{});
+  return thrust::cuda_cub::exclusive_scan(policy, first, last, result, ::cuda::std::move(init), ::cuda::std::plus<>{});
 }
 
 template <typename Derived, typename InputIt, typename OutputIt>

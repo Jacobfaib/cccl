@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 
 #  include <cub/block/block_load.cuh>
@@ -50,7 +51,7 @@ binary_search_iteration(It data, Size& begin, Size& end, T key, int shift, Comp 
   Size mid   = (begin + scale * end) >> shift;
 
   T key2    = data[mid];
-  bool pred = UpperBound ? !comp(key, key2) : comp(key2, key);
+  bool pred = UpperBound ? !comp(::cuda::std::move(key), key2) : comp(key2, key);
   if (pred)
   {
     begin = mid + 1;
@@ -68,13 +69,18 @@ _CCCL_DEVICE_API _CCCL_FORCEINLINE Size binary_search(It data, Size count, T key
   Size end   = count;
   while (begin < end)
   {
-    binary_search_iteration<UpperBound, int>(data, begin, end, key, 1, comp);
+    binary_search_iteration<UpperBound, int>(data, begin, end, ::cuda::std::move(key), 1, comp);
   }
   return begin;
 }
 
 template <bool UpperBound, class IntT, class Size, class T, class It, class Comp>
-_CCCL_DEVICE_API _CCCL_FORCEINLINE Size biased_binary_search(It data, Size count, T key, IntT levels, Comp comp)
+_CCCL_DEVICE_API _CCCL_FORCEINLINE Size biased_binary_search(
+  It data,
+  Size count,
+  T key, // NOLINT(performance-unnecessary-value-param)
+  IntT levels,
+  Comp comp)
 {
   Size begin = 0;
   Size end   = count;

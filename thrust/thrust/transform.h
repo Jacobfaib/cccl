@@ -22,6 +22,7 @@
 #include <thrust/system/detail/generic/select_system.h>
 
 #include <cuda/std/__iterator/incrementable_traits.h>
+#include <cuda/std/__utility/move.h>
 
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/transform.h>
@@ -112,7 +113,8 @@ _CCCL_HOST_DEVICE OutputIterator transform(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::transform");
   using thrust::system::detail::generic::transform;
-  return transform(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, op);
+  return transform(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, result, ::cuda::std::move(op));
 }
 
 //! This version of \p transform applies a unary function to each element of an input sequence and stores the result in
@@ -254,7 +256,13 @@ _CCCL_HOST_DEVICE OutputIterator transform(
 {
   _CCCL_NVTX_RANGE_SCOPE("thrust::transform");
   using thrust::system::detail::generic::transform;
-  return transform(thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first1, last1, first2, result, op);
+  return transform(
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first1,
+    last1,
+    first2,
+    result,
+    ::cuda::std::move(op));
 }
 
 //! This version of \p transform applies a binary function to each pair of elements from two input sequences and stores
@@ -585,7 +593,13 @@ _CCCL_HOST_DEVICE ForwardIterator transform_if(
   _CCCL_NVTX_RANGE_SCOPE("thrust::transform_if");
   using thrust::system::detail::generic::transform_if;
   return transform_if(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, stencil, result, op, pred);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    stencil,
+    result,
+    ::cuda::std::move(op),
+    ::cuda::std::move(pred));
 }
 
 /*! This version of \p transform_if conditionally applies a unary function

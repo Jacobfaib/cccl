@@ -213,7 +213,7 @@ DECLARE_VECTOR_UNITTEST(TestCopyListTo);
 template <typename T>
 struct is_even
 {
-  _CCCL_HOST_DEVICE bool operator()(T x)
+  _CCCL_HOST_DEVICE bool operator()(const T& x)
   {
     return (x & 1) == 0;
   }
@@ -222,7 +222,7 @@ struct is_even
 template <typename T>
 struct is_true
 {
-  _CCCL_HOST_DEVICE bool operator()(T x)
+  _CCCL_HOST_DEVICE bool operator()(const T& x)
   {
     return x ? true : false;
   }
@@ -231,7 +231,7 @@ struct is_true
 template <typename T>
 struct mod_3
 {
-  _CCCL_HOST_DEVICE unsigned int operator()(T x)
+  _CCCL_HOST_DEVICE unsigned int operator()(const T& x)
   {
     return x % 3;
   }

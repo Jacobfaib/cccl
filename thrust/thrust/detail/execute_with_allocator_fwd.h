@@ -28,13 +28,16 @@ private:
   Allocator alloc;
 
 public:
-  _CCCL_HOST_DEVICE execute_with_allocator(super_t const& super, Allocator alloc_)
+  // Silence clang-tidy here, Allocator is sometimes a reference type.
+
+  _CCCL_HOST_DEVICE
+  execute_with_allocator(super_t const& super, Allocator alloc_) // NOLINT(performance-unnecessary-value-param)
       : super_t(super)
       , alloc(alloc_)
   {}
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_HOST_DEVICE execute_with_allocator(Allocator alloc_)
+  _CCCL_HOST_DEVICE execute_with_allocator(Allocator alloc_) // NOLINT(performance-unnecessary-value-param)
       : alloc(alloc_)
   {}
 

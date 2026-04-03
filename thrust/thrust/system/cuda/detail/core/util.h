@@ -227,13 +227,10 @@ struct AgentPlan
       , grid_size(grid_size_)
   {}
 
-  THRUST_RUNTIME_FUNCTION AgentPlan(AgentPlan const& plan)
-      : block_threads(plan.block_threads)
-      , items_per_thread(plan.items_per_thread)
-      , items_per_tile(plan.items_per_tile)
-      , shared_memory_size(plan.shared_memory_size)
-      , grid_size(plan.grid_size)
-  {}
+  THRUST_RUNTIME_FUNCTION AgentPlan(AgentPlan const&)                = default;
+  THRUST_RUNTIME_FUNCTION AgentPlan& operator=(AgentPlan const&)     = default;
+  THRUST_RUNTIME_FUNCTION AgentPlan(AgentPlan&&) noexcept            = default;
+  THRUST_RUNTIME_FUNCTION AgentPlan& operator=(AgentPlan&&) noexcept = default;
 
   template <class PtxPlan>
   THRUST_RUNTIME_FUNCTION

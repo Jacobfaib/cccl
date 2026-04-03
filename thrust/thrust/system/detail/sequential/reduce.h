@@ -19,6 +19,8 @@
 #include <thrust/detail/function.h>
 #include <thrust/system/detail/sequential/execution_policy.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::sequential
 {
@@ -35,7 +37,7 @@ _CCCL_HOST_DEVICE OutputType reduce(
   thrust::detail::wrapped_function<BinaryFunction, OutputType> wrapped_binary_op{binary_op};
 
   // initialize the result
-  OutputType result = init;
+  OutputType result = ::cuda::std::move(init);
 
   while (begin != end)
   {

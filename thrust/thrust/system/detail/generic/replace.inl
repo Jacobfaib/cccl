@@ -17,6 +17,8 @@
 #include <thrust/system/detail/generic/replace.h>
 #include <thrust/transform.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
 {
@@ -28,8 +30,8 @@ template <typename Predicate, typename NewType, typename OutputType>
 struct new_value_if
 {
   _CCCL_HOST_DEVICE new_value_if(Predicate p, NewType nv)
-      : pred(p)
-      , new_value(nv)
+      : pred(::cuda::std::move(p))
+      , new_value(::cuda::std::move(nv))
   {}
 
   template <typename InputType>
@@ -55,7 +57,7 @@ template <typename T>
 struct constant_unary
 {
   _CCCL_HOST_DEVICE constant_unary(T _c)
-      : c(_c)
+      : c(::cuda::std::move(_c))
   {}
 
   template <typename U>
@@ -79,7 +81,7 @@ _CCCL_HOST_DEVICE OutputIterator replace_copy_if(
 {
   using OutputType = thrust::detail::it_value_t<OutputIterator>;
 
-  detail::new_value_if<Predicate, T, OutputType> op(pred, new_value);
+  detail::new_value_if<Predicate, T, OutputType> op(::cuda::std::move(pred), new_value);
   return thrust::transform(exec, first, last, result, op);
 } // end replace_copy_if()
 
@@ -100,7 +102,7 @@ _CCCL_HOST_DEVICE OutputIterator replace_copy_if(
 {
   using OutputType = thrust::detail::it_value_t<OutputIterator>;
 
-  detail::new_value_if<Predicate, T, OutputType> op(pred, new_value);
+  detail::new_value_if<Predicate, T, OutputType> op(::cuda::std::move(pred), new_value);
   return thrust::transform(exec, first, last, stencil, result, op);
 } // end replace_copy_if()
 
@@ -127,7 +129,7 @@ _CCCL_HOST_DEVICE void replace_if(
   const T& new_value)
 {
   detail::constant_unary<T> f(new_value);
-  thrust::transform_if(exec, first, last, first, first, f, pred);
+  thrust::transform_if(exec, first, last, first, first, f, ::cuda::std::move(pred));
 } // end replace_if()
 
 template <typename DerivedPolicy, typename ForwardIterator, typename InputIterator, typename Predicate, typename T>
@@ -140,7 +142,7 @@ _CCCL_HOST_DEVICE void replace_if(
   const T& new_value)
 {
   detail::constant_unary<T> f(new_value);
-  thrust::transform_if(exec, first, last, stencil, first, f, pred);
+  thrust::transform_if(exec, first, last, stencil, first, f, ::cuda::std::move(pred));
 } // end replace_if()
 
 template <typename DerivedPolicy, typename ForwardIterator, typename T>

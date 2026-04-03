@@ -20,6 +20,7 @@
 #include <thrust/system/detail/generic/remove.h>
 
 #include <cuda/__functional/equal_to_value.h>
+#include <cuda/std/__utility/move.h>
 
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
@@ -58,7 +59,7 @@ remove_if(thrust::execution_policy<DerivedPolicy>& exec, ForwardIterator first, 
   thrust::detail::temporary_array<InputType, DerivedPolicy> temp(exec, first, last);
 
   // remove into temp
-  return thrust::remove_copy_if(exec, temp.begin(), temp.end(), temp.begin(), first, pred);
+  return thrust::remove_copy_if(exec, temp.begin(), temp.end(), temp.begin(), first, ::cuda::std::move(pred));
 } // end remove_if()
 
 template <typename DerivedPolicy, typename ForwardIterator, typename InputIterator, typename Predicate>
@@ -75,7 +76,7 @@ _CCCL_HOST_DEVICE ForwardIterator remove_if(
   thrust::detail::temporary_array<InputType, DerivedPolicy> temp(exec, first, last);
 
   // remove into temp
-  return thrust::remove_copy_if(exec, temp.begin(), temp.end(), stencil, first, pred);
+  return thrust::remove_copy_if(exec, temp.begin(), temp.end(), stencil, first, ::cuda::std::move(pred));
 } // end remove_if()
 
 template <typename DerivedPolicy, typename InputIterator, typename OutputIterator, typename Predicate>
@@ -86,7 +87,7 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
   OutputIterator result,
   Predicate pred)
 {
-  return thrust::remove_copy_if(exec, first, last, first, result, pred);
+  return thrust::remove_copy_if(exec, first, last, first, result, ::cuda::std::move(pred));
 } // end remove_copy_if()
 
 template <typename DerivedPolicy,
@@ -102,7 +103,7 @@ _CCCL_HOST_DEVICE OutputIterator remove_copy_if(
   OutputIterator result,
   Predicate pred)
 {
-  return thrust::copy_if(exec, first, last, stencil, result, ::cuda::std::not_fn(pred));
+  return thrust::copy_if(exec, first, last, stencil, result, ::cuda::std::not_fn(::cuda::std::move(pred)));
 } // end remove_copy_if()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END

@@ -45,7 +45,7 @@ struct plus_one
 };
 
 template <class Policy, class Iter>
-void test_transform_reduce(const Policy policy, Iter input1)
+void test_transform_reduce(const Policy& policy, Iter input1)
 {
   // N * (N + 1) / 2 for the first N integrals
   // N for plus_one

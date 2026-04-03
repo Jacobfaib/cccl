@@ -16,6 +16,8 @@
 #include <thrust/system/detail/generic/copy_if.h>
 #include <thrust/system/omp/detail/execution_policy.h>
 
+#include <cuda/std/__utility/move.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::omp::detail
 {
@@ -33,7 +35,7 @@ OutputIterator copy_if(
   Predicate pred)
 {
   // omp prefers generic::copy_if to cpp::copy_if
-  return thrust::system::detail::generic::copy_if(exec, first, last, stencil, result, pred);
+  return thrust::system::detail::generic::copy_if(exec, first, last, stencil, result, ::cuda::std::move(pred));
 } // end copy_if()
 } // end namespace system::omp::detail
 THRUST_NAMESPACE_END

@@ -13,6 +13,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 
 #  include <thrust/system/cuda/config.h>
@@ -162,7 +163,7 @@ _CCCL_HOST_DEVICE ValuesOutIt exclusive_scan_by_key_n(
   ValuesInIt values,
   ValuesOutIt result,
   SizeT num_items,
-  InitValueT init_value,
+  InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
   EqualityOpT equality_op,
   ScanOpT scan_op)
 {
@@ -339,7 +340,14 @@ ValOutputIt _CCCL_HOST_DEVICE exclusive_scan_by_key(
        binary_pred,
        scan_op);),
     (ret = thrust::exclusive_scan_by_key(
-       cvt_to_seq(derived_cast(policy)), key_first, key_last, value_first, value_result, init, binary_pred, scan_op);));
+       cvt_to_seq(derived_cast(policy)),
+       key_first,
+       key_last,
+       value_first,
+       value_result,
+       ::cuda::std::move(init),
+       binary_pred,
+       scan_op);));
   return ret;
 }
 
@@ -354,7 +362,7 @@ ValOutputIt _CCCL_HOST_DEVICE exclusive_scan_by_key(
   BinaryPred binary_pred)
 {
   return cuda_cub::exclusive_scan_by_key(
-    policy, key_first, key_last, value_first, value_result, init, binary_pred, ::cuda::std::plus<>());
+    policy, key_first, key_last, value_first, value_result, ::cuda::std::move(init), binary_pred, ::cuda::std::plus<>());
 }
 
 template <class Derived, class KeyInputIt, class ValInputIt, class ValOutputIt, class Init>
@@ -367,7 +375,7 @@ ValOutputIt _CCCL_HOST_DEVICE exclusive_scan_by_key(
   Init init)
 {
   return cuda_cub::exclusive_scan_by_key(
-    policy, key_first, key_last, value_first, value_result, init, ::cuda::std::equal_to<>());
+    policy, key_first, key_last, value_first, value_result, ::cuda::std::move(init), ::cuda::std::equal_to<>());
 }
 
 template <class Derived, class KeyInputIt, class ValInputIt, class ValOutputIt>

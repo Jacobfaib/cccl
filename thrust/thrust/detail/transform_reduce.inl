@@ -15,6 +15,8 @@
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/system/detail/generic/select_system.h>
 
+#include <cuda/std/__utility/move.h>
+
 // Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/transform_reduce.h>
 #include <thrust/system/detail/sequential/transform_reduce.h>
@@ -48,7 +50,12 @@ _CCCL_HOST_DEVICE OutputType transform_reduce(
   _CCCL_NVTX_RANGE_SCOPE("thrust::transform_reduce");
   using thrust::system::detail::generic::transform_reduce;
   return transform_reduce(
-    thrust::detail::derived_cast(thrust::detail::strip_const(exec)), first, last, unary_op, init, binary_op);
+    thrust::detail::derived_cast(thrust::detail::strip_const(exec)),
+    first,
+    last,
+    ::cuda::std::move(unary_op),
+    ::cuda::std::move(init),
+    ::cuda::std::move(binary_op));
 } // end transform_reduce()
 
 template <typename InputIterator, typename UnaryFunction, typename OutputType, typename BinaryFunction>
@@ -62,7 +69,13 @@ OutputType transform_reduce(
 
   System system;
 
-  return thrust::transform_reduce(select_system(system), first, last, unary_op, init, binary_op);
+  return thrust::transform_reduce(
+    select_system(system),
+    first,
+    last,
+    ::cuda::std::move(unary_op),
+    ::cuda::std::move(init),
+    ::cuda::std::move(binary_op));
 } // end transform_reduce()
 
 THRUST_NAMESPACE_END

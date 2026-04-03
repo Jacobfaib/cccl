@@ -27,6 +27,7 @@
 
 #include <cuda/std/__functional/operations.h>
 #include <cuda/std/__type_traits/conditional.h>
+#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 #if !_CCCL_COMPILER(NVRTC)
@@ -397,7 +398,8 @@ public:
   template <typename ReductionOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE T Reduce(T input, ReductionOp reduction_op)
   {
-    return InternalBlockReduce(temp_storage).template Reduce<true>(input, BLOCK_THREADS, reduction_op);
+    return InternalBlockReduce(temp_storage)
+      .template Reduce<true>(::cuda::std::move(input), BLOCK_THREADS, reduction_op);
   }
 
   //! @rst
@@ -510,7 +512,8 @@ public:
   //! @param[in] num_valid
   //!   Number of threads containing valid elements (may be less than BLOCK_THREADS)
   template <typename ReductionOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE T Reduce(T input, ReductionOp reduction_op, int num_valid)
+  _CCCL_DEVICE _CCCL_FORCEINLINE T
+  Reduce(T input, ReductionOp reduction_op, int num_valid) // NOLINT(performance-unnecessary-value-param)
   {
     // Determine if we skip bounds checking
     if (num_valid >= BLOCK_THREADS)

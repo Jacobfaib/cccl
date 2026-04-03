@@ -21,6 +21,8 @@
 
 #include <cub/thread/thread_operators.cuh>
 
+#include <cuda/std/__utility/move.h>
+
 CUB_NAMESPACE_BEGIN
 
 /// Internal namespace (to prevent ADL mishaps between static functions when mixing different CUB installations)
@@ -88,8 +90,8 @@ _CCCL_DEVICE _CCCL_FORCEINLINE T ThreadScanExclusive(
  *   (Handy for preventing thread-0 from applying a prefix.)
  */
 template <int LENGTH, typename T, typename ScanOp>
-_CCCL_DEVICE _CCCL_FORCEINLINE T
-ThreadScanExclusive(T* input, T* output, ScanOp scan_op, T prefix, bool apply_prefix = true)
+_CCCL_DEVICE _CCCL_FORCEINLINE T ThreadScanExclusive(
+  T* input, T* output, ScanOp scan_op, T prefix, bool apply_prefix = true) // NOLINT(performance-unnecessary-value-param)
 {
   T inclusive = input[0];
   if (apply_prefix)
@@ -136,7 +138,7 @@ template <int LENGTH, typename T, typename ScanOp>
 _CCCL_DEVICE _CCCL_FORCEINLINE T
 ThreadScanExclusive(T (&input)[LENGTH], T (&output)[LENGTH], ScanOp scan_op, T prefix, bool apply_prefix = true)
 {
-  return ThreadScanExclusive<LENGTH>((T*) input, (T*) output, scan_op, prefix, apply_prefix);
+  return ThreadScanExclusive<LENGTH>((T*) input, (T*) output, scan_op, ::cuda::std::move(prefix), apply_prefix);
 }
 
 /**
@@ -337,8 +339,8 @@ _CCCL_DEVICE _CCCL_FORCEINLINE T ThreadScanInclusive(T (&input)[LENGTH], T (&out
  *   (Handy for preventing thread-0 from applying a prefix.)
  */
 template <int LENGTH, typename T, typename ScanOp>
-_CCCL_DEVICE _CCCL_FORCEINLINE T
-ThreadScanInclusive(T* input, T* output, ScanOp scan_op, T prefix, bool apply_prefix = true)
+_CCCL_DEVICE _CCCL_FORCEINLINE T ThreadScanInclusive(
+  T* input, T* output, ScanOp scan_op, T prefix, bool apply_prefix = true) // NOLINT(performance-unnecessary-value-param)
 {
   T inclusive = input[0];
   if (apply_prefix)
@@ -386,7 +388,7 @@ template <int LENGTH, typename T, typename ScanOp>
 _CCCL_DEVICE _CCCL_FORCEINLINE T
 ThreadScanInclusive(T (&input)[LENGTH], T (&output)[LENGTH], ScanOp scan_op, T prefix, bool apply_prefix = true)
 {
-  return ThreadScanInclusive<LENGTH>((T*) input, (T*) output, scan_op, prefix, apply_prefix);
+  return ThreadScanInclusive<LENGTH>((T*) input, (T*) output, scan_op, ::cuda::std::move(prefix), apply_prefix);
 }
 
 /**
