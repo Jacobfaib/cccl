@@ -29,8 +29,7 @@ namespace general_copy_detail
 {
 template <typename InputIterator, typename OutputIterator>
 using reference_is_assignable =
-  ::cuda::std::is_assignable_v<::cuda::std::iter_reference_t<OutputIterator>,
-                               ::cuda::std::iter_reference_t<InputIterator>>;
+  ::cuda::std::is_assignable<::cuda::std::iter_reference_t<OutputIterator>, ::cuda::std::iter_reference_t<InputIterator>>;
 
 // introduce an iterator assign helper to deal with assignments from
 // a wrapped reference
