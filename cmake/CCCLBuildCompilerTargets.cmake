@@ -202,7 +202,6 @@ function(cccl_build_compiler_targets)
     #
     # append_option_if_available("-pedantic" cxx_compile_options)
     append_option_if_available("-Wsign-compare" cxx_compile_options)
-    append_option_if_available("-Wshadow" cxx_compile_options)
     append_option_if_available(
       "-Warray-bounds-pointer-arithmetic"
       cxx_compile_options
