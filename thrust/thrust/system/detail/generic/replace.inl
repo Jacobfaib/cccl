@@ -17,6 +17,8 @@
 #include <thrust/system/detail/generic/replace.h>
 #include <thrust/transform.h>
 
+#include <cuda/std/__iterator/readable_traits.h>
+
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::generic
 {
@@ -77,7 +79,7 @@ _CCCL_HOST_DEVICE OutputIterator replace_copy_if(
   Predicate pred,
   const T& new_value)
 {
-  using OutputType = thrust::detail::it_value_t<OutputIterator>;
+  using OutputType = ::cuda::std::iter_value_t<OutputIterator>;
 
   detail::new_value_if<Predicate, T, OutputType> op(pred, new_value);
   return thrust::transform(exec, first, last, result, op);
@@ -98,7 +100,7 @@ _CCCL_HOST_DEVICE OutputIterator replace_copy_if(
   Predicate pred,
   const T& new_value)
 {
-  using OutputType = thrust::detail::it_value_t<OutputIterator>;
+  using OutputType = ::cuda::std::iter_value_t<OutputIterator>;
 
   detail::new_value_if<Predicate, T, OutputType> op(pred, new_value);
   return thrust::transform(exec, first, last, stencil, result, op);
