@@ -48,10 +48,10 @@ namespace detail
 // specializations of iterator_traits). Also, a value_type of void remains supported (needed by some output iterators).
 
 template <typename It>
-using it_value_t = typename ::cuda::std::iterator_traits<It>::value_type;
+using it_value_t = ::cuda::std::iter_value_t<It>;
 
 template <typename It>
-using it_reference_t = typename ::cuda::std::iterator_traits<It>::reference;
+using it_reference_t = ::cuda::std::iter_reference_t<It>;
 
 template <typename It>
 using it_difference_t = typename ::cuda::std::iterator_traits<It>::difference_type;
