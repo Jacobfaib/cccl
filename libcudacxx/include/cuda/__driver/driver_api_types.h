@@ -30,8 +30,8 @@ struct CUmemcpyAttributes_v1;
 struct CUmemPoolHandle_st;
 struct CUmemPoolProps_v1;
 struct CUmemPool_v1;
-struct CUmemAccessDesc;
-struct CUmemLocation;
+struct CUmemAccessDesc_v1;
+struct CUmemLocation_v1;
 struct CUevent_st;
 struct CUfunc_st;
 struct CUkern_st;
@@ -42,27 +42,32 @@ struct CUgreenCtx_st;
 struct CUdevResource_st;
 struct CUlaunchConfig_st;
 struct CUtensorMap_st;
+union CUkernelNodeAttrValue;
+struct CUDA_KERNEL_NODE_PARAMS_v2;
 
 _CCCL_BEGIN_NAMESPACE_CUDA_DRIVER
 
-using CUresult                       = int;
-using CUdevice                       = int;
-using cuuint64_t                     = ::cuda::std::uint64_t;
-using CUdriverProcAddressQueryResult = int;
-using CUdevice_attribute             = int;
+// Note: not _CCCL_OS(WINDOWS)! We care specifically about 64-bit here, not that it is windows.
+#if defined(_WIN64) || defined(__LP64__)
+// Don't use std::uint64_t, we want to match the driver headers exactly
+using CUdeviceptr = unsigned long long; // NOLINT(google-runtime-int)
+#else
+using CUdeviceptr = unsigned int;
+#endif
 
-using CUcontext          = ::CUctx_st*;
-using CUstream           = ::CUstream_st*;
-using CUmemcpyAttributes = ::CUmemcpyAttributes_v1;
+using CUresult   = int;
+using CUdevice   = int;
+using cuuint64_t = ::cuda::std::uint64_t;
 
-using CUmemoryPool             = ::CUmemPoolHandle_st;
-using CUmemPoolProps           = ::CUmemPoolProps_v1;
-using CUmemPool_attribute      = int;
-using CUmemAccessDesc          = ::CUmemAccessDesc;
-using CUmemLocation            = ::CUmemLocation;
-using CUmemAccess_flags        = int;
-using CUmemAllocationType_enum = int;
+using CUmemPoolProps          = ::CUmemPoolProps_v1;
+using CUmemAccessDesc         = ::CUmemAccessDesc_v1;
+using CUmemLocation           = ::CUmemLocation_v1;
+using CUmemcpyAttributes      = ::CUmemcpyAttributes_v1;
+using CUkernelNodeAttrValue   = ::CUkernelNodeAttrValue;
+using CUDA_KERNEL_NODE_PARAMS = ::CUDA_KERNEL_NODE_PARAMS_v2;
 
+using CUcontext         = ::CUctx_st*;
+using CUstream          = ::CUstream_st*;
 using CUevent           = ::CUevent_st*;
 using CUfunction        = ::CUfunc_st*;
 using CUkernel          = ::CUkern_st*;
@@ -73,33 +78,30 @@ using CUgreenCtx        = ::CUgreenCtx_st*;
 using CUdevResourceDesc = ::CUdevResource_st*;
 using CUlaunchConfig    = ::CUlaunchConfig_st;
 using CUtensorMap       = ::CUtensorMap_st;
+using CUmemoryPool      = ::CUmemPoolHandle_st*;
 
-using CUpointer_attribute     = int;
-using CUfunction_attribute    = int;
-using CUjit_option            = int;
-using CUlibraryOption         = int;
-using CUkernelNodeAttrID      = int;
-using CUtensorMapDataType     = int;
-using CUtensorMapInterleave   = int;
-using CUtensorMapSwizzle      = int;
-using CUtensorMapL2promotion  = int;
-using CUtensorMapFloatOOBfill = int;
-using CUmemorytype            = int;
-
-// Forward declarations for complex types used only via pointer in function signatures
-struct CUDA_KERNEL_NODE_PARAMS;
-struct CUkernelNodeAttrValue;
+using CUmemAccess_flags              = int;
+using CUmemPool_attribute            = int;
+using CUmemAllocationType_enum       = int;
+using CUpointer_attribute            = int;
+using CUfunction_attribute           = int;
+using CUjit_option                   = int;
+using CUlibraryOption                = int;
+using CUkernelNodeAttrID             = int;
+using CUtensorMapDataType            = int;
+using CUtensorMapInterleave          = int;
+using CUtensorMapSwizzle             = int;
+using CUtensorMapL2promotion         = int;
+using CUtensorMapFloatOOBfill        = int;
+using CUmemorytype                   = int;
+using CUmemAccess_flags              = int;
+using CUmemPool_attribute            = int;
+using CUmemAllocationType_enum       = int;
+using CUdriverProcAddressQueryResult = int;
+using CUdevice_attribute             = int;
 
 using CUstreamCallback = void (*)(::cuda::__driver::CUstream, ::cuda::__driver::CUresult, void*);
 using CUhostFn         = void (*)(void*);
-
-// Note: not _CCCL_OS(WINDOWS)! We care specifically about 64-bit here, not that it is windows.
-#if defined(_WIN64) || defined(__LP64__)
-// Don't use std::uint64_t, we want to match the driver headers exactly
-using CUdeviceptr = unsigned long long; // NOLINT(google-runtime-int)
-#else
-using CUdeviceptr = unsigned int;
-#endif
 
 #define CCCL_CU_GET_PROC_ADDRESS_DEFAULT 0
 
