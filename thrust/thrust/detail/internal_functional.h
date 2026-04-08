@@ -78,13 +78,13 @@ struct new_value_if_f
   template <class T>
   _CCCL_DEVICE_API OutputType operator()(T const& x)
   {
-    return pred(x) ? new_value : x;
+    return OutputType{pred(x) ? new_value : x};
   }
 
   template <class T, class P>
   _CCCL_DEVICE_API OutputType operator()(T const& x, P const& y)
   {
-    return pred(y) ? new_value : x;
+    return OutputType{pred(y) ? new_value : x};
   }
 };
 
