@@ -19,17 +19,32 @@
 #include <thrust/detail/raw_reference_cast.h>
 #include <thrust/detail/type_traits.h>
 
-#include <cuda/std/__iterator/iterator_traits.h>
-#include <cuda/std/__type_traits/is_assignable.h>
-
 THRUST_NAMESPACE_BEGIN
 namespace system::detail::sequential
 {
 namespace general_copy_detail
 {
+// sometimes OutputIterator's reference type is reported as void
+// in that case, just assume that we're able to assign to it OK
 template <typename InputIterator, typename OutputIterator>
-using reference_is_assignable =
-  ::cuda::std::is_assignable<::cuda::std::iter_reference_t<OutputIterator>, ::cuda::std::iter_reference_t<InputIterator>>;
+struct reference_is_assignable
+{
+  template <typename OI>
+  static constexpr bool h()
+  {
+    if constexpr (::cuda::std::is_same_v<thrust::detail::it_reference_t<OI>, void>)
+    {
+      return true;
+    }
+    else
+    {
+      return ::cuda::std::is_assignable_v<thrust::detail::it_reference_t<OI>,
+                                          thrust::detail::it_reference_t<InputIterator>>;
+    }
+  }
+
+  static constexpr bool value = h<OutputIterator>();
+};
 
 // introduce an iterator assign helper to deal with assignments from
 // a wrapped reference

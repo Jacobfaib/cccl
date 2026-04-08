@@ -45,13 +45,24 @@ struct make_permutation_iterator_base
   using System1 = iterator_system_t<ElementIterator>;
   using System2 = iterator_system_t<IndexIterator>;
 
+  // We need this to make proxy iterators work because those have a void reference/value type
+  using iterator_value_t =
+    ::cuda::std::conditional_t<::cuda::std::is_same_v<it_value_t<ElementIterator>, void>,
+                               ::cuda::std::iter_value_t<ElementIterator>,
+                               it_value_t<ElementIterator>>;
+
+  using iterator_reference_t =
+    ::cuda::std::conditional_t<::cuda::std::is_same_v<it_reference_t<ElementIterator>, void>,
+                               decltype(*::cuda::std::declval<ElementIterator>()),
+                               it_reference_t<ElementIterator>>;
+
   using type =
     iterator_adaptor<permutation_iterator<ElementIterator, IndexIterator>,
                      IndexIterator,
-                     it_value_t<ElementIterator>,
+                     iterator_value_t,
                      minimum_system_t<System1, System2>,
                      use_default,
-                     it_reference_t<ElementIterator>>;
+                     iterator_reference_t>;
 };
 } // namespace detail
 

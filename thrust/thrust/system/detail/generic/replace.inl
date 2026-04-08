@@ -37,7 +37,7 @@ struct new_value_if
   template <typename InputType>
   _CCCL_HOST_DEVICE OutputType operator()(const InputType& x) const
   {
-    return pred(x) ? new_value : x;
+    return OutputType{pred(x) ? new_value : x};
   } // end operator()()
 
   // this version of operator()() works like the previous but
@@ -45,7 +45,7 @@ struct new_value_if
   template <typename InputType, typename PredicateArgumentType>
   _CCCL_HOST_DEVICE OutputType operator()(const InputType& x, const PredicateArgumentType& y)
   {
-    return pred(y) ? new_value : x;
+    return OutputType{pred(y) ? new_value : x};
   } // end operator()()
 
   Predicate pred;

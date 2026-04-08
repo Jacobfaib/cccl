@@ -40,18 +40,23 @@ _CCCL_HOST_DEVICE ::cuda::std::pair<OutputIterator1, OutputIterator2> unique_by_
   OutputIterator2 values_output,
   BinaryPredicate binary_pred)
 {
-  using InputKeyType    = thrust::detail::it_value_t<InputIterator1>;
-  using OutputValueType = thrust::detail::it_value_t<OutputIterator2>;
+  using InputKeyType = ::cuda::std::iter_value_t<InputIterator1>;
 
   if (keys_first != keys_last)
   {
-    InputKeyType temp_key      = *keys_first;
-    OutputValueType temp_value = *values_first;
+    InputKeyType temp_key = *keys_first;
+    // Store by value, and do not convert to OutputIterator::value_type via:
+    //
+    // OutputIteratorValueType temp_value = *values_first;
+    //
+    // Iterators only guarantee that assignment between iterator value-types is valid, not
+    // construction.
+    auto temp_value = *values_first;
 
     for (++keys_first, ++values_first; keys_first != keys_last; ++keys_first, (void) ++values_first)
     {
-      InputKeyType key      = *keys_first;
-      OutputValueType value = *values_first;
+      InputKeyType key = *keys_first;
+      auto value       = *values_first;
 
       if (!binary_pred(temp_key, key))
       {
