@@ -69,8 +69,12 @@ struct make_zip_iterator_base<::cuda::std::tuple<Its...>>
   // reference type is the type of the tuple obtained from the iterator's reference types.
   using reference = tuple_of_iterator_references<zip_iterator_reference_t<Its>...>;
 
+  template <class Iter>
+  using zip_iterator_value_t = ::cuda::std::
+    conditional_t<::cuda::std::is_same_v<it_value_t<Iter>, void>, ::cuda::std::iter_value_t<Iter>, it_value_t<Iter>>;
+
   // Boost's Value type is the same as reference type. using value_type = reference;
-  using value_type = ::cuda::std::tuple<::cuda::std::iter_value_t<Its>...>;
+  using value_type = ::cuda::std::tuple<zip_iterator_value_t<Its>...>;
 
   // Difference type is the first iterator's difference type
   using difference_type = it_difference_t<::cuda::std::tuple_element_t<0, ::cuda::std::tuple<Its...>>>;
