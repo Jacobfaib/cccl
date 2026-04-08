@@ -38,7 +38,8 @@
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/enable_if.h>
 #include <cuda/std/__type_traits/is_constructible.h>
-#include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__type_traits/is_void.h>
+#include <cuda/std/__type_traits/remove_cvref.h>
 #include <cuda/std/__utility/declval.h>
 #include <cuda/std/__utility/forward.h>
 #include <cuda/std/tuple>
@@ -62,16 +63,21 @@ struct make_zip_iterator_base<::cuda::std::tuple<Its...>>
   // We need this to make proxy iterators work because those have a void reference type
   template <class Iter>
   using zip_iterator_reference_t =
-    ::cuda::std::conditional_t<::cuda::std::is_same_v<it_reference_t<Iter>, void>,
+    ::cuda::std::conditional_t<::cuda::std::is_void_v<it_reference_t<Iter>>,
                                decltype(*::cuda::std::declval<Iter>()),
                                it_reference_t<Iter>>;
 
   // reference type is the type of the tuple obtained from the iterator's reference types.
   using reference = tuple_of_iterator_references<zip_iterator_reference_t<Its>...>;
 
+  // We need this to make proxy iterators work because those have a void value type. We also
+  // cannot use cuda::std::iter_value_t directly because it does not consider nested
+  // value_type's.
   template <class Iter>
-  using zip_iterator_value_t = ::cuda::std::
-    conditional_t<::cuda::std::is_same_v<it_value_t<Iter>, void>, ::cuda::std::iter_value_t<Iter>, it_value_t<Iter>>;
+  using zip_iterator_value_t =
+    ::cuda::std::_If<::cuda::std::is_void_v<it_value_t<Iter>>,
+                     ::cuda::std::remove_cvref_t<decltype(*::cuda::std::declval<Iter>())>,
+                     it_value_t<Iter>>;
 
   // Boost's Value type is the same as reference type. using value_type = reference;
   using value_type = ::cuda::std::tuple<zip_iterator_value_t<Its>...>;
