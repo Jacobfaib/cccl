@@ -32,6 +32,9 @@
 #include <thrust/iterator/iterator_adaptor.h>
 #include <thrust/iterator/iterator_traits.h>
 
+#include <cuda/std/__type_traits/is_same.h>
+#include <cuda/std/__type_traits/remove_cvref.h>
+
 THRUST_NAMESPACE_BEGIN
 
 template <typename, typename>
@@ -48,7 +51,7 @@ struct make_permutation_iterator_base
   // We need this to make proxy iterators work because those have a void reference/value type
   using iterator_value_t =
     ::cuda::std::conditional_t<::cuda::std::is_same_v<it_value_t<ElementIterator>, void>,
-                               ::cuda::std::iter_value_t<ElementIterator>,
+                               ::cuda::std::remove_cvref_t<decltype(*::cuda::std::declval<ElementIterator>())>,
                                it_value_t<ElementIterator>>;
 
   using iterator_reference_t =
