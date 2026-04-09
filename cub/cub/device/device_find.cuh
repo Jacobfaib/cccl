@@ -21,7 +21,6 @@
 
 #include <cuda/__iterator/zip_iterator.h>
 #include <cuda/__nvtx/nvtx.h>
-#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 
@@ -106,13 +105,7 @@ struct DeviceFind
     using OffsetT = detail::choose_offset_t<NumItemsT>;
 
     return detail::find::dispatch(
-      d_temp_storage,
-      temp_storage_bytes,
-      d_in,
-      d_out,
-      static_cast<OffsetT>(num_items),
-      ::cuda::std::move(scan_op),
-      stream);
+      d_temp_storage, temp_storage_bytes, d_in, d_out, static_cast<OffsetT>(num_items), scan_op, stream);
   }
 
   //! @rst

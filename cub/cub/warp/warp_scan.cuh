@@ -28,7 +28,6 @@
 #include <cuda/__ptx/instructions/get_sreg.h>
 #include <cuda/std/__functional/operations.h>
 #include <cuda/std/__type_traits/conditional.h>
-#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 
@@ -475,7 +474,7 @@ public:
   template <typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void InclusiveScan(T input, T& inclusive_output, ScanOp scan_op)
   {
-    InternalWarpScan(temp_storage).InclusiveScan(::cuda::std::move(input), inclusive_output, scan_op);
+    InternalWarpScan(temp_storage).InclusiveScan(input, inclusive_output, scan_op);
   }
 
   //! @rst
@@ -1604,8 +1603,7 @@ public:
   //! @param[in] scan_op
   //!   Binary scan operator
   template <typename ScanOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void
-  Scan(T input, T& inclusive_output, T& exclusive_output, ScanOp scan_op) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE void Scan(T input, T& inclusive_output, T& exclusive_output, ScanOp scan_op)
   {
     InternalWarpScan internal(temp_storage);
 

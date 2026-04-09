@@ -35,7 +35,6 @@
 #include <cuda/__cmath/ceil_div.h>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__type_traits/conditional.h>
-#include <cuda/std/__utility/move.h>
 #include <cuda/std/__utility/swap.h>
 #include <cuda/std/cstdint>
 #include <cuda/std/limits>
@@ -382,8 +381,7 @@ __launch_bounds__(int(
   typename AgentSelectIfT::TempStorage& temp_storage = VsmemHelperT::get_temp_storage(static_temp_storage, vsmem);
 
   // Process tiles
-  AgentSelectIfT(
-    temp_storage, d_in, d_flags, d_selected_out, ::cuda::std::move(select_op), equality_op, num_items, streaming_context)
+  AgentSelectIfT(temp_storage, d_in, d_flags, d_selected_out, select_op, equality_op, num_items, streaming_context)
     .ConsumeRange(num_tiles, tile_status, d_num_selected_out);
 
   // If applicable, hints to discard modified cache lines for vsmem
@@ -572,7 +570,7 @@ struct DispatchSelectIf
       , d_flags(d_flags)
       , d_selected_out(d_selected_out)
       , d_num_selected_out(d_num_selected_out)
-      , select_op(::cuda::std::move(select_op))
+      , select_op(select_op)
       , equality_op(equality_op)
       , num_items(num_items)
       , stream(stream)
@@ -860,7 +858,7 @@ struct DispatchSelectIf
       d_flags,
       d_selected_out,
       d_num_selected_out,
-      ::cuda::std::move(select_op),
+      select_op,
       equality_op,
       num_items,
       stream,

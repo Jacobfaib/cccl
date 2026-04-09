@@ -32,7 +32,6 @@
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/enable_if.h>
 #include <cuda/std/__type_traits/is_trivially_copyable.h>
-#include <cuda/std/__utility/move.h>
 
 #include <nv/target>
 
@@ -976,7 +975,7 @@ struct ScanTileState<T, false>
   _CCCL_DEVICE _CCCL_FORCEINLINE void SetInclusive(int tile_idx, T tile_inclusive)
   {
     // Update tile inclusive value
-    ThreadStore<STORE_CG>(d_tile_inclusive + TILE_STATUS_PADDING + tile_idx, ::cuda::std::move(tile_inclusive));
+    ThreadStore<STORE_CG>(d_tile_inclusive + TILE_STATUS_PADDING + tile_idx, tile_inclusive);
     detail::store_release(d_tile_status + TILE_STATUS_PADDING + tile_idx, StatusWord(SCAN_TILE_INCLUSIVE));
   }
 
@@ -987,7 +986,7 @@ struct ScanTileState<T, false>
   _CCCL_DEVICE _CCCL_FORCEINLINE void SetPartial(int tile_idx, T tile_partial)
   {
     // Update tile partial value
-    ThreadStore<STORE_CG>(d_tile_partial + TILE_STATUS_PADDING + tile_idx, ::cuda::std::move(tile_partial));
+    ThreadStore<STORE_CG>(d_tile_partial + TILE_STATUS_PADDING + tile_idx, tile_partial);
     detail::store_release(d_tile_status + TILE_STATUS_PADDING + tile_idx, StatusWord(SCAN_TILE_PARTIAL));
   }
 
@@ -1330,7 +1329,7 @@ struct TilePrefixCallbackOp
   }
 
   // BlockScan prefix callback functor (called by the first warp)
-  _CCCL_DEVICE _CCCL_FORCEINLINE T operator()(T block_aggregate) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE T operator()(T block_aggregate)
   {
     // Update our status with our tile-aggregate
     if (threadIdx.x == 0)

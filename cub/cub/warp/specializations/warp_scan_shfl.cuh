@@ -33,7 +33,6 @@
 #include <cuda/std/__type_traits/integral_constant.h>
 #include <cuda/std/__type_traits/is_integral.h>
 #include <cuda/std/__type_traits/is_unsigned.h>
-#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 namespace detail
@@ -380,8 +379,7 @@ struct WarpScanShfl
    *   Up-offset to pull from
    */
   template <typename _Tp, typename ScanOpT>
-  _CCCL_DEVICE _CCCL_FORCEINLINE _Tp InclusiveScanStep(
-    _Tp input, ScanOpT scan_op, int first_lane, int offset) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE _Tp InclusiveScanStep(_Tp input, ScanOpT scan_op, int first_lane, int offset)
   {
     _Tp temp = ShuffleUp<LOGICAL_WARP_THREADS>(input, offset, first_lane, member_mask);
 
@@ -481,7 +479,7 @@ struct WarpScanShfl
   _CCCL_DEVICE _CCCL_FORCEINLINE _Tp InclusiveScanStep(
     _Tp input, ScanOpT scan_op, int first_lane, int offset, ::cuda::std::false_type /*is_small_unsigned*/)
   {
-    return InclusiveScanStep(::cuda::std::move(input), scan_op, first_lane, offset);
+    return InclusiveScanStep(input, scan_op, first_lane, offset);
   }
 
   /******************************************************************************
@@ -525,7 +523,7 @@ struct WarpScanShfl
   template <typename _Tp, typename ScanOpT>
   _CCCL_DEVICE _CCCL_FORCEINLINE void InclusiveScan(_Tp input, _Tp& inclusive_output, ScanOpT scan_op)
   {
-    inclusive_output = ::cuda::std::move(input);
+    inclusive_output = input;
 
     // Iterate scan steps
     int segment_first_lane = 0;
@@ -690,11 +688,7 @@ struct WarpScanShfl
    */
   template <typename ScanOpT, typename IsIntegerT>
   _CCCL_DEVICE _CCCL_FORCEINLINE void
-  Update(T /*input*/, // NOLINT(performance-unnecessary-value-param)
-         T& inclusive,
-         T& exclusive,
-         ScanOpT /*scan_op*/,
-         IsIntegerT /*is_integer*/) // NOLINT(performance-unnecessary-value-param)
+  Update(T /*input*/, T& inclusive, T& exclusive, ScanOpT /*scan_op*/, IsIntegerT /*is_integer*/)
   {
     // initial value unknown
     exclusive = ShuffleUp<LOGICAL_WARP_THREADS>(inclusive, 1, 0, member_mask);

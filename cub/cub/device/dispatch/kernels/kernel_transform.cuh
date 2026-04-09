@@ -1029,8 +1029,8 @@ __launch_bounds__(get_block_threads<PolicySelector>) _CCCL_KERNEL_ATTRIBUTES voi
   _CCCL_GRID_CONSTANT const Offset num_items,
   _CCCL_GRID_CONSTANT const int num_elem_per_thread,
   [[maybe_unused]] _CCCL_GRID_CONSTANT const bool can_vectorize,
-  _CCCL_GRID_CONSTANT const Predicate pred, // NOLINT(performance-unnecessary-value-param)
-  _CCCL_GRID_CONSTANT const F f, // NOLINT(performance-unnecessary-value-param)
+  _CCCL_GRID_CONSTANT const Predicate pred,
+  _CCCL_GRID_CONSTANT const F f,
   _CCCL_GRID_CONSTANT const RandomAccessIteratorOut out,
   kernel_arg<RandomAccessIteratorsIn>... ins)
 {

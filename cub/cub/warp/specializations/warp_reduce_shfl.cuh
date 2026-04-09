@@ -33,7 +33,6 @@
 #include <cuda/std/__type_traits/conditional.h>
 #include <cuda/std/__type_traits/is_integral.h>
 #include <cuda/std/__type_traits/is_unsigned.h>
-#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 #include <nv/target>
@@ -426,8 +425,7 @@ struct WarpReduceShfl
    *   Up-offset to pull from
    */
   template <typename _Tp, typename ReductionOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE _Tp ReduceStep(
-    _Tp input, ReductionOp reduction_op, int last_lane, int offset) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE _Tp ReduceStep(_Tp input, ReductionOp reduction_op, int last_lane, int offset)
   {
     _Tp output = input;
 
@@ -508,7 +506,7 @@ struct WarpReduceShfl
     {
       NV_IF_TARGET(NV_PROVIDES_SM_80, (return reduce_op_sync(input, member_mask, reduction_op);))
     }
-    T output = ::cuda::std::move(input);
+    T output = input;
     // Template-iterate reduction steps
     const int last_lane = (ALL_LANES_VALID) ? LOGICAL_WARP_THREADS - 1 : valid_items - 1;
     ReduceStep(output, reduction_op, last_lane, constant_v<0>);
@@ -557,7 +555,7 @@ struct WarpReduceShfl
     // Find the next set flag
     int last_lane = ::cuda::std::countr_zero(warp_flags);
 
-    T output = ::cuda::std::move(input);
+    T output = input;
     // Template-iterate reduction steps
     ReduceStep(output, reduction_op, last_lane, constant_v<0>);
 

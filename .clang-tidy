@@ -22,7 +22,17 @@ Checks:
   - '-*'
   - 'performance-*'
   - '-performance-noexcept-swap'
+  # TODO(jfaibussowit): re-enable for CCCL 4.0
   - '-performance-enum-size'
+  # The majority of thrust/CUB require value semantics because they may be used on device,
+  # where converting to const-ref is detrimental to performance because of possible
+  # register spilling. Also, for device functions, the overwhelming majority of types are
+  # PODs or trivially copyable, so moving them (another potential way to fix this) gives
+  # no additional perf improvement and only leads to more verbosity (not to mention
+  # compile-time instantiating all those move templates).
+  #
+  # All this is to say it probably is not worth the hassle of enabling this.
+  - '-performance-unnecessary-value-param'
   # END REMOVE ME
   # HICPP is 99% aliased to other checks (mostly modernize-* and bugprone-*). We don't
   # want to also enable it because then we need to duplicate the NOLINT. The only 2 checks

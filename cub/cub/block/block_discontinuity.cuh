@@ -314,7 +314,7 @@ public:
     T (&input)[ITEMS_PER_THREAD],
     T (&preds)[ITEMS_PER_THREAD],
     FlagOp flag_op,
-    T tile_predecessor_item) // NOLINT(performance-unnecessary-value-param)
+    T tile_predecessor_item)
   {
     // Share last item
     temp_storage.last_items[linear_tid] = input[ITEMS_PER_THREAD - 1];
@@ -491,11 +491,8 @@ public:
   //!   *thread*\ :sub:`0` only item with which to compare the first tile item (``input[0]`` from *thread*\ :sub:`0`).
   //!   @endrst
   template <int ITEMS_PER_THREAD, typename FlagT, typename FlagOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void
-  FlagHeads(FlagT (&head_flags)[ITEMS_PER_THREAD],
-            T (&input)[ITEMS_PER_THREAD],
-            FlagOp flag_op,
-            T tile_predecessor_item) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE void FlagHeads(
+    FlagT (&head_flags)[ITEMS_PER_THREAD], T (&input)[ITEMS_PER_THREAD], FlagOp flag_op, T tile_predecessor_item)
   {
     T preds[ITEMS_PER_THREAD];
     FlagHeads(head_flags, input, preds, flag_op, tile_predecessor_item);

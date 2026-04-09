@@ -25,7 +25,6 @@
 
 #include <cuda/__cmath/ceil_div.h>
 #include <cuda/__ptx/instructions/get_sreg.h>
-#include <cuda/std/__utility/move.h>
 
 CUB_NAMESPACE_BEGIN
 namespace detail
@@ -164,8 +163,7 @@ struct BlockScanWarpScans
    *   Threadblock-wide aggregate reduction of input items
    */
   template <typename ScanOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE T
-  ComputeWarpPrefix(ScanOp scan_op, T warp_aggregate, T& block_aggregate) // NOLINT(performance-unnecessary-value-param)
+  _CCCL_DEVICE _CCCL_FORCEINLINE T ComputeWarpPrefix(ScanOp scan_op, T warp_aggregate, T& block_aggregate)
   {
     // Last lane in each warp shares its warp-aggregate
     if (lane_id == WARP_THREADS - 1)
@@ -215,11 +213,8 @@ struct BlockScanWarpScans
    *   Initial value to seed the exclusive scan
    */
   template <typename ScanOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE T ComputeWarpPrefix(
-    ScanOp scan_op,
-    T warp_aggregate, // NOLINT(performance-unnecessary-value-param)
-    T& block_aggregate,
-    const T& initial_value)
+  _CCCL_DEVICE _CCCL_FORCEINLINE T
+  ComputeWarpPrefix(ScanOp scan_op, T warp_aggregate, T& block_aggregate, const T& initial_value)
   {
     T warp_prefix = ComputeWarpPrefix(scan_op, warp_aggregate, block_aggregate);
 
@@ -305,8 +300,7 @@ struct BlockScanWarpScans
   {
     // Compute warp scan in each warp.  The exclusive output from each lane0 is invalid.
     T inclusive_output;
-    WarpScanT(temp_storage.warp_scan[warp_id])
-      .Scan(::cuda::std::move(input), inclusive_output, exclusive_output, scan_op);
+    WarpScanT(temp_storage.warp_scan[warp_id]).Scan(input, inclusive_output, exclusive_output, scan_op);
 
     // Compute the warp-wide prefix and block-wide aggregate for each warp.  Warp prefix for warp0 is invalid.
     T warp_prefix = ComputeWarpPrefix(scan_op, inclusive_output, block_aggregate);
@@ -343,12 +337,8 @@ struct BlockScanWarpScans
    *   Threadblock-wide aggregate reduction of input items
    */
   template <typename ScanOp>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void ExclusiveScan(
-    T input, // NOLINT(performance-unnecessary-value-param)
-    T& exclusive_output,
-    const T& initial_value,
-    ScanOp scan_op,
-    T& block_aggregate)
+  _CCCL_DEVICE _CCCL_FORCEINLINE void
+  ExclusiveScan(T input, T& exclusive_output, const T& initial_value, ScanOp scan_op, T& block_aggregate)
   {
     // Compute warp scan in each warp.  The exclusive output from each lane0 is invalid.
     T inclusive_output;
@@ -392,7 +382,7 @@ struct BlockScanWarpScans
   {
     // Compute block-wide exclusive scan.  The exclusive output from tid0 is invalid.
     T block_aggregate;
-    ExclusiveScan(::cuda::std::move(input), exclusive_output, scan_op, block_aggregate);
+    ExclusiveScan(input, exclusive_output, scan_op, block_aggregate);
 
     // Use the first warp to determine the thread block prefix, returning the result in lane0
     if (warp_id == 0)
@@ -461,7 +451,7 @@ struct BlockScanWarpScans
   template <typename ScanOp>
   _CCCL_DEVICE _CCCL_FORCEINLINE void InclusiveScan(T input, T& inclusive_output, ScanOp scan_op, T& block_aggregate)
   {
-    WarpScanT(temp_storage.warp_scan[warp_id]).InclusiveScan(::cuda::std::move(input), inclusive_output, scan_op);
+    WarpScanT(temp_storage.warp_scan[warp_id]).InclusiveScan(input, inclusive_output, scan_op);
 
     // Compute the warp-wide prefix and block-wide aggregate for each warp.  Warp prefix for warp0 is invalid.
     T warp_prefix = ComputeWarpPrefix(scan_op, inclusive_output, block_aggregate);
@@ -499,7 +489,7 @@ struct BlockScanWarpScans
   InclusiveScan(T input, T& exclusive_output, ScanOp scan_op, BlockPrefixCallbackOp& block_prefix_callback_op)
   {
     T block_aggregate;
-    InclusiveScan(::cuda::std::move(input), exclusive_output, scan_op, block_aggregate);
+    InclusiveScan(input, exclusive_output, scan_op, block_aggregate);
 
     // Use the first warp to determine the thread block prefix, returning the result in lane0
     if (warp_id == 0)

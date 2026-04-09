@@ -499,8 +499,8 @@ template <typename Input,
           typename PrefixT,
           typename ValueT = ::cuda::std::iter_value_t<Input>,
           typename AccumT = ::cuda::std::__accumulator_t<ReductionOp, ValueT, PrefixT>>
-[[nodiscard]] _CCCL_DEVICE _CCCL_FORCEINLINE AccumT ThreadReduce(
-  const Input& input, ReductionOp reduction_op, PrefixT prefix) // NOLINT(performance-unnecessary-value-param)
+[[nodiscard]] _CCCL_DEVICE _CCCL_FORCEINLINE AccumT
+ThreadReduce(const Input& input, ReductionOp reduction_op, PrefixT prefix)
 {
   using namespace cub::detail;
   static_assert(is_fixed_size_random_access_range_v<Input>,

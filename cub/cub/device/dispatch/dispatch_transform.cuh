@@ -336,8 +336,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_prefetch_or_vectorized
   [[maybe_unused]] ::cuda::std::tuple<RandomAccessIteratorsIn...> in,
   RandomAccessIteratorOut out,
   Offset num_items,
-  Predicate pred, // NOLINT(performance-unnecessary-value-param)
-  TransformOp op, // NOLINT(performance-unnecessary-value-param)
+  Predicate pred,
+  TransformOp op,
   cudaStream_t stream,
   ::cuda::std::index_sequence<Is...>,
   PolicyGetter policy_getter,

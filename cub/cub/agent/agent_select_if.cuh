@@ -36,7 +36,6 @@
 #include <cuda/std/__type_traits/is_callable.h>
 #include <cuda/std/__type_traits/is_pointer.h>
 #include <cuda/std/__type_traits/is_same.h>
-#include <cuda/std/__utility/move.h>
 #include <cuda/std/cstdint>
 
 CUB_NAMESPACE_BEGIN
@@ -388,7 +387,7 @@ struct AgentSelectIf
       , d_selected_out(d_selected_out)
       , d_flags_in(d_flags_in)
       , equality_op(equality_op)
-      , select_op(::cuda::std::move(select_op))
+      , select_op(select_op)
       , num_items(num_items)
       , streaming_context(streaming_context)
   {}

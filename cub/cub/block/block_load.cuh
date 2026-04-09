@@ -589,7 +589,7 @@ _CCCL_DEVICE _CCCL_FORCEINLINE void LoadDirectWarpStriped(
   RandomAccessIterator block_src_it,
   T (&dst_items)[ItemsPerThread],
   int block_items_end,
-  DefaultT oob_default) // NOLINT(performance-unnecessary-value-param)
+  DefaultT oob_default)
 {
   // Load directly in warp-striped order
   _CCCL_PRAGMA_UNROLL_FULL()
@@ -1132,10 +1132,7 @@ public:
   //!   Default value to assign out-of-bound items
   template <typename RandomAccessIterator, typename DefaultT>
   _CCCL_DEVICE _CCCL_FORCEINLINE void
-  Load(RandomAccessIterator block_src_it,
-       T (&dst_items)[ItemsPerThread],
-       int block_items_end,
-       DefaultT oob_default) // NOLINT(performance-unnecessary-value-param)
+  Load(RandomAccessIterator block_src_it, T (&dst_items)[ItemsPerThread], int block_items_end, DefaultT oob_default)
   {
     if constexpr (Algorithm == BLOCK_LOAD_DIRECT || Algorithm == BLOCK_LOAD_VECTORIZE)
     {

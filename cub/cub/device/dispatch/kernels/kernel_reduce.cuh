@@ -42,8 +42,7 @@ struct empty_problem_init_t
 };
 
 template <class InitT>
-_CCCL_HOST_DEVICE _CCCL_FORCEINLINE InitT
-unwrap_empty_problem_init(InitT init) // NOLINT(performance-unnecessary-value-param)
+_CCCL_HOST_DEVICE _CCCL_FORCEINLINE InitT unwrap_empty_problem_init(InitT init)
 {
   return init;
 }
@@ -63,11 +62,8 @@ _CCCL_HOST_DEVICE _CCCL_FORCEINLINE InitT unwrap_empty_problem_init(empty_proble
  * @param block_aggregate Aggregate value computed by the block
  */
 template <class OutputIteratorT, class ReductionOpT, class InitT, class AccumT>
-_CCCL_HOST_DEVICE void finalize_and_store_aggregate(
-  OutputIteratorT d_out,
-  ReductionOpT reduction_op,
-  InitT init, // NOLINT(performance-unnecessary-value-param)
-  AccumT block_aggregate) // NOLINT(performance-unnecessary-value-param)
+_CCCL_HOST_DEVICE void
+finalize_and_store_aggregate(OutputIteratorT d_out, ReductionOpT reduction_op, InitT init, AccumT block_aggregate)
 {
   *d_out = reduction_op(init, block_aggregate);
 }
@@ -232,8 +228,7 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
                                        OutputIteratorT d_out,
                                        _CCCL_GRID_CONSTANT const OffsetT num_items,
                                        ReductionOpT reduction_op,
-                                       _CCCL_GRID_CONSTANT const InitT
-                                         init, // NOLINT(performance-unnecessary-value-param)
+                                       _CCCL_GRID_CONSTANT const InitT init,
                                        TransformOpT transform_op)
 {
   static constexpr agent_reduce_policy policy = PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).single_tile;
