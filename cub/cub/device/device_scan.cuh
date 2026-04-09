@@ -278,7 +278,7 @@ struct DeviceScan
     InputIteratorT d_in,
     OutputIteratorT d_out,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::ExclusiveSum");
 
@@ -451,7 +451,11 @@ struct DeviceScan
   //!   @endrst
   template <typename IteratorT, typename NumItemsT>
   CUB_RUNTIME_FUNCTION static cudaError_t ExclusiveSum(
-    void* d_temp_storage, size_t& temp_storage_bytes, IteratorT d_data, NumItemsT num_items, cudaStream_t stream = 0)
+    void* d_temp_storage,
+    size_t& temp_storage_bytes,
+    IteratorT d_data,
+    NumItemsT num_items,
+    cudaStream_t stream = nullptr)
   {
     return ExclusiveSum(d_temp_storage, temp_storage_bytes, d_data, d_data, num_items, stream);
   }
@@ -572,7 +576,7 @@ struct DeviceScan
     ScanOpT scan_op,
     InitValueT init_value,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::ExclusiveScan");
 
@@ -799,7 +803,7 @@ struct DeviceScan
     ScanOpT scan_op,
     InitValueT init_value,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     return ExclusiveScan(d_temp_storage, temp_storage_bytes, d_data, d_data, scan_op, init_value, num_items, stream);
   }
@@ -929,7 +933,7 @@ struct DeviceScan
     ScanOpT scan_op,
     FutureValue<InitValueT, InitValueIterT> init_value,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::ExclusiveScan");
 
@@ -1060,7 +1064,7 @@ struct DeviceScan
     ScanOpT scan_op,
     FutureValue<InitValueT, InitValueIterT> init_value,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     return ExclusiveScan(d_temp_storage, temp_storage_bytes, d_data, d_data, scan_op, init_value, num_items, stream);
   }
@@ -1251,7 +1255,7 @@ struct DeviceScan
     InputIteratorT d_in,
     OutputIteratorT d_out,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::InclusiveSum");
 
@@ -1342,7 +1346,11 @@ struct DeviceScan
   //!   @endrst
   template <typename IteratorT, typename NumItemsT>
   CUB_RUNTIME_FUNCTION static cudaError_t InclusiveSum(
-    void* d_temp_storage, size_t& temp_storage_bytes, IteratorT d_data, NumItemsT num_items, cudaStream_t stream = 0)
+    void* d_temp_storage,
+    size_t& temp_storage_bytes,
+    IteratorT d_data,
+    NumItemsT num_items,
+    cudaStream_t stream = nullptr)
   {
     return InclusiveSum(d_temp_storage, temp_storage_bytes, d_data, d_data, num_items, stream);
   }
@@ -1521,7 +1529,7 @@ struct DeviceScan
     OutputIteratorT d_out,
     ScanOpT scan_op,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::InclusiveScan");
 
@@ -1613,7 +1621,7 @@ struct DeviceScan
     ScanOpT scan_op,
     InitValueT init_value,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::InclusiveScanInit");
 
@@ -1728,7 +1736,7 @@ struct DeviceScan
     IteratorT d_data,
     ScanOpT scan_op,
     NumItemsT num_items,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     return InclusiveScan(d_temp_storage, temp_storage_bytes, d_data, d_data, scan_op, num_items, stream);
   }
@@ -2026,7 +2034,7 @@ struct DeviceScan
     ValuesOutputIteratorT d_values_out,
     NumItemsT num_items,
     EqualityOpT equality_op = EqualityOpT(),
-    cudaStream_t stream     = 0)
+    cudaStream_t stream     = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::ExclusiveSumByKey");
 
@@ -2214,7 +2222,7 @@ struct DeviceScan
     InitValueT init_value,
     NumItemsT num_items,
     EqualityOpT equality_op = EqualityOpT(),
-    cudaStream_t stream     = 0)
+    cudaStream_t stream     = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::ExclusiveScanByKey");
 
@@ -2351,7 +2359,7 @@ struct DeviceScan
     ValuesOutputIteratorT d_values_out,
     NumItemsT num_items,
     EqualityOpT equality_op = EqualityOpT(),
-    cudaStream_t stream     = 0)
+    cudaStream_t stream     = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::InclusiveSumByKey");
 
@@ -2520,7 +2528,7 @@ struct DeviceScan
     ScanOpT scan_op,
     NumItemsT num_items,
     EqualityOpT equality_op = EqualityOpT(),
-    cudaStream_t stream     = 0)
+    cudaStream_t stream     = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, "cub::DeviceScan::InclusiveScanByKey");
 

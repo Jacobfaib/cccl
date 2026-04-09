@@ -303,7 +303,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
     // Unsigned integer type for global offsets.
@@ -555,7 +555,7 @@ public:
               DecomposerT decomposer,
               int begin_bit,
               int end_bit,
-              cudaStream_t stream = 0)
+              cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
     // unsigned integer type for global offsets
@@ -821,7 +821,7 @@ public:
               ValueT* d_values_out,
               NumItemsT num_items,
               DecomposerT decomposer,
-              cudaStream_t stream = 0)
+              cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
     // unsigned integer type for global offsets
@@ -1088,7 +1088,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -1310,7 +1310,7 @@ public:
               DoubleBuffer<ValueT>& d_values,
               NumItemsT num_items,
               DecomposerT decomposer,
-              cudaStream_t stream = 0)
+              cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -1562,7 +1562,7 @@ public:
               DecomposerT decomposer,
               int begin_bit,
               int end_bit,
-              cudaStream_t stream = 0)
+              cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -1821,7 +1821,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2071,7 +2071,7 @@ public:
       DecomposerT decomposer,
       int begin_bit,
       int end_bit,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2217,7 +2217,7 @@ public:
       ValueT* d_values_out,
       NumItemsT num_items,
       DecomposerT decomposer,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2373,7 +2373,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2596,7 +2596,7 @@ public:
       DoubleBuffer<ValueT>& d_values,
       NumItemsT num_items,
       DecomposerT decomposer,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2747,7 +2747,7 @@ public:
       DecomposerT decomposer,
       int begin_bit,
       int end_bit,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -2883,7 +2883,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -3108,7 +3108,7 @@ public:
              DecomposerT decomposer,
              int begin_bit,
              int end_bit,
-             cudaStream_t stream = 0)
+             cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -3331,7 +3331,7 @@ public:
              KeyT* d_keys_out,
              NumItemsT num_items,
              DecomposerT decomposer,
-             cudaStream_t stream = 0)
+             cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -3550,7 +3550,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -3757,7 +3757,7 @@ public:
              DoubleBuffer<KeyT>& d_keys,
              NumItemsT num_items,
              DecomposerT decomposer,
-             cudaStream_t stream = 0)
+             cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -3973,7 +3973,7 @@ public:
              DecomposerT decomposer,
              int begin_bit,
              int end_bit,
-             cudaStream_t stream = 0)
+             cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -4186,7 +4186,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -4411,7 +4411,7 @@ public:
       DecomposerT decomposer,
       int begin_bit,
       int end_bit,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -4543,7 +4543,7 @@ public:
       KeyT* d_keys_out,
       NumItemsT num_items,
       DecomposerT decomposer,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -4681,7 +4681,7 @@ public:
     NumItemsT num_items,
     int begin_bit       = 0,
     int end_bit         = sizeof(KeyT) * 8,
-    cudaStream_t stream = 0)
+    cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -4889,7 +4889,7 @@ public:
       DoubleBuffer<KeyT>& d_keys,
       NumItemsT num_items,
       DecomposerT decomposer,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
@@ -5029,7 +5029,7 @@ public:
       DecomposerT decomposer,
       int begin_bit,
       int end_bit,
-      cudaStream_t stream = 0)
+      cudaStream_t stream = nullptr)
   {
     _CCCL_NVTX_RANGE_SCOPE_IF(d_temp_storage, GetName());
 
