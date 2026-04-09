@@ -500,7 +500,7 @@ public:
   /*! This method returns a copy of this vector's allocator.
    *  \return A copy of the allocator used by this vector.
    */
-  allocator_type get_allocator() const;
+  [[nodiscard]] allocator_type get_allocator() const;
 
   _CCCL_SYNTHESIZE_SEQUENCE_ACCESS(vector_base, const_iterator)
   _CCCL_SYNTHESIZE_SEQUENCE_REVERSE_ACCESS(vector_base, const_reverse_iterator)

@@ -81,7 +81,7 @@ public:
     return &x;
   }
 
-  size_type max_size() const
+  [[nodiscard]] size_type max_size() const
   {
     return (::cuda::std::numeric_limits<size_type>::max)() / sizeof(T);
   }
