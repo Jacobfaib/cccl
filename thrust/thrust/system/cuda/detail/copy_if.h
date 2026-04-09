@@ -166,7 +166,7 @@ THRUST_RUNTIME_FUNCTION OutputIt copy_if(
 {
   using size_type = thrust::detail::it_difference_t<InputIt>;
 
-  size_type num_items       = static_cast<size_type>(::cuda::std::distance(first, last));
+  auto num_items            = static_cast<size_type>(::cuda::std::distance(first, last));
   cudaError_t status        = cudaSuccess;
   size_t temp_storage_bytes = 0;
 
