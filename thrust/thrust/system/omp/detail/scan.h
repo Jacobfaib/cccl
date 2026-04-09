@@ -55,7 +55,7 @@ OutputIterator scan_impl(
   InputIterator first,
   InputIterator last,
   OutputIterator result,
-  [[maybe_unused]] InitialValueType init, // NOLINT(performance-unnecessary-value-param)
+  [[maybe_unused]] InitialValueType init,
   BinaryFunction binary_op)
 {
   using namespace thrust::detail;

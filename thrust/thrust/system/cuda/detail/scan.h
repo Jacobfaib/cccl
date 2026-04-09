@@ -89,7 +89,7 @@ _CCCL_HOST_DEVICE OutputIt inclusive_scan_n_impl(
   InputIt first,
   Size num_items,
   OutputIt result,
-  InitValueT init, // NOLINT(performance-unnecessary-value-param)
+  InitValueT init,
   ScanOp scan_op)
 {
   using InputValueT   = cub::detail::InputValue<InitValueT>;
@@ -142,7 +142,7 @@ _CCCL_HOST_DEVICE OutputIt exclusive_scan_n_impl(
   InputIt first,
   Size num_items,
   OutputIt result,
-  InitValueT init, // NOLINT(performance-unnecessary-value-param)
+  InitValueT init,
   ScanOp scan_op)
 {
   using InputValueT   = cub::detail::InputValue<InitValueT>;

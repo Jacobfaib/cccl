@@ -61,7 +61,7 @@ void _CCCL_HOST_DEVICE reduce_into(
   InputIterator first,
   InputIterator last,
   OutputIterator output,
-  T init, // NOLINT(performance-unnecessary-value-param)
+  T init,
   BinaryFunction binary_op);
 
 namespace cuda_cub
@@ -600,12 +600,8 @@ THRUST_RUNTIME_FUNCTION size_t get_reduce_n_temporary_storage_size(
 }
 
 template <typename Derived, typename InputIt, typename Size, typename T, typename BinaryOp>
-THRUST_RUNTIME_FUNCTION T reduce_n_impl(
-  execution_policy<Derived>& policy,
-  InputIt first,
-  Size num_items,
-  T init, // NOLINT(performance-unnecessary-value-param)
-  BinaryOp binary_op) // NOLINT(performance-unnecessary-value-param)
+THRUST_RUNTIME_FUNCTION T
+reduce_n_impl(execution_policy<Derived>& policy, InputIt first, Size num_items, T init, BinaryOp binary_op)
 {
   cudaStream_t stream = cuda_cub::stream(policy);
   cudaError_t status;

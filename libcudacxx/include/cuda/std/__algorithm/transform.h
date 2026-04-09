@@ -27,10 +27,7 @@ _CCCL_BEGIN_NAMESPACE_CUDA_STD
 _CCCL_EXEC_CHECK_DISABLE
 template <class _InputIterator, class _OutputIterator, class _UnaryOperation>
 _CCCL_API constexpr _OutputIterator
-transform(_InputIterator __first,
-          _InputIterator __last,
-          _OutputIterator __result,
-          _UnaryOperation __op) // NOLINT(performance-unnecessary-value-param)
+transform(_InputIterator __first, _InputIterator __last, _OutputIterator __result, _UnaryOperation __op)
 {
   for (; __first != __last; ++__first, (void) ++__result)
   {
@@ -46,7 +43,7 @@ _CCCL_API constexpr _OutputIterator transform(
   _InputIterator1 __last1,
   _InputIterator2 __first2,
   _OutputIterator __result,
-  _BinaryOperation __binary_op) // NOLINT(performance-unnecessary-value-param)
+  _BinaryOperation __binary_op)
 {
   for (; __first1 != __last1; ++__first1, (void) ++__first2, ++__result)
   {

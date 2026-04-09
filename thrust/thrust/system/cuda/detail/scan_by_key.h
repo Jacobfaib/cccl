@@ -163,7 +163,7 @@ _CCCL_HOST_DEVICE ValuesOutIt exclusive_scan_by_key_n(
   ValuesInIt values,
   ValuesOutIt result,
   SizeT num_items,
-  InitValueT init_value, // NOLINT(performance-unnecessary-value-param)
+  InitValueT init_value,
   EqualityOpT equality_op,
   ScanOpT scan_op)
 {
