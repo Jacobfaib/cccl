@@ -228,11 +228,7 @@ public:
   __tuple_leaf(__tuple_leaf&& __t) = default;
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API constexpr __tuple_leaf& operator=(const __tuple_leaf& __t) noexcept
-  {
-    __value_ = __t.__value_;
-    return *this;
-  }
+  _CCCL_API constexpr __tuple_leaf& operator=(const __tuple_leaf& __t) noexcept = default;
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_API constexpr __tuple_leaf& operator=(__tuple_leaf&& __t) noexcept
   {
