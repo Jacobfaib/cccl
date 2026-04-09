@@ -535,7 +535,7 @@ inline cuda_optional<size_t> get_max_shared_memory_per_block()
   {
     return {0, status};
   }
-  return {max_shmem, status};
+  return {static_cast<size_t>(max_shmem), status};
 }
 } // namespace host
 
