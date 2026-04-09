@@ -13,11 +13,11 @@
 #  pragma system_header
 #endif // no system header
 
-#include <cuda/std/__utility/move.h>
 #if _CCCL_CUDA_COMPILATION()
 #  include <thrust/system/cuda/detail/core/triple_chevron_launch.h>
 #  include <thrust/system/cuda/detail/core/util.h>
 
+#  include <cuda/std/__utility/move.h>
 #  include <cuda/std/cassert>
 
 #  include <nv/target>

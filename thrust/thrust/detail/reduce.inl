@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2008-2013, NVIDIA Corporation. All
-// rights reserved. SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2008-2013, NVIDIA Corporation. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 

@@ -232,9 +232,13 @@ transform(execution_policy<Derived>& policy, InputIt first, InputIt last, Output
 {
   THRUST_CDP_DISPATCH(
     (return __transform::cub_transform_many(
-              policy, ::cuda::std::make_tuple(first), result, ::cuda::std::distance(first, last), transform_op);),
+              policy,
+              ::cuda::std::make_tuple(first),
+              result,
+              ::cuda::std::distance(first, last),
+              ::cuda::std::move(transform_op));),
     (return ::cuda::std::transform(
-              first, last, result, __transform::raw_reference_cast_args<TransformOp>{::cuda::std::move(transform_op)});));
+              first, last, result, __transform::raw_reference_cast_args<TransformOp>{transform_op});));
 }
 
 template <typename Derived, typename InputIt, typename OutputIt, typename TransformOp>
@@ -246,12 +250,10 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_n(
   TransformOp transform_op)
 {
   THRUST_CDP_DISPATCH(
-    (return __transform::cub_transform_many(policy, ::cuda::std::make_tuple(first), result, num_items, transform_op);),
+    (return __transform::cub_transform_many(
+              policy, ::cuda::std::make_tuple(first), result, num_items, ::cuda::std::move(transform_op));),
     (return ::cuda::std::transform(
-              first,
-              first + num_items,
-              result,
-              __transform::raw_reference_cast_args<TransformOp>{::cuda::std::move(transform_op)});));
+              first, first + num_items, result, __transform::raw_reference_cast_args<TransformOp>{transform_op});));
 }
 
 template <typename Derived, typename InputIt, typename OutputIt, typename TransformOp, typename Predicate>
@@ -260,8 +262,8 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if(
   InputIt first,
   InputIt last,
   OutputIt result,
-  TransformOp transform_op, // NOLINT(performance-unnecessary-value-param)
-  Predicate predicate) // NOLINT(performance-unnecessary-value-param)
+  TransformOp transform_op,
+  Predicate predicate)
 {
   THRUST_CDP_DISPATCH(
     (return __transform::cub_transform_many(
@@ -269,8 +271,8 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if(
               ::cuda::std::make_tuple(first),
               result,
               ::cuda::std::distance(first, last),
-              transform_op,
-              predicate);),
+              ::cuda::std::move(transform_op),
+              ::cuda::std::move(predicate));),
     (while (first != last) {
       if (predicate(raw_reference_cast(*first)))
       {
@@ -290,16 +292,22 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if_n(
   TransformOp transform_op,
   Predicate predicate)
 {
-  THRUST_CDP_DISPATCH((return __transform::cub_transform_many(
-                                policy, ::cuda::std::make_tuple(first), result, num_items, transform_op, predicate);),
-                      (for (decltype(num_items) i = 0; i < num_items; i++) {
-                        if (predicate(raw_reference_cast(*first)))
-                        {
-                          *result = transform_op(raw_reference_cast(*first));
-                        }
-                        ++first;
-                        ++result;
-                      } return result;));
+  THRUST_CDP_DISPATCH(
+    (return __transform::cub_transform_many(
+              policy,
+              ::cuda::std::make_tuple(first),
+              result,
+              num_items,
+              ::cuda::std::move(transform_op),
+              ::cuda::std::move(predicate));),
+    (for (decltype(num_items) i = 0; i < num_items; i++) {
+      if (predicate(raw_reference_cast(*first)))
+      {
+        *result = transform_op(raw_reference_cast(*first));
+      }
+      ++first;
+      ++result;
+    } return result;));
 }
 
 //  one input data stream + stencil
@@ -315,7 +323,13 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if(
   Predicate predicate)
 {
   return __transform::unary_if_with_stencil(
-    policy, first, result, ::cuda::std::distance(first, last), stencil, ::cuda::std::move(transform_op), predicate);
+    policy,
+    first,
+    result,
+    ::cuda::std::distance(first, last),
+    stencil,
+    ::cuda::std::move(transform_op),
+    ::cuda::std::move(predicate));
 }
 
 template <typename Derived,
@@ -333,7 +347,8 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if_n(
   TransformOp transform_op,
   Predicate predicate)
 {
-  return __transform::unary_if_with_stencil(policy, first, result, num_items, stencil, transform_op, predicate);
+  return __transform::unary_if_with_stencil(
+    policy, first, result, num_items, stencil, ::cuda::std::move(transform_op), ::cuda::std::move(predicate));
 }
 
 // two input data streams
@@ -353,13 +368,9 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform(
               ::cuda::std::make_tuple(first1, first2),
               result,
               ::cuda::std::distance(first1, last1),
-              transform_op);),
+              ::cuda::std::move(transform_op));),
     (return ::cuda::std::transform(
-              first1,
-              last1,
-              first2,
-              result,
-              __transform::raw_reference_cast_args<BinaryTransformOp>{::cuda::std::move(transform_op)});));
+              first1, last1, first2, result, __transform::raw_reference_cast_args<BinaryTransformOp>{transform_op});));
 }
 
 template <typename Derived, typename InputIt1, typename InputIt2, typename OutputIt, typename BinaryTransformOp>
@@ -373,7 +384,7 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_n(
 {
   THRUST_CDP_DISPATCH(
     (return __transform::cub_transform_many(
-              policy, ::cuda::std::make_tuple(first1, first2), result, num_items, transform_op);),
+              policy, ::cuda::std::make_tuple(first1, first2), result, num_items, ::cuda::std::move(transform_op));),
     (return ::cuda::std::transform(first1,
                                    first1 + num_items,
                                    first2,
@@ -401,7 +412,14 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if(
   Predicate predicate)
 {
   return __transform::binary_if_with_stencil(
-    policy, first1, first2, result, ::cuda::std::distance(first1, last1), stencil, transform_op, predicate);
+    policy,
+    first1,
+    first2,
+    result,
+    ::cuda::std::distance(first1, last1),
+    stencil,
+    ::cuda::std::move(transform_op),
+    ::cuda::std::move(predicate));
 }
 
 template <typename Derived,
@@ -422,7 +440,7 @@ _CCCL_API _CCCL_FORCEINLINE OutputIt transform_if_n(
   Predicate predicate)
 {
   return __transform::binary_if_with_stencil(
-    policy, first1, first2, result, num_items, stencil, transform_op, predicate);
+    policy, first1, first2, result, num_items, stencil, ::cuda::std::move(transform_op), ::cuda::std::move(predicate));
 }
 } // namespace cuda_cub
 

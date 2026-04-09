@@ -40,8 +40,13 @@ InputIt _CCCL_HOST_DEVICE remove_if(execution_policy<Derived>& policy, InputIt f
 {
   THRUST_CDP_DISPATCH(
     (return cuda_cub::detail::copy_if<cub::SelectImpl::SelectPotentiallyInPlace>(
-              policy, first, last, static_cast<cub::NullType*>(nullptr), first, ::cuda::std::not_fn(predicate));),
-    (return thrust::remove_if(cvt_to_seq(derived_cast(policy)), first, last, ::cuda::std::move(predicate));));
+              policy,
+              first,
+              last,
+              static_cast<cub::NullType*>(nullptr),
+              first,
+              ::cuda::std::not_fn(::cuda::std::move(predicate)));),
+    (return thrust::remove_if(cvt_to_seq(derived_cast(policy)), first, last, predicate);));
 }
 
 template <class Derived, class InputIt, class T>

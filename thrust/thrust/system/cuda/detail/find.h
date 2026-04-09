@@ -97,10 +97,8 @@ find_if_n(execution_policy<Derived>& policy, InputIt first, Size num_items, Pred
 
   Size result_idx = num_items;
   THRUST_CDP_DISPATCH(
-    (result_idx = cuda_cub::detail::find_if_n_impl(policy, first, num_items, predicate);),
-    (result_idx =
-       thrust::find_if(cvt_to_seq(derived_cast(policy)), first, first + num_items, ::cuda::std::move(predicate))
-       - first;));
+    (result_idx = cuda_cub::detail::find_if_n_impl(policy, first, num_items, ::cuda::std::move(predicate));),
+    (result_idx = thrust::find_if(cvt_to_seq(derived_cast(policy)), first, first + num_items, predicate) - first;));
 
   return first + result_idx;
 }

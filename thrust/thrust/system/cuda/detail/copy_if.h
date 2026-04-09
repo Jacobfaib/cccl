@@ -213,8 +213,8 @@ OutputIterator _CCCL_HOST_DEVICE copy_if(
 {
   THRUST_CDP_DISPATCH(
     (return detail::copy_if<cub::SelectImpl::Select>(
-              policy, first, last, static_cast<cub::NullType*>(nullptr), result, pred);),
-    (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, result, ::cuda::std::move(pred));));
+              policy, first, last, static_cast<cub::NullType*>(nullptr), result, ::cuda::std::move(pred));),
+    (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, result, pred);));
 }
 
 _CCCL_EXEC_CHECK_DISABLE
@@ -227,8 +227,9 @@ OutputIterator _CCCL_HOST_DEVICE copy_if(
   OutputIterator result,
   Predicate pred)
 {
-  THRUST_CDP_DISPATCH((return detail::copy_if<cub::SelectImpl::Select>(policy, first, last, stencil, result, pred);),
-                      (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, stencil, result, pred);));
+  THRUST_CDP_DISPATCH(
+    (return detail::copy_if<cub::SelectImpl::Select>(policy, first, last, stencil, result, ::cuda::std::move(pred));),
+    (return thrust::copy_if(cvt_to_seq(derived_cast(policy)), first, last, stencil, result, pred);));
 }
 } // namespace cuda_cub
 THRUST_NAMESPACE_END

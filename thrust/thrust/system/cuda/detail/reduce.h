@@ -685,7 +685,7 @@ _CCCL_HOST_DEVICE T
 reduce_n(execution_policy<Derived>& policy, InputIt first, Size num_items, T init, BinaryOp binary_op)
 {
   THRUST_CDP_DISPATCH(
-    (init = thrust::cuda_cub::detail::reduce_n_impl(policy, first, num_items, init, binary_op);),
+    (init = thrust::cuda_cub::detail::reduce_n_impl(policy, first, num_items, init, ::cuda::std::move(binary_op));),
     (init = thrust::reduce(cvt_to_seq(derived_cast(policy)), first, first + num_items, init, binary_op);));
   return init;
 }
@@ -696,9 +696,9 @@ _CCCL_HOST_DEVICE void reduce_n_into(
   execution_policy<Derived>& policy, InputIt first, Size num_items, OutputIt output, T init, BinaryOp binary_op)
 {
   THRUST_CDP_DISPATCH(
-    (thrust::cuda_cub::detail::reduce_n_into_impl(policy, first, num_items, output, init, binary_op);),
-    (thrust::reduce_into(
-       cvt_to_seq(derived_cast(policy)), first, first + num_items, output, ::cuda::std::move(init), binary_op);));
+    (thrust::cuda_cub::detail::reduce_n_into_impl(
+       policy, first, num_items, output, ::cuda::std::move(init), ::cuda::std::move(binary_op));),
+    (thrust::reduce_into(cvt_to_seq(derived_cast(policy)), first, first + num_items, output, init, binary_op);));
 }
 
 template <class Derived, class InputIt, class T, class BinaryOp>
