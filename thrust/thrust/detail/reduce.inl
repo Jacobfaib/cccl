@@ -20,8 +20,7 @@
 
 #include <cuda/std/__utility/move.h>
 
-// Include all active backend system implementations (generic, sequential, host
-// and device)
+// Include all active backend system implementations (generic, sequential, host and device)
 #include <thrust/system/detail/generic/reduce.h>
 #include <thrust/system/detail/generic/reduce_by_key.h>
 #include <thrust/system/detail/sequential/reduce.h>

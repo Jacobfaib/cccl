@@ -26,7 +26,6 @@
 #include <cuda/std/__functional/operations.h>
 #include <cuda/std/__iterator/distance.h>
 #include <cuda/std/__type_traits/make_unsigned.h>
-#include <cuda/std/__utility/move.h>
 #include <cuda/std/limits>
 
 THRUST_NAMESPACE_BEGIN
@@ -53,11 +52,7 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
   // compute {0,1} predicates
   thrust::detail::temporary_array<IndexType, DerivedPolicy> predicates(exec, n);
   thrust::transform(
-    exec,
-    stencil,
-    stencil + n,
-    predicates.begin(),
-    thrust::detail::predicate_to_integral<Predicate, IndexType>{::cuda::std::move(pred)});
+    exec, stencil, stencil + n, predicates.begin(), thrust::detail::predicate_to_integral<Predicate, IndexType>{pred});
 
   // scan {0,1} predicates
   thrust::detail::temporary_array<IndexType, DerivedPolicy> scatter_indices(exec, n);
@@ -91,7 +86,7 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
   //     we should probably specialize this case for POD
   //     since we can safely keep the input in a temporary instead
   //     of doing two loads
-  return thrust::copy_if(exec, first, last, first, result, ::cuda::std::move(pred));
+  return thrust::copy_if(exec, first, last, first, result, pred);
 } // end copy_if()
 
 template <typename DerivedPolicy,
@@ -128,7 +123,7 @@ _CCCL_HOST_DEVICE OutputIterator copy_if(
   } // end if
   else
   {
-    result = detail::copy_if<unsigned int>(exec, first, last, stencil, result, ::cuda::std::move(pred));
+    result = detail::copy_if<unsigned int>(exec, first, last, stencil, result, pred);
   } // end else
 
   return result;

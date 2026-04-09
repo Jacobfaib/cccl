@@ -158,12 +158,7 @@ OutputIt _CCCL_API _CCCL_FORCEINLINE cub_transform_many(
       status,
       (CUB_NS_QUALIFIER::DeviceTransform::TransformIf),
       num_items,
-      (::cuda::std::move(firsts),
-       result,
-       num_items_fixed,
-       ::cuda::std::move(pred),
-       ::cuda::std::move(transform_op),
-       cuda_cub::stream(policy)));
+      (firsts, result, num_items_fixed, pred, transform_op, cuda_cub::stream(policy)));
   }
   else
   {
@@ -171,12 +166,7 @@ OutputIt _CCCL_API _CCCL_FORCEINLINE cub_transform_many(
       status,
       (CUB_NS_QUALIFIER::DeviceTransform::__transform_if_stable_argument_addresses),
       num_items,
-      (::cuda::std::move(firsts),
-       result,
-       num_items_fixed,
-       ::cuda::std::move(pred),
-       ::cuda::std::move(transform_op),
-       cuda_cub::stream(policy)));
+      (firsts, result, num_items_fixed, pred, transform_op, cuda_cub::stream(policy)));
   }
   throw_on_error(status, "transform: failed inside CUB");
 

@@ -336,18 +336,11 @@ ValOutputIt _CCCL_HOST_DEVICE exclusive_scan_by_key(
        value_first,
        value_result,
        ::cuda::std::distance(key_first, key_last),
-       init,
-       binary_pred,
-       scan_op);),
-    (ret = thrust::exclusive_scan_by_key(
-       cvt_to_seq(derived_cast(policy)),
-       key_first,
-       key_last,
-       value_first,
-       value_result,
        ::cuda::std::move(init),
-       binary_pred,
-       scan_op);));
+       ::cuda::std::move(binary_pred),
+       ::cuda::std::move(scan_op));),
+    (ret = thrust::exclusive_scan_by_key(
+       cvt_to_seq(derived_cast(policy)), key_first, key_last, value_first, value_result, init, binary_pred, scan_op);));
   return ret;
 }
 

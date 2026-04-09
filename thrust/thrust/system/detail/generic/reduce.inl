@@ -81,7 +81,7 @@ _CCCL_HOST_DEVICE void reduce_into(
   BinaryFunction binary_op)
 {
   // use reduce by default
-  *output = thrust::reduce(exec, first, last, ::cuda::std::move(init), binary_op);
+  *output = thrust::reduce(exec, first, last, ::cuda::std::move(init), ::cuda::std::move(binary_op));
 } // end reduce_into()
 } // namespace system::detail::generic
 THRUST_NAMESPACE_END
