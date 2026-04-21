@@ -37,13 +37,13 @@ struct NonVoidOutputIterator
 {
   using value_type      = int;
   using difference_type = cuda::std::ptrdiff_t;
-  __host__ __device__ const NonVoidOutputIterator& operator*() const;
-  __host__ __device__ NonVoidOutputIterator& operator++();
-  __host__ __device__ NonVoidOutputIterator& operator++(int);
-  __host__ __device__ void operator=(int) const;
+  TEST_FUNC const NonVoidOutputIterator& operator*() const;
+  TEST_FUNC NonVoidOutputIterator& operator++();
+  TEST_FUNC NonVoidOutputIterator& operator++(int);
+  TEST_FUNC void operator=(int) const;
 };
 
-__host__ __device__ void test()
+TEST_FUNC void test()
 {
   {
     using Iter       = simple_iterator<int*>;

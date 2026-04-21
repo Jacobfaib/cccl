@@ -17,7 +17,7 @@
 #include "test_macros.h"
 
 template <class It>
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   using Sent     = sentinel_wrapper<It>;
   using CommonIt = cuda::std::common_iterator<It, Sent>;

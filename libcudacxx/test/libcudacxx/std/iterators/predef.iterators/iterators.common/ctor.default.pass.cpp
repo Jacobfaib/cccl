@@ -14,7 +14,7 @@
 
 #include "test_iterators.h"
 
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   {
     using It       = cpp17_input_iterator<int*>;

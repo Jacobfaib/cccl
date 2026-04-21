@@ -24,30 +24,30 @@ struct IterMovingIt
   using value_type        = int;
   using difference_type   = int;
   explicit IterMovingIt() = default;
-  __host__ __device__ IterMovingIt(const IterMovingIt&); // copyable, but this test shouldn't make copies
+  TEST_FUNC IterMovingIt(const IterMovingIt&); // copyable, but this test shouldn't make copies
   IterMovingIt(IterMovingIt&&) = default;
-  __host__ __device__ IterMovingIt& operator=(const IterMovingIt&);
-  __host__ __device__ int& operator*() const;
-  __host__ __device__ constexpr IterMovingIt& operator++()
+  TEST_FUNC IterMovingIt& operator=(const IterMovingIt&);
+  TEST_FUNC int& operator*() const;
+  TEST_FUNC constexpr IterMovingIt& operator++()
   {
     return *this;
   }
-  __host__ __device__ IterMovingIt operator++(int);
-  __host__ __device__ friend constexpr int iter_move(const IterMovingIt&)
+  TEST_FUNC IterMovingIt operator++(int);
+  TEST_FUNC friend constexpr int iter_move(const IterMovingIt&)
   {
     return 42;
   }
 
-  __host__ __device__ friend bool operator==(const IterMovingIt&, cuda::std::default_sentinel_t);
+  TEST_FUNC friend bool operator==(const IterMovingIt&, cuda::std::default_sentinel_t);
 #if TEST_STD_VER <= 2017
-  __host__ __device__ friend bool operator==(cuda::std::default_sentinel_t, const IterMovingIt&);
-  __host__ __device__ friend bool operator!=(const IterMovingIt&, cuda::std::default_sentinel_t);
-  __host__ __device__ friend bool operator!=(cuda::std::default_sentinel_t, const IterMovingIt&);
+  TEST_FUNC friend bool operator==(cuda::std::default_sentinel_t, const IterMovingIt&);
+  TEST_FUNC friend bool operator!=(const IterMovingIt&, cuda::std::default_sentinel_t);
+  TEST_FUNC friend bool operator!=(cuda::std::default_sentinel_t, const IterMovingIt&);
 #endif // TEST_STD_VER <= 2017
 };
 static_assert(cuda::std::input_iterator<IterMovingIt>);
 
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   {
     using It       = int*;

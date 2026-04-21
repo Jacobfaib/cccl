@@ -18,7 +18,7 @@
 
 struct Incomplete;
 
-__host__ __device__ TEST_CONSTEXPR_CXX20 bool test()
+TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
 {
   // Reference: http://eel.is/c++draft/iterators.common#common.iter.nav-5
   // Case 2: can-reference
@@ -195,7 +195,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER >= 2020
-  static_assert(test(), "");
+  static_assert(test());
 #endif // TEST_STD_VER >= 2020
   return 0;
 }

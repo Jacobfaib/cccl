@@ -19,7 +19,7 @@
 #include "types.h"
 
 template <class Iterator>
-__host__ __device__ constexpr void test_access_5_1()
+TEST_FUNC constexpr void test_access_5_1()
 {
   int buffer[8] = {1, 2, 3, 4, 5, 6, 7, 8};
   Iterator iter(buffer);
@@ -41,7 +41,7 @@ __host__ __device__ constexpr void test_access_5_1()
 };
 
 template <class Iterator>
-__host__ __device__ constexpr void test_access_5_2()
+TEST_FUNC constexpr void test_access_5_2()
 {
   int buffer[8] = {1, 2, 3, 4, 5, 6, 7, 8};
   Iterator iter(buffer);
@@ -59,7 +59,7 @@ __host__ __device__ constexpr void test_access_5_2()
 };
 
 template <class Iterator>
-__host__ __device__ constexpr void test_access_5_3()
+TEST_FUNC constexpr void test_access_5_3()
 {
   int buffer[8] = {1, 2, 3, 4, 5, 6, 7, 8};
   Iterator iter(buffer);
@@ -80,7 +80,7 @@ __host__ __device__ constexpr void test_access_5_3()
   assert(*cresult == *buffer);
 };
 
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   // Case 1: http://eel.is/c++draft/iterators.common#common.iter.access-5.1
   {
@@ -111,7 +111,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER >= 2020 && defined(_CCCL_BUILTIN_ADDRESSOF)
-  static_assert(test(), "");
+  static_assert(test());
 #endif // TEST_STD_VER >= 2020 && defined(_CCCL_BUILTIN_ADDRESSOF)
   return 0;
 }

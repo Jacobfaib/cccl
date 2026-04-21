@@ -28,27 +28,27 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const simple_iterator& i)
+  TEST_FUNC friend constexpr It base(const simple_iterator& i)
   {
     return i.it_;
   }
 
   simple_iterator() = default;
-  __host__ __device__ explicit constexpr simple_iterator(It it)
+  TEST_FUNC explicit constexpr simple_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr reference operator*() const
+  TEST_FUNC constexpr reference operator*() const
   {
     return *it_;
   }
 
-  __host__ __device__ constexpr simple_iterator& operator++()
+  TEST_FUNC constexpr simple_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr simple_iterator operator++(int)
+  TEST_FUNC constexpr simple_iterator operator++(int)
   {
     simple_iterator tmp(*this);
     ++(*this);
@@ -68,27 +68,27 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const value_iterator& i)
+  TEST_FUNC friend constexpr It base(const value_iterator& i)
   {
     return i.it_;
   }
 
   value_iterator() = default;
-  __host__ __device__ explicit constexpr value_iterator(It it)
+  TEST_FUNC explicit constexpr value_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr value_type operator*() const
+  TEST_FUNC constexpr value_type operator*() const
   {
     return cuda::std::move(*it_);
   }
 
-  __host__ __device__ constexpr value_iterator& operator++()
+  TEST_FUNC constexpr value_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr value_iterator operator++(int)
+  TEST_FUNC constexpr value_iterator operator++(int)
   {
     value_iterator tmp(*this);
     ++(*this);
@@ -108,27 +108,27 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const void_plus_plus_iterator& i)
+  TEST_FUNC friend constexpr It base(const void_plus_plus_iterator& i)
   {
     return i.it_;
   }
 
   void_plus_plus_iterator() = default;
-  __host__ __device__ explicit constexpr void_plus_plus_iterator(It it)
+  TEST_FUNC explicit constexpr void_plus_plus_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr value_type operator*() const
+  TEST_FUNC constexpr value_type operator*() const
   {
     return cuda::std::move(*it_);
   }
 
-  __host__ __device__ constexpr void_plus_plus_iterator& operator++()
+  TEST_FUNC constexpr void_plus_plus_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr void operator++(int)
+  TEST_FUNC constexpr void operator++(int)
   {
     ++(*this);
   }
@@ -145,7 +145,7 @@ public:
   struct hold
   {
     T value_;
-    __host__ __device__ hold(T v)
+    TEST_FUNC hold(T v)
         : value_(v)
     {}
     hold(const hold&) = delete;
@@ -159,27 +159,27 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const value_type_not_move_constructible_iterator& i)
+  TEST_FUNC friend constexpr It base(const value_type_not_move_constructible_iterator& i)
   {
     return i.it_;
   }
 
   value_type_not_move_constructible_iterator() = default;
-  __host__ __device__ explicit constexpr value_type_not_move_constructible_iterator(It it)
+  TEST_FUNC explicit constexpr value_type_not_move_constructible_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr underlying_value_type operator*() const
+  TEST_FUNC constexpr underlying_value_type operator*() const
   {
     return cuda::std::move(*it_);
   }
 
-  __host__ __device__ constexpr value_type_not_move_constructible_iterator& operator++()
+  TEST_FUNC constexpr value_type_not_move_constructible_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr void operator++(int)
+  TEST_FUNC constexpr void operator++(int)
   {
     ++(*this);
   }
@@ -197,57 +197,57 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const comparable_iterator& i)
+  TEST_FUNC friend constexpr It base(const comparable_iterator& i)
   {
     return i.it_;
   }
 
   comparable_iterator() = default;
-  __host__ __device__ explicit constexpr comparable_iterator(It it)
+  TEST_FUNC explicit constexpr comparable_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr reference operator*() const
+  TEST_FUNC constexpr reference operator*() const
   {
     return *it_;
   }
 
-  __host__ __device__ constexpr comparable_iterator& operator++()
+  TEST_FUNC constexpr comparable_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr comparable_iterator operator++(int)
+  TEST_FUNC constexpr comparable_iterator operator++(int)
   {
     comparable_iterator tmp(*this);
     ++(*this);
     return tmp;
   }
 
-  __host__ __device__ friend constexpr bool operator==(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
+  TEST_FUNC friend constexpr bool operator==(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
   {
     return base(lhs) == base(rhs);
   }
-  __host__ __device__ friend constexpr bool operator==(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
+  TEST_FUNC friend constexpr bool operator==(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
   {
     return base(lhs) == base(rhs);
   }
 #if TEST_STD_VER < 2020
-  __host__ __device__ friend constexpr bool operator!=(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
   {
     return base(lhs) != base(rhs);
   }
-  __host__ __device__ friend constexpr bool operator!=(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
   {
     return base(lhs) != base(rhs);
   }
 #endif
 
-  __host__ __device__ friend constexpr auto operator-(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
+  TEST_FUNC friend constexpr auto operator-(const comparable_iterator& lhs, const simple_iterator<It>& rhs)
   {
     return base(lhs) - base(rhs);
   }
-  __host__ __device__ friend constexpr auto operator-(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
+  TEST_FUNC friend constexpr auto operator-(const simple_iterator<It>& lhs, const comparable_iterator& rhs)
   {
     return base(lhs) - base(rhs);
   }
@@ -259,23 +259,23 @@ struct sentinel_type
   T base_;
 
   template <class U>
-  __host__ __device__ friend constexpr bool operator==(const sentinel_type& lhs, const U& rhs)
+  TEST_FUNC friend constexpr bool operator==(const sentinel_type& lhs, const U& rhs)
   {
     return lhs.base_ == base(rhs);
   }
   template <class U>
-  __host__ __device__ friend constexpr bool operator==(const U& lhs, const sentinel_type& rhs)
+  TEST_FUNC friend constexpr bool operator==(const U& lhs, const sentinel_type& rhs)
   {
     return base(lhs) == rhs.base_;
   }
 #if TEST_STD_VER < 2020
   template <class U>
-  __host__ __device__ friend constexpr bool operator!=(const sentinel_type& lhs, const U& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const sentinel_type& lhs, const U& rhs)
   {
     return lhs.base_ != base(rhs);
   }
   template <class U>
-  __host__ __device__ friend constexpr bool operator!=(const U& lhs, const sentinel_type& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const U& lhs, const sentinel_type& rhs)
   {
     return base(lhs) != rhs.base_;
   }
@@ -288,35 +288,35 @@ struct sized_sentinel_type
   T base_;
 
   template <class U>
-  __host__ __device__ friend constexpr bool operator==(const sized_sentinel_type& lhs, const U& rhs)
+  TEST_FUNC friend constexpr bool operator==(const sized_sentinel_type& lhs, const U& rhs)
   {
     return lhs.base_ == base(rhs);
   }
   template <class U>
-  __host__ __device__ friend constexpr bool operator==(const U& lhs, const sized_sentinel_type& rhs)
+  TEST_FUNC friend constexpr bool operator==(const U& lhs, const sized_sentinel_type& rhs)
   {
     return base(lhs) == rhs.base_;
   }
 #if TEST_STD_VER < 2020
   template <class U>
-  __host__ __device__ friend constexpr bool operator!=(const sized_sentinel_type& lhs, const U& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const sized_sentinel_type& lhs, const U& rhs)
   {
     return lhs.base_ != base(rhs);
   }
   template <class U>
-  __host__ __device__ friend constexpr bool operator!=(const U& lhs, const sized_sentinel_type& rhs)
+  TEST_FUNC friend constexpr bool operator!=(const U& lhs, const sized_sentinel_type& rhs)
   {
     return base(lhs) != rhs.base_;
   }
 #endif
 
   template <class U>
-  __host__ __device__ friend constexpr auto operator-(const sized_sentinel_type& lhs, const U& rhs)
+  TEST_FUNC friend constexpr auto operator-(const sized_sentinel_type& lhs, const U& rhs)
   {
     return lhs.base_ - base(rhs);
   }
   template <class U>
-  __host__ __device__ friend constexpr auto operator-(const U& lhs, const sized_sentinel_type& rhs)
+  TEST_FUNC friend constexpr auto operator-(const U& lhs, const sized_sentinel_type& rhs)
   {
     return base(lhs) - rhs.base_;
   }
@@ -334,47 +334,47 @@ public:
   typedef It pointer;
   typedef typename cuda::std::iterator_traits<It>::reference reference;
 
-  __host__ __device__ friend constexpr It base(const assignable_iterator& i)
+  TEST_FUNC friend constexpr It base(const assignable_iterator& i)
   {
     return i.it_;
   }
 
   assignable_iterator() = default;
-  __host__ __device__ explicit constexpr assignable_iterator(It it)
+  TEST_FUNC explicit constexpr assignable_iterator(It it)
       : it_(it)
   {}
 
-  __host__ __device__ constexpr assignable_iterator(const forward_iterator<It>& it)
+  TEST_FUNC constexpr assignable_iterator(const forward_iterator<It>& it)
       : it_(base(it))
   {}
-  __host__ __device__ constexpr assignable_iterator(const sentinel_type<It>& it)
+  TEST_FUNC constexpr assignable_iterator(const sentinel_type<It>& it)
       : it_(base(it))
   {}
 
-  __host__ __device__ constexpr reference operator*() const
+  TEST_FUNC constexpr reference operator*() const
   {
     return *it_;
   }
 
-  __host__ __device__ constexpr assignable_iterator& operator++()
+  TEST_FUNC constexpr assignable_iterator& operator++()
   {
     ++it_;
     return *this;
   }
-  __host__ __device__ constexpr assignable_iterator operator++(int)
+  TEST_FUNC constexpr assignable_iterator operator++(int)
   {
     assignable_iterator tmp(*this);
     ++(*this);
     return tmp;
   }
 
-  __host__ __device__ constexpr assignable_iterator& operator=(const forward_iterator<It>& other)
+  TEST_FUNC constexpr assignable_iterator& operator=(const forward_iterator<It>& other)
   {
     it_ = base(other);
     return *this;
   }
 
-  __host__ __device__ constexpr assignable_iterator& operator=(const sentinel_type<It>& other)
+  TEST_FUNC constexpr assignable_iterator& operator=(const sentinel_type<It>& other)
   {
     it_ = base(other);
     return *this;

@@ -23,41 +23,41 @@ struct IterSwappingIt
 {
   using value_type      = int;
   using difference_type = int;
-  __host__ __device__ constexpr explicit IterSwappingIt(int* swaps)
+  TEST_FUNC constexpr explicit IterSwappingIt(int* swaps)
       : swaps_(swaps)
   {}
-  __host__ __device__ IterSwappingIt(const IterSwappingIt&); // copyable, but this test shouldn't make copies
+  TEST_FUNC IterSwappingIt(const IterSwappingIt&); // copyable, but this test shouldn't make copies
   IterSwappingIt(IterSwappingIt&&) = default;
-  __host__ __device__ IterSwappingIt& operator=(const IterSwappingIt&);
-  __host__ __device__ int& operator*() const;
-  __host__ __device__ constexpr IterSwappingIt& operator++()
+  TEST_FUNC IterSwappingIt& operator=(const IterSwappingIt&);
+  TEST_FUNC int& operator*() const;
+  TEST_FUNC constexpr IterSwappingIt& operator++()
   {
     return *this;
   }
-  __host__ __device__ IterSwappingIt operator++(int);
+  TEST_FUNC IterSwappingIt operator++(int);
 
   template <int L>
-  __host__ __device__ friend constexpr int iter_swap(const IterSwappingIt<K>& lhs, const IterSwappingIt<L>& rhs)
+  TEST_FUNC friend constexpr int iter_swap(const IterSwappingIt<K>& lhs, const IterSwappingIt<L>& rhs)
   {
     *lhs.swaps_ += 10;
     *rhs.swaps_ += 1;
     return 42; // should be accepted but ignored
   }
 
-  __host__ __device__ friend bool operator==(const IterSwappingIt&, cuda::std::default_sentinel_t)
+  TEST_FUNC friend bool operator==(const IterSwappingIt&, cuda::std::default_sentinel_t)
   {
     return true;
   }
 #if TEST_STD_VER <= 2017
-  __host__ __device__ friend bool operator==(cuda::std::default_sentinel_t, const IterSwappingIt&)
+  TEST_FUNC friend bool operator==(cuda::std::default_sentinel_t, const IterSwappingIt&)
   {
     return true;
   };
-  __host__ __device__ friend bool operator!=(const IterSwappingIt&, cuda::std::default_sentinel_t)
+  TEST_FUNC friend bool operator!=(const IterSwappingIt&, cuda::std::default_sentinel_t)
   {
     return false;
   };
-  __host__ __device__ friend bool operator!=(cuda::std::default_sentinel_t, const IterSwappingIt&)
+  TEST_FUNC friend bool operator!=(cuda::std::default_sentinel_t, const IterSwappingIt&)
   {
     return false;
   };
@@ -69,7 +69,7 @@ static_assert(cuda::std::input_iterator<IterSwappingIt<0>>);
 static_assert(cuda::std::indirectly_swappable<IterSwappingIt<0>, IterSwappingIt<0>>);
 static_assert(cuda::std::indirectly_swappable<IterSwappingIt<0>, IterSwappingIt<1>>);
 
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   {
     using It       = int*;

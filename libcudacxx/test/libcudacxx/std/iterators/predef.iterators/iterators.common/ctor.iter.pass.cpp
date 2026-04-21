@@ -15,7 +15,7 @@
 #include "test_iterators.h"
 
 template <class It>
-__host__ __device__ constexpr bool test()
+TEST_FUNC constexpr bool test()
 {
   using CommonIt = cuda::std::common_iterator<It, sentinel_wrapper<It>>;
   int a[]        = {1, 2, 3};

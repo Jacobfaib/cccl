@@ -87,20 +87,22 @@ class common_iterator
 {
   struct __proxy
   {
+    iter_value_t<_Iter> __value_;
+
     _CCCL_API constexpr const iter_value_t<_Iter>* operator->() const noexcept
     {
       return ::cuda::std::addressof(__value_);
     }
-    iter_value_t<_Iter> __value_;
   };
 
   struct __postfix_proxy
   {
+    iter_value_t<_Iter> __value_;
+
     _CCCL_API constexpr const iter_value_t<_Iter>& operator*() const noexcept
     {
       return __value_;
     }
-    iter_value_t<_Iter> __value_;
   };
 
 public:
@@ -403,7 +405,7 @@ public:
 
   template <class _I2, class _S2>
   _CCCL_API friend constexpr auto iter_swap(const common_iterator& __x, const common_iterator<_I2, _S2>& __y) noexcept(
-    noexcept(::cuda::std::ranges::iter_swap(declval<const _Iter&>(), declval<const _I2&>())))
+    noexcept(::cuda::std::ranges::iter_swap(::cuda::std::declval<const _Iter&>(), ::cuda::std::declval<const _I2&>())))
     _CCCL_TRAILING_REQUIRES(void)(indirectly_swappable<_I2, _Iter>)
   {
     auto& __y_hold = __y.__get_hold();
@@ -458,13 +460,13 @@ _CCCL_CONCEPT __common_iter_has_ptr_op = _CCCL_FRAGMENT(__common_iter_has_ptr_op
 template <class, class, class = void>
 struct __arrow_type_or_void
 {
-  using type = void;
+  using type _CCCL_NODEBUG = void;
 };
 
 template <class _Iter, class _Sent>
 struct __arrow_type_or_void<_Iter, _Sent, enable_if_t<__common_iter_has_ptr_op<_Iter, _Sent>>>
 {
-  using type = decltype(::cuda::std::declval<const common_iterator<_Iter, _Sent>&>().operator->());
+  using type _CCCL_NODEBUG = decltype(::cuda::std::declval<const common_iterator<_Iter, _Sent>&>().operator->());
 };
 
 #if _CCCL_COMPILER(GCC) // GCC breaks with a circular definition here

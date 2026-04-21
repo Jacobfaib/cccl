@@ -19,7 +19,7 @@
 #include "test_macros.h"
 #include "types.h"
 
-__host__ __device__ TEST_CONSTEXPR_CXX20 bool test()
+TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
 {
   int buffer[8] = {1, 2, 3, 4, 5, 6, 7, 8};
 
@@ -159,7 +159,7 @@ int main(int, char**)
 #endif // TEST_HAS_EXCEPTIONS()
 
 #if TEST_STD_VER >= 2020
-  static_assert(test(), "");
+  static_assert(test());
 #endif // TEST_STD_VER >= 2020
 
   return 0;
