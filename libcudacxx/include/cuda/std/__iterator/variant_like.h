@@ -106,23 +106,24 @@ struct __vl_destruct_base
 
   _CCCL_API _CCCL_CONSTEXPR_CXX20 ~__vl_destruct_base()
   {
-    __raw_clear();
+    __clear();
   }
 
   _CCCL_EXEC_CHECK_DISABLE
-  _CCCL_API _CCCL_CONSTEXPR_CXX20 void __raw_clear() noexcept
+  _CCCL_API _CCCL_CONSTEXPR_CXX20 void __clear() noexcept
   {
     switch (__contains_)
     {
       case __variant_like_state::__holds_first:
-        __first_.~_Tp();
+        ::cuda::std::destroy_at(::cuda::std::addressof(__first_));
         break;
       case __variant_like_state::__holds_second:
-        __second_.~_Up();
+        ::cuda::std::destroy_at(::cuda::std::addressof(__second_));
         break;
       case __variant_like_state::__nothing:
         break;
     }
+    __contains_ = __variant_like_state::__nothing;
   }
 };
 
@@ -165,7 +166,10 @@ struct __vl_destruct_base<_Tp, _Up, true>
       , __contains_{__variant_like_state::__holds_second}
   {}
 
-  _CCCL_API constexpr void __raw_clear() noexcept {}
+  _CCCL_API constexpr void __clear() noexcept
+  {
+    __contains_ = __variant_like_state::__nothing;
+  }
 };
 
 template <class _Tp, class _Up>
@@ -269,7 +273,7 @@ public:
       return *this;
     }
 
-    __clear();
+    this->__clear();
 
     switch (__other.__contains_)
     {
@@ -318,7 +322,7 @@ public:
       return *this;
     }
 
-    __clear();
+    this->__clear();
 
     switch (__other.__contains_)
     {
@@ -359,7 +363,7 @@ public:
       }
     }
 
-    __clear();
+    this->__clear();
 
     switch (__other.__contains_)
     {
@@ -400,25 +404,17 @@ public:
     }
     else
     {
-      auto _Tmp = ::cuda::std::move(__x);
-      __x       = ::cuda::std::move(__y);
-      __y       = ::cuda::std::move(_Tmp);
+      auto __tmp = ::cuda::std::move(__x);
+      __x        = ::cuda::std::move(__y);
+      __y        = ::cuda::std::move(__tmp);
     }
-  }
-
-  _CCCL_API constexpr void __clear() noexcept
-  {
-    this->__raw_clear();
-    this->__contains_ = __variant_like_state::__nothing;
   }
 
   template <class... _Types>
   _CCCL_API _CCCL_CONSTEXPR_CXX20 void
   __emplace_first(_Types&&... _Args) noexcept(is_nothrow_constructible_v<_Tp, _Types...>)
   {
-    this->__raw_clear();
-    this->__contains_ = __variant_like_state::__nothing;
-
+    this->__clear();
     ::cuda::std::__construct_at(::cuda::std::addressof(this->__first_), ::cuda::std::forward<_Types>(_Args)...);
     this->__contains_ = __variant_like_state::__holds_first;
   }
@@ -427,9 +423,7 @@ public:
   _CCCL_API _CCCL_CONSTEXPR_CXX20 void
   __emplace_second(_Types&&... _Args) noexcept(is_nothrow_constructible_v<_Up, _Types...>)
   {
-    this->__raw_clear();
-    this->__contains_ = __variant_like_state::__nothing;
-
+    this->__clear();
     ::cuda::std::__construct_at(::cuda::std::addressof(this->__second_), ::cuda::std::forward<_Types>(_Args)...);
     this->__contains_ = __variant_like_state::__holds_second;
   }

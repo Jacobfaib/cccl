@@ -25,7 +25,7 @@ TEST_FUNC constexpr bool test()
   It it          = It(a);
   Sent sent      = Sent(It(a + 1));
 
-  CommonIt lv = CommonIt(sent);
+  auto lv = CommonIt(sent);
   assert(lv == CommonIt(sent));
   assert(lv != CommonIt(it));
   if (!TEST_IS_CONSTANT_EVALUATED())
@@ -33,7 +33,7 @@ TEST_FUNC constexpr bool test()
     assert(lv == cuda::std::next(CommonIt(it)));
   }
 
-  CommonIt rv = CommonIt(cuda::std::move(sent));
+  auto rv = CommonIt(cuda::std::move(sent));
   assert(rv == CommonIt(sent));
   assert(rv != CommonIt(it));
   if (!TEST_IS_CONSTANT_EVALUATED())
@@ -54,6 +54,7 @@ int main(int, char**)
   test<int*>();
   test<const int*>();
 
+#if TEST_STD_VER >= 2020
   static_assert(test<cpp17_input_iterator<int*>>());
   static_assert(test<forward_iterator<int*>>());
   static_assert(test<bidirectional_iterator<int*>>());
@@ -61,6 +62,7 @@ int main(int, char**)
   static_assert(test<contiguous_iterator<int*>>());
   static_assert(test<int*>());
   static_assert(test<const int*>());
+#endif
 
   return 0;
 }

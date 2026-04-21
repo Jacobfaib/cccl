@@ -45,6 +45,8 @@
 
 _CCCL_BEGIN_NAMESPACE_CUDA_STD
 
+_LIBCUDACXX_BEGIN_HIDDEN_FRIEND_NAMESPACE
+
 #if _CCCL_HAS_CONCEPTS()
 template <class _Iter>
 concept __use_postfix_proxy =
@@ -424,6 +426,8 @@ public:
     return __hold_;
   }
 };
+
+_LIBCUDACXX_END_HIDDEN_FRIEND_NAMESPACE(common_iterator)
 
 template <class _Iter, class _Sent>
 struct incrementable_traits<common_iterator<_Iter, _Sent>>
