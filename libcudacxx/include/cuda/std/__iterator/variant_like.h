@@ -342,7 +342,7 @@ public:
   }
 
   _CCCL_DIAG_PUSH
-  // MSVC halucinates that
+  // MSVC hallucinates that
   //
   // this->__second_ = __other.__second_;
   //
