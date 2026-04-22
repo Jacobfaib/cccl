@@ -341,6 +341,14 @@ public:
     return *this;
   }
 
+  _CCCL_DIAG_PUSH
+  // MSVC halucinates that
+  //
+  // this->__second_ = __other.__second_;
+  //
+  // is unreachable.
+  _CCCL_DIAG_SUPPRESS_MSVC(4702)
+
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_TEMPLATE(class _OTp, class _OUp)
   _CCCL_REQUIRES((!same_as<__variant_like<_OTp, _OUp>, __variant_like>) )
@@ -380,6 +388,8 @@ public:
     this->__contains_ = __other.__contains_;
     return *this;
   }
+
+  _CCCL_DIAG_POP
 
   _CCCL_EXEC_CHECK_DISABLE
   template <class _Tp2 = _Tp>
