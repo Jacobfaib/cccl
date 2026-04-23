@@ -31,7 +31,7 @@ def replacement(path: Path, re_match: Match) -> str:
         )
         raise ValueError(m)
 
-    return f"(c) {year}, {re_match[re_match.lastindex]}"
+    return f"(c) {year}, NVIDIA CORPORATION"
 
 
 def main() -> int:
@@ -43,7 +43,6 @@ def main() -> int:
     repl = Replacement(
         pattern=re_str,
         repl=replacement,
-        # repl=rf"\2-{cur_year}, \3",
         pragma_keyword="copyright",
         flags=IGNORECASE,
     )
