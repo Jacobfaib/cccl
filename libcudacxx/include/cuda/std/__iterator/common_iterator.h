@@ -28,6 +28,7 @@
 #include <cuda/std/__concepts/derived_from.h>
 #include <cuda/std/__concepts/equality_comparable.h>
 #include <cuda/std/__concepts/same_as.h>
+#include <cuda/std/__fwd/iterator.h>
 #include <cuda/std/__iterator/concepts.h>
 #include <cuda/std/__iterator/incrementable_traits.h>
 #include <cuda/std/__iterator/iter_move.h>
@@ -63,11 +64,11 @@ template <input_or_output_iterator _Iter, sentinel_for<_Iter> _Sent>
 #else // ^^^ _CCCL_HAS_CONCEPTS() ^^^ / vvv !_CCCL_HAS_CONCEPTS() vvv
 template <class _Iter,
           class _Sent,
-          enable_if_t<input_or_output_iterator<_Iter>, int>             = 0,
-          enable_if_t<sentinel_for<_Sent, _Iter>, int>                  = 0,
-          enable_if_t<(!same_as<_Iter, _Sent> && copyable<_Iter>), int> = 0>
+          enable_if_t<input_or_output_iterator<_Iter>, int>,
+          enable_if_t<sentinel_for<_Sent, _Iter>, int>,
+          enable_if_t<(!same_as<_Iter, _Sent> && copyable<_Iter>), int>>
 #endif // !_CCCL_HAS_CONCEPTS()
-class common_iterator
+class _CCCL_TYPE_VISIBILITY_DEFAULT common_iterator
 {
   struct __proxy
   {
@@ -423,42 +424,20 @@ struct incrementable_traits<common_iterator<_Iter, _Sent>>
 };
 
 template <class _Iter>
-_CCCL_CONCEPT __denotes_forward_iter = _CCCL_REQUIRES_EXPR((_Iter), )(
-  typename(typename iterator_traits<_Iter>::iterator_category),
-  requires(derived_from<typename iterator_traits<_Iter>::iterator_category, forward_iterator_tag>));
-
-template <class _Iter, class _Sent>
-_CCCL_CONCEPT __common_iter_has_ptr_op = __has_const_arrow<common_iterator<_Iter, _Sent>>;
-
-template <class, class, class = void>
-struct __arrow_type_or_void
-{
-  using type _CCCL_NODEBUG = void;
-};
-
-template <class _Iter, class _Sent>
-struct __arrow_type_or_void<_Iter, _Sent, enable_if_t<__common_iter_has_ptr_op<_Iter, _Sent>>>
-{
-  using type _CCCL_NODEBUG = decltype(::cuda::std::declval<const common_iterator<_Iter, _Sent>&>().operator->());
-};
+_CCCL_CONCEPT __denotes_forward_iter = __has_iterator_category_convertible_to<_Iter, forward_iterator_tag>;
 
 #if _CCCL_COMPILER(GCC) // GCC breaks with a circular definition here
-template <class _Iter, class _Sent>
-struct __is_primary_std_template<common_iterator<_Iter, _Sent>> : true_type
-{};
+// template <class _Iter, class _Sent>
+// struct __is_primary_std_template<common_iterator<_Iter, _Sent>> : true_type
+// {};
 #endif // _CCCL_COMPILER(GCC)
 
-#if _CCCL_HAS_CONCEPTS()
-template <input_iterator _Iter, class _Sent>
-struct iterator_traits<common_iterator<_Iter, _Sent>>
-#else // ^^^ _CCCL_HAS_CONCEPTS() ^^^ / vvv !_CCCL_HAS_CONCEPTS() vvv
 template <class _Iter, class _Sent>
 struct iterator_traits<common_iterator<_Iter, _Sent>, enable_if_t<input_iterator<_Iter>>>
-#endif // !_CCCL_HAS_CONCEPTS()
 {
   using iterator_concept  = conditional_t<forward_iterator<_Iter>, forward_iterator_tag, input_iterator_tag>;
   using iterator_category = conditional_t<__denotes_forward_iter<_Iter>, forward_iterator_tag, input_iterator_tag>;
-  using pointer           = typename __arrow_type_or_void<_Iter, _Sent>::type;
+  using pointer           = __iterator_traits_member_pointer_or_arrow_or_void<common_iterator<_Iter, _Sent>>;
   using value_type        = iter_value_t<_Iter>;
   using difference_type   = iter_difference_t<_Iter>;
   using reference         = iter_reference_t<_Iter>;
