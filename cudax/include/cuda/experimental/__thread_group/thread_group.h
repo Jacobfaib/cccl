@@ -99,6 +99,14 @@ class thread_group
       return {ptr, __scratch_mem.size() / sizeof(T)};
     }
 
+    template <typename T>
+    [[nodiscard]] _CCCL_HOST_API ::cuda::std::span<T> __scratch_mem_as() const noexcept
+    {
+      auto* const ptr = reinterpret_cast<T*>(__scratch_mem.data());
+
+      return {ptr, __scratch_mem.size() / sizeof(T)};
+    }
+
     template <>
     [[nodiscard]] _CCCL_HOST_API constexpr ::cuda::std::span<::cuda::std::byte> __scratch_mem_as() noexcept
     {
@@ -119,7 +127,7 @@ public:
                               ::std::shared_ptr<::cuda::std::byte[]> __shared_mem)
       : __rank_{__rank}
       , __group_size_{__group_size}
-      , __shared_mem_{construct_shared_data_(__rank, __group_size, ::cuda::std::move(__shared_mem))}
+      , __shared_mem_{__construct_shared_data(__rank, __group_size, ::cuda::std::move(__shared_mem))}
   {
     _CCCL_TRY
     {
@@ -146,18 +154,38 @@ public:
     {
       // Strong exception guarantee. There is an argument to be made here to just call
       // cuda::std::terminate(), because if any of the threads throw, then the program *will*
-      // eventually deadlock on a barrier.
+      // eventually deadlock on a barrier (possibly even the one above).
       __reset();
       _CCCL_RETHROW;
     }
   }
 
-  // This object may not be copied because __reset()
-  _CCCL_HIDE_FROM_ABI thread_group(const thread_group&)            = delete;
+  // This object may not be copied because we have no way of reliably keeping the destroy
+  // refcount accurate.
   _CCCL_HIDE_FROM_ABI thread_group& operator=(const thread_group&) = delete;
+  _CCCL_HIDE_FROM_ABI thread_group(const thread_group&)            = delete;
 
-  _CCCL_HIDE_FROM_ABI thread_group(thread_group&&) noexcept            = default;
-  _CCCL_HIDE_FROM_ABI thread_group& operator=(thread_group&&) noexcept = default;
+  _CCCL_HOST_API thread_group& operator=(thread_group&& __other) noexcept
+  {
+    if (this == &__other)
+    {
+      return *this;
+    }
+
+    // Must __reset here to ensure the __shared_data structure is properly destroyed.
+    __reset();
+
+    __rank_          = ::cuda::std::exchange(__other.__rank_, {});
+    __group_size_    = ::cuda::std::exchange(__other.__group_size_, {});
+    __sub_idx_begin_ = ::cuda::std::exchange(__other.__sub_idx_begin_, {});
+    __sub_idx_end_   = ::cuda::std::exchange(__other.__sub_idx_end_, {});
+    __stride_        = ::cuda::std::exchange(__other.__stride_, {});
+    __shared_mem_    = ::cuda::std::move(__other.__shared_mem_);
+    return *this;
+  }
+
+  // We can = default the move constructor because we have nothing to __reset()
+  _CCCL_HIDE_FROM_ABI thread_group(thread_group&&) noexcept = default;
 
   _CCCL_HOST_API ~thread_group()
   {
@@ -195,7 +223,7 @@ public:
   [[nodiscard]] _CCCL_API static constexpr ::cuda::std::size_t
   required_shared_memory_size(::cuda::std::uint32_t __group_size) noexcept
   {
-    return sizeof(__shared_data) + alignof(__shared_data) - 1 + required_scratch_mem_size_(__group_size);
+    return sizeof(__shared_data) + alignof(__shared_data) - 1 + __required_scratch_mem_size(__group_size);
   }
 
   _CCCL_API static constexpr void* initialize_shared_memory(void* __mem) noexcept
@@ -217,13 +245,13 @@ public:
 
 private:
   [[nodiscard]] _CCCL_API static constexpr ::cuda::std::size_t
-  required_scratch_mem_size_(::cuda::std::uint32_t __group_size) noexcept
+  __required_scratch_mem_size(::cuda::std::uint32_t __group_size) noexcept
   {
     // All members of the group have a uint64_t's worth of private memory
     return __group_size * sizeof(::cuda::std::uint64_t);
   }
 
-  [[nodiscard]] _CCCL_API static constexpr ::cuda::std::uint32_t required_scratch_mem_alignment_() noexcept
+  [[nodiscard]] _CCCL_API static constexpr ::cuda::std::uint32_t __required_scratch_mem_alignment() noexcept
   {
     return alignof(::cuda::std::max_align_t);
   }
@@ -246,23 +274,39 @@ private:
   _CCCL_HOST_API void __reset() noexcept
   {
     // We could have been moved-from, so need to test __sd
-    if (auto* const __sd = shared_data_(); __sd && __sd->__can_destroy())
+    if (auto* const __sd = shared_data_())
     {
-      ::cuda::std::destroy_at(__sd);
+      // There is a small micro-optimization we can employ here. Normally, reference count
+      // decrements need to be memory_order_acq_rel or memory_order_seq_cst because the last
+      // thread to decrement also needs to see all the write effects of prior threads. We can,
+      // however, relax the decrements to memory_order_release, so long as we acquire before
+      // making any changes.
+      if (__sd->__can_destroy())
+      {
+        // Hence this threadfence.
+        ::cuda::std::atomic_thread_fence(::cuda::std::memory_order_acquire);
+        ::cuda::std::destroy_at(__sd);
+      }
+      __shared_mem_.reset();
     }
+    __rank_          = 0;
+    __group_size_    = 0;
+    __sub_idx_begin_ = 0;
+    __sub_idx_end_   = 0;
+    __stride_        = 0;
   }
 
-  [[nodiscard]] _CCCL_HOST_API static ::std::shared_ptr<::cuda::std::byte[]> construct_shared_data_(
+  [[nodiscard]] _CCCL_HOST_API static ::std::shared_ptr<::cuda::std::byte[]> __construct_shared_data(
     ::cuda::std::uint32_t __rank, ::cuda::std::uint32_t __size, ::std::shared_ptr<::cuda::std::byte[]> __shared_mem)
   {
     // Technically only thread 0 needs to perform any of the pointer aligning, but we let all
     // threads do it so we can error-check the arguments properly.
     auto* const __raw_ptr         = __shared_mem.get();
-    const auto __min_scratch_size = required_scratch_mem_size_(__size);
+    const auto __min_scratch_size = __required_scratch_mem_size(__size);
     auto* __scratch_ptr           = static_cast<void*>(__raw_ptr + sizeof(__shared_data));
     auto __capacity               = required_shared_memory_size(__size) - sizeof(__shared_data);
 
-    if (!::cuda::std::align(required_scratch_mem_alignment_(), __min_scratch_size, __scratch_ptr, __capacity))
+    if (!::cuda::std::align(__required_scratch_mem_alignment(), __min_scratch_size, __scratch_ptr, __capacity))
     {
       _CCCL_THROW(::std::length_error,
                   "Failed to align scratch memory pointer. Likely allocated shared memory is insufficient.");
