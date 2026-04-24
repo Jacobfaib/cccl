@@ -27,7 +27,7 @@
 #include <cuda/std/__concepts/copyable.h>
 #include <cuda/std/__concepts/equality_comparable.h>
 #include <cuda/std/__concepts/same_as.h>
-#include <cuda/std/__fwd/iterator.h>
+#include <cuda/std/__fwd/common_iterator.h>
 #include <cuda/std/__iterator/concepts.h>
 #include <cuda/std/__iterator/incrementable_traits.h>
 #include <cuda/std/__iterator/iter_move.h>

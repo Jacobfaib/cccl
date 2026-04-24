@@ -34,6 +34,7 @@
 #include <thrust/iterator/iterator_categories.h>
 
 #include <cuda/__fwd/iterator.h>
+#include <cuda/std/__fwd/common_iterator.h>
 #include <cuda/std/__fwd/iterator.h>
 #include <cuda/std/__iterator/iterator_traits.h>
 #include <cuda/std/__type_traits/void_t.h>
