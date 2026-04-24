@@ -25,7 +25,6 @@
 #include <cuda/std/__concepts/constructible.h>
 #include <cuda/std/__concepts/convertible_to.h>
 #include <cuda/std/__concepts/copyable.h>
-#include <cuda/std/__concepts/derived_from.h>
 #include <cuda/std/__concepts/equality_comparable.h>
 #include <cuda/std/__concepts/same_as.h>
 #include <cuda/std/__fwd/iterator.h>
@@ -64,9 +63,9 @@ template <input_or_output_iterator _Iter, sentinel_for<_Iter> _Sent>
 #else // ^^^ _CCCL_HAS_CONCEPTS() ^^^ / vvv !_CCCL_HAS_CONCEPTS() vvv
 template <class _Iter,
           class _Sent,
-          enable_if_t<input_or_output_iterator<_Iter>, int>,
-          enable_if_t<sentinel_for<_Sent, _Iter>, int>,
-          enable_if_t<(!same_as<_Iter, _Sent> && copyable<_Iter>), int>>
+          enable_if_t<input_or_output_iterator<_Iter>, int>             = 0,
+          enable_if_t<sentinel_for<_Sent, _Iter>, int>                  = 0,
+          enable_if_t<(!same_as<_Iter, _Sent> && copyable<_Iter>), int> = 0>
 #endif // !_CCCL_HAS_CONCEPTS()
 class _CCCL_TYPE_VISIBILITY_DEFAULT common_iterator
 {
@@ -427,9 +426,9 @@ template <class _Iter>
 _CCCL_CONCEPT __denotes_forward_iter = __has_iterator_category_convertible_to<_Iter, forward_iterator_tag>;
 
 #if _CCCL_COMPILER(GCC) // GCC breaks with a circular definition here
-// template <class _Iter, class _Sent>
-// struct __is_primary_std_template<common_iterator<_Iter, _Sent>> : true_type
-// {};
+template <class _Iter, class _Sent>
+struct __is_primary_std_template<common_iterator<_Iter, _Sent>> : true_type
+{};
 #endif // _CCCL_COMPILER(GCC)
 
 template <class _Iter, class _Sent>

@@ -109,6 +109,7 @@ struct __vl_destruct_base
     __clear();
   }
 
+protected:
   _CCCL_EXEC_CHECK_DISABLE
   _CCCL_API _CCCL_CONSTEXPR_CXX20 void __clear() noexcept
   {
@@ -166,6 +167,7 @@ struct __vl_destruct_base<_Tp, _Up, true>
       , __contains_{__variant_like_state::__holds_second}
   {}
 
+protected:
   _CCCL_API constexpr void __clear() noexcept
   {
     __contains_ = __variant_like_state::__nothing;
