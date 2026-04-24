@@ -50,7 +50,7 @@ TEST_FUNC constexpr bool test()
     auto commonIter2 = cuda::std::common_iterator<decltype(iter2), sized_sentinel_type<int*>>(iter2);
 
     static_assert(
-      cuda::std::same_as<decltype(commonIter1 - commonIter1), cuda::std::iter_difference_t<decltype(iter1)>>);
+      cuda::std::same_as<decltype(commonIter1 - commonIter2), cuda::std::iter_difference_t<decltype(iter1)>>);
 
     assert(commonIter1 - commonIter2 == 0);
   }
@@ -81,7 +81,7 @@ TEST_FUNC constexpr bool test()
     const auto commonIter2 = cuda::std::common_iterator<decltype(iter2), sized_sentinel_type<int*>>(iter2);
 
     static_assert(
-      cuda::std::same_as<decltype(commonIter1 - commonIter1), cuda::std::iter_difference_t<decltype(iter1)>>);
+      cuda::std::same_as<decltype(commonIter1 - commonIter2), cuda::std::iter_difference_t<decltype(iter1)>>);
 
     assert(commonIter1 - commonIter2 == 0);
   }
