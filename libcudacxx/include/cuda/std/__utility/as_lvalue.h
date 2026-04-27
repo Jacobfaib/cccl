@@ -25,7 +25,7 @@
 _CCCL_BEGIN_NAMESPACE_CUDA_STD
 
 template <class _Tp>
-[[nodiscard]] _CCCL_INTRINSIC _CCCL_API constexpr _Tp& __as_lvalue(_CCCL_LIFETIMEBOUND _Tp&& __t) noexcept
+[[nodiscard]] _CCCL_INTRINSIC _CCCL_TRIVIAL_API constexpr _Tp& __as_lvalue(_CCCL_LIFETIMEBOUND _Tp&& __t) noexcept
 {
   return static_cast<_Tp&>(__t);
 }
