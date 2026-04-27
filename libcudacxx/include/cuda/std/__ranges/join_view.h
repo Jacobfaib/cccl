@@ -88,6 +88,12 @@ _CCCL_DIAG_PUSH
 // source-level changes you can make to silence MSVC here so we must disable the warning.
 _CCCL_DIAG_SUPPRESS_MSVC(4238)
 
+#if (_CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1))
+#  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
+#else
+#  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
+#endif
+
 #if _CCCL_HAS_CONCEPTS()
 template <input_range _View>
   requires view<_View> && input_range<range_reference_t<_View>>
