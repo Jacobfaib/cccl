@@ -88,7 +88,9 @@ _CCCL_DIAG_PUSH
 // source-level changes you can make to silence MSVC here so we must disable the warning.
 _CCCL_DIAG_SUPPRESS_MSVC(4238)
 
-#if (_CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER < 2020))
+// NVCC 12.9 - 13.1 tends to OOM and/or crash with [[no_unique_address]] and reasonably complex
+// views, so we disable it.
+#if _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER < 2020)
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
 #else
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
@@ -561,6 +563,8 @@ _CCCL_GLOBAL_CONSTANT auto join = __join_view::__fn{};
 } // namespace __cpo
 
 _CCCL_END_NAMESPACE_CUDA_STD_VIEWS
+
+#undef _CCCL_MAYBE_NO_UNIQUE_ADDRESS
 
 #include <cuda/std/__cccl/epilogue.h>
 

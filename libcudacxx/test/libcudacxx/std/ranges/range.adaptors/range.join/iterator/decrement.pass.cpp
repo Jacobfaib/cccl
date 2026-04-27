@@ -195,7 +195,7 @@ TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
   || (TEST_CUDA_COMPILER(NVCC, ==, 13, 1) && TEST_COMPILER(CLANG) && (TEST_STD_VER == 2020))                \
   || (TEST_CUDA_COMPILER(NVCC, ==, 13, 1) && TEST_COMPILER(NVHPC, ==, 26, 1))                               \
   || (TEST_COMPILER(NVRTC, ==, 13, 1) && (TEST_STD_VER == 2020))
-#  define TEST_NVCC_SEGFAULTS 1
+  // #  define TEST_NVCC_SEGFAULTS 1
 #endif // nvcc-12.9 && gcc-14 || nvcc-12.9 && (clang-14 || clang-19) && c++20
 
 #ifndef TEST_NVCC_SEGFAULTS
