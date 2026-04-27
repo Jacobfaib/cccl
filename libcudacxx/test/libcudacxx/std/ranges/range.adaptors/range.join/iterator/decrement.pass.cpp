@@ -164,45 +164,10 @@ TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
     unused(iter);
   }
 
-  // These configurations eventually just OOM or crash. It's not clear which part of the
-  // expression leads to this, or how it can be fixed. For example, nvrtc emits the following:
-  //
-  //  Exit Code: -6
-  // 1: Standard Error:
-  // 1: --
-  // 1: NVRTCC Configuration:
-  // 1:   Output dir: ...
-  // 1:   Output file: decrement.pass.cpp
-  // 1: Input file: /path/to/range.join/iterator/decrement.pass.cpp
-  // 1:   Building: true
-  // 1:   Skipping output: false
-  // 1:   Executing: false
-  // 1: NVRTC opt list:
-  // 1:   -I /home/coder/cccl/libcudacxx/test/libcudacxx/std/ranges/range.adaptors/range.join/iterator
-  // 1:   -std=c++20
-  //      ...
-  // 1:   -DCCCL_ENABLE_ASSERTIONS
-  // 1:   --gpu-architecture=sm_75
-  // 1: Compiling program...
-  // 1: LLVM ERROR: out of memory
-#if (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && TEST_COMPILER(GCC, ==, 14))                                     \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && (TEST_COMPILER(CLANG, ==, 14) || TEST_COMPILER(CLANG, ==, 19)) \
-      && (TEST_STD_VER == 2020))                                                                            \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 13, 0) && (TEST_COMPILER(GCC, ==, 11) || TEST_COMPILER(GCC, ==, 14)))    \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 13, 0) && (TEST_COMPILER(CLANG, ==, 15) || TEST_COMPILER(CLANG, ==, 20)) \
-      && (TEST_STD_VER == 2020))                                                                            \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 13, 1) && (TEST_COMPILER(GCC, >=, 11) || TEST_COMPILER(GCC, <=, 14)))    \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 13, 1) && TEST_COMPILER(CLANG) && (TEST_STD_VER == 2020))                \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 13, 1) && TEST_COMPILER(NVHPC, ==, 26, 1))                               \
-  || (TEST_COMPILER(NVRTC, ==, 13, 1) && (TEST_STD_VER == 2020))
-  // #  define TEST_NVCC_SEGFAULTS 1
-#endif // nvcc-12.9 && gcc-14 || nvcc-12.9 && (clang-14 || clang-19) && c++20
-
-#ifndef TEST_NVCC_SEGFAULTS
-#  if defined(_CCCL_BUILTIN_IS_CONSTANT_EVALUATED) // nvcc believes we are accessing expired storage
-#    if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#if defined(_CCCL_BUILTIN_IS_CONSTANT_EVALUATED) // nvcc believes we are accessing expired storage
+#  if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   if (!cuda::std::is_constant_evaluated())
-#    endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#  endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   {
     // LWG3791: `join_view::iterator::operator--` may be ill-formed
     cuda::std::array<cuda::std::array<int, 2>, 3> vec = {
@@ -214,8 +179,7 @@ TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
     const cuda::std::array<int, 6> expected{6, 5, 4, 3, 2, 1};
     assert(cuda::std::equal(reverse.begin(), reverse.end(), expected.begin()));
   }
-#  endif // _CCCL_BUILTIN_IS_CONSTANT_EVALUATED
-#endif // !defined(TEST_NVCC_SEGFAULTS)
+#endif // _CCCL_BUILTIN_IS_CONSTANT_EVALUATED
 
   return true;
 }

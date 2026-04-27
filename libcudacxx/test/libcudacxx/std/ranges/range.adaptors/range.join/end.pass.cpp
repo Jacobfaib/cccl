@@ -234,16 +234,6 @@ TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
     static_assert(!cuda::std::ranges::common_range<const decltype(jv)>);
   }
 
-  // The following tests are so powerful that nvcc simply crashes. The selection seems to be
-  // somewhat arbitrary, but it appears that some particular combination of ChildView,
-  // ParentView, and CopyableChild causes the crash.
-#if (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && TEST_COMPILER(GCC, ==, 14))                                     \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && (TEST_COMPILER(CLANG, ==, 14) || TEST_COMPILER(CLANG, ==, 19)) \
-      && (TEST_STD_VER == 2020))
-  // #  define TEST_NVCC_SEGFAULTS 1
-#endif // nvcc-12.9 && gcc-14 || nvcc-12.9 && (clang-14 || clang-19) && c++20
-
-#ifndef TEST_NVCC_SEGFAULTS
   {
     cuda::std::ranges::join_view jv(ConstNotRange{});
     static_assert(!HasConstEnd<decltype(jv)>);
@@ -322,8 +312,6 @@ TEST_FUNC TEST_CONSTEXPR_CXX20 bool test()
     auto jv = cuda::std::ranges::join_view(ParentView(children));
     assert(jv.end() == cuda::std::ranges::next(jv.begin(), 12));
   }
-
-#endif // !defined(TEST_NVCC_SEGFAULTS)
 
 #ifdef _LIBCUDACXX_HAS_STRING
   // LWG3700: The `const begin` of the `join_view` family does not require `InnerRng` to be a range

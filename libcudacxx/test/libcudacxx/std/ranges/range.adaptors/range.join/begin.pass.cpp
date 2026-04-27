@@ -76,16 +76,6 @@ TEST_FUNC constexpr bool test()
   int buffer[4][4] = {{1111, 2222, 3333, 4444}, {555, 666, 777, 888}, {99, 1010, 1111, 1212}, {13, 14, 15, 16}};
 
   unused(buffer);
-  // The following tests are so powerful that nvcc simply crashes. The selection seems to be
-  // somewhat arbitrary, but it appears that some particular combination of ChildView,
-  // ParentView, and CopyableChild causes the crash.
-#if (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && TEST_COMPILER(GCC, ==, 14))                                     \
-  || (TEST_CUDA_COMPILER(NVCC, ==, 12, 9) && (TEST_COMPILER(CLANG, ==, 14) || TEST_COMPILER(CLANG, ==, 19)) \
-      && (TEST_STD_VER == 2020))
-  // #  define TEST_NVCC_SEGFAULTS 1
-#endif // nvcc-12.9 && gcc-14 || nvcc-12.9 && (clang-14 || clang-19) && c++20
-
-#ifndef TEST_NVCC_SEGFAULTS
   {
     ChildView children[4] = {ChildView(buffer[0]), ChildView(buffer[1]), ChildView(buffer[2]), ChildView(buffer[3])};
     auto jv               = cuda::std::ranges::join_view(ParentView{children});
@@ -164,24 +154,24 @@ TEST_FUNC constexpr bool test()
     assert(*jv.begin() == 1111);
   }
 
-#  if defined(_CCCL_BUILTIN_IS_CONSTANT_EVALUATED) // nvcc believes we are accessing expired storage
-#    if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#if defined(_CCCL_BUILTIN_IS_CONSTANT_EVALUATED) // nvcc believes we are accessing expired storage
+#  if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   if (!cuda::std::is_constant_evaluated())
-#    endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#  endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   {
     cuda::std::ranges::join_view jv(buffer);
     assert(*jv.begin() == 1111);
   }
 
-#    if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#  if TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   if (!cuda::std::is_constant_evaluated())
-#    endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
+#  endif // TEST_CUDA_COMPILER(NVCC) || TEST_COMPILER(NVRTC)
   {
     const cuda::std::ranges::join_view jv(buffer);
     assert(*jv.begin() == 1111);
     static_assert(HasConstBegin<decltype(jv)>);
   }
-#  endif // _CCCL_BUILTIN_IS_CONSTANT_EVALUATED
+#endif // _CCCL_BUILTIN_IS_CONSTANT_EVALUATED
 
   // !forward_range<const V>
   {
@@ -196,8 +186,6 @@ TEST_FUNC constexpr bool test()
     [[maybe_unused]] cuda::std::ranges::join_view jv{innerRValueRange};
     static_assert(!HasConstBegin<decltype(jv)>);
   }
-
-#endif // !defined(TEST_NVCC_SEGFAULTS)
 
   // !simple-view<V>
   {
