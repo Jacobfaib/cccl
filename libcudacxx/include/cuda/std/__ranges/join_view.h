@@ -88,7 +88,7 @@ _CCCL_DIAG_PUSH
 // source-level changes you can make to silence MSVC here so we must disable the warning.
 _CCCL_DIAG_SUPPRESS_MSVC(4238)
 
-#if (_CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1))
+#if (_CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER < 2020))
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
 #else
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
@@ -115,9 +115,9 @@ class join_view : public view_interface<join_view<_View>>
   using __inner_cache_type _CCCL_NODEBUG =
     conditional_t<__use_inner_cache, __non_propagating_cache<remove_cvref_t<__inner_range_type>>, __empty_cache>;
 
-  _CCCL_NO_UNIQUE_ADDRESS _View __base_{};
-  _CCCL_NO_UNIQUE_ADDRESS __outer_cache_type __outer_{};
-  _CCCL_NO_UNIQUE_ADDRESS __inner_cache_type __inner_{};
+  _CCCL_MAYBE_NO_UNIQUE_ADDRESS _View __base_{};
+  _CCCL_MAYBE_NO_UNIQUE_ADDRESS __outer_cache_type __outer_{};
+  _CCCL_MAYBE_NO_UNIQUE_ADDRESS __inner_cache_type __inner_{};
 
 public:
   template <bool _Const>
@@ -143,7 +143,7 @@ public:
     static constexpr bool __outer_present = forward_range<__base>;
     using __outer_type _CCCL_NODEBUG      = conditional_t<__outer_present, __outer, ::cuda::std::ranges::__empty_cache>;
 
-    _CCCL_NO_UNIQUE_ADDRESS __outer_type __outer_{};
+    _CCCL_MAYBE_NO_UNIQUE_ADDRESS __outer_type __outer_{};
     __optional_box<__inner> __inner_{};
     __parent* __parent_ = nullptr;
 
