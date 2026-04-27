@@ -92,9 +92,9 @@ _CCCL_DIAG_SUPPRESS_MSVC(4238)
 // views, so we disable it.
 #if _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER <= 2020)
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
-#else
+#else // ^^^ nvcc 12.9 - 13.1 && <= c++20 ^^^ / vvv !(nvcc 12.9 - 13.1) || > c++20 vvv
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
-#endif
+#endif // _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER <= 2020)
 
 #if _CCCL_HAS_CONCEPTS()
 template <input_range _View>

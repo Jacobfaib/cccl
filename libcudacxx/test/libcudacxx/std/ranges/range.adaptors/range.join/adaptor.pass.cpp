@@ -7,15 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// The following combinations appear stuck for about 10 mins, then OOM
-
-// UNSUPPORTED_ASDASD: nvcc-12.9 && gcc-14 && c++17
-// UNSUPPORTED_ASDASD: nvcc-13.0 && gcc-11 && c++17
-// UNSUPPORTED_ASDASD: nvcc-13.0 && gcc-14 && c++17
-// UNSUPPORTED_ASDASD: nvcc-13.1 && gcc-11 && c++17
-// UNSUPPORTED_ASDASD: nvcc-13.1 && gcc-14 && c++17
-// UNSUPPORTED_ASDASD: nvcc-13.1 && nvhpc-26.1
-
 // cuda::std::views::join
 
 #include <cuda/std/cassert>
