@@ -90,7 +90,7 @@ _CCCL_DIAG_SUPPRESS_MSVC(4238)
 
 // NVCC 12.9 - 13.1 tends to OOM and/or crash with [[no_unique_address]] and reasonably complex
 // views, so we disable it.
-#if _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER < 2020)
+#if _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER <= 2020)
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
 #else
 #  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
