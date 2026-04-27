@@ -21,17 +21,17 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/__barrier/barrier.h>
 #include <cuda/std/__cstddef/byte.h>
 #include <cuda/std/__cstddef/types.h>
+#include <cuda/std/__host_stdlib/memory>
+#include <cuda/std/__host_stdlib/stdexcept>
 #include <cuda/std/__memory/align.h>
 #include <cuda/std/__memory/construct_at.h>
 #include <cuda/std/__utility/move.h>
 #include <cuda/std/atomic>
 #include <cuda/std/span>
-
-#include <memory>
-#include <stdexcept>
 
 #include <cuda/std/__cccl/prologue.h>
 
@@ -210,6 +210,23 @@ public:
   [[nodiscard]] _CCCL_HOST_API constexpr ::cuda::std::uint32_t index_end() const noexcept
   {
     return __sub_idx_end_;
+  }
+
+  [[nodiscard]] _CCCL_HOST_API constexpr ::cuda::std::uint32_t stride() const noexcept
+  {
+    return __stride_;
+  }
+
+  template <typename __F>
+  _CCCL_HOST_API void dispatch(::cuda::std::uint32_t __size, __F&& fn) const
+  {
+    for (::cuda::std::uint32_t __off = 0; __off < __size; __off += stride())
+    {
+      for (auto __i = index_begin() + __off; __i < ::cuda::std::min(__size, index_end() + __off); ++__i)
+      {
+        ::cuda::std::forward<__F>(fn)(__i);
+      }
+    }
   }
 
   _CCCL_HOST_API void barrier() const
