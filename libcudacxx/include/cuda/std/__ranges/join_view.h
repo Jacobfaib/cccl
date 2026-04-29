@@ -345,19 +345,18 @@ public:
       return __tmp;
     }
 
-    _CCCL_TEMPLATE(bool __ref_is_glvalue2 = __ref_is_glvalue)
-    _CCCL_REQUIRES(__ref_is_glvalue2 _CCCL_AND equality_comparable<iterator_t<__base>> _CCCL_AND
-                     equality_comparable<iterator_t<range_reference_t<__base>>>)
-    _CCCL_API friend constexpr bool operator==(const __iterator& __x, const __iterator& __y)
+    template <bool __ref_is_glvalue2 = __ref_is_glvalue>
+    _CCCL_API friend constexpr auto operator==(const __iterator& __x, const __iterator& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(__ref_is_glvalue2&& equality_comparable<iterator_t<__base>>&&
+                                      equality_comparable<iterator_t<range_reference_t<__base>>>)
     {
       return __x.__outer_ == __y.__outer_ && __x.__inner_ == __y.__inner_;
     }
 #if _CCCL_STD_VER <= 2017
-    _CCCL_TEMPLATE(bool __ref_is_glvalue2 = __ref_is_glvalue)
-    _CCCL_REQUIRES(__ref_is_glvalue2 _CCCL_AND equality_comparable<iterator_t<__base>> _CCCL_AND
-                     equality_comparable<iterator_t<range_reference_t<__base>>>)
-    _CCCL_API friend constexpr bool operator!=(const __iterator& __x, const __iterator& __y)
-
+    template <bool __ref_is_glvalue2 = __ref_is_glvalue>
+    _CCCL_API friend constexpr auto operator!=(const __iterator& __x, const __iterator& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(__ref_is_glvalue2&& equality_comparable<iterator_t<__base>>&&
+                                      equality_comparable<iterator_t<range_reference_t<__base>>>)
     {
       return __x.__outer_ != __y.__outer_ || __x.__inner_ != __y.__inner_;
     }
