@@ -32,7 +32,7 @@
 namespace cuda::experimental
 {
 template <typename InputIt, typename OutputIt, typename F>
-void transform(const thread_group& group, InputIt first1, InputIt last1, OutputIt d_first, F&& op)
+void transform(const thread_group& group, const InputIt& first1, OutputIt& d_first, F&& op)
 {
   auto input_shards  = first1.shards();
   auto output_shards = d_first.shards();

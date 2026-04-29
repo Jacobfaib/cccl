@@ -42,15 +42,18 @@ class thread_group
   static constexpr ::cuda::std::byte __MAGIC_INIT_VALUE{222};
   static constexpr ::cuda::std::byte __MAGIC_CONSTRUCTED_VALUE{0};
 
+  // Otherwise the construction signaling doesn't work
+  static_assert(__MAGIC_INIT_VALUE != __MAGIC_CONSTRUCTED_VALUE);
+
   class __shared_data
   {
     ::cuda::std::byte __constructed_flag;
-    ::cuda::std::atomic<::cuda::std::uint32_t> __destroy_count;
+    ::cuda::std::atomic<::cuda::std::uint32_t> __destroy_count{};
     ::cuda::std::barrier<> __bar;
-    ::cuda::std::span<::cuda::std::byte> __scratch_mem;
+    ::cuda::std::span<::cuda::std::byte> __scratch_mem{};
 
   public:
-    _CCCL_HOST_API explicit __shared_data([[maybe_unused]] const ::cuda::std::byte* __raw_ptr,
+    _CCCL_HOST_API explicit __shared_data(const ::cuda::std::byte* __raw_ptr,
                                           ::cuda::std::ptrdiff_t __group_size,
                                           ::cuda::std::span<::cuda::std::byte> __mem)
         // Do not initialize __constructed_flag in initializer list, it must be initialized
@@ -67,10 +70,12 @@ class thread_group
       //
       // If this value is ever not at the very first byte, then we will write to the wrong
       // memory location and never release the waiting threads.
-      _CCCL_ASSERT(&__constructed_flag == __raw_ptr,
+      static_assert(offsetof(__shared_data, __constructed_flag) == 0);
+
+      _CCCL_VERIFY(&__constructed_flag == __raw_ptr,
                    "__shared_data constructed at an offset inside shared memory scratch buffer");
 
-      auto __ref = ::cuda::std::atomic_ref<::cuda::std::byte>{__constructed_flag};
+      auto __ref = ::cuda::std::atomic_ref{__constructed_flag};
 
       __ref.store(__MAGIC_CONSTRUCTED_VALUE, ::cuda::std::memory_order_release);
       __ref.notify_all();
@@ -132,7 +137,7 @@ public:
     _CCCL_TRY
     {
       const auto __u32_scratch = shared_data_()->__scratch_mem_as<::cuda::std::uint32_t>();
-      const auto __ref         = ::cuda::std::atomic_ref<::cuda::std::uint32_t>{__u32_scratch[rank()]};
+      const auto __ref         = ::cuda::std::atomic_ref{__u32_scratch[rank()]};
 
       __ref.store(__num_gpus, ::cuda::std::memory_order_relaxed);
 
@@ -237,13 +242,13 @@ public:
     }
   }
 
-  [[nodiscard]] _CCCL_API static constexpr ::cuda::std::size_t
+  [[nodiscard]] _CCCL_HOST_API static constexpr ::cuda::std::size_t
   required_shared_memory_size(::cuda::std::uint32_t __group_size) noexcept
   {
     return sizeof(__shared_data) + alignof(__shared_data) - 1 + __required_scratch_mem_size(__group_size);
   }
 
-  _CCCL_API static constexpr void* initialize_shared_memory(void* __mem) noexcept
+  _CCCL_HOST_API static constexpr void* initialize_shared_memory(void* __mem) noexcept
   {
     // If we are in a consteval context then a simple static_cast suffices, but otherwise we
     // must atomically initialize. It is possible that the user may be using one of the
@@ -261,14 +266,14 @@ public:
   }
 
 private:
-  [[nodiscard]] _CCCL_API static constexpr ::cuda::std::size_t
+  [[nodiscard]] _CCCL_HOST_API static constexpr ::cuda::std::size_t
   __required_scratch_mem_size(::cuda::std::uint32_t __group_size) noexcept
   {
     // All members of the group have a uint64_t's worth of private memory
     return __group_size * sizeof(::cuda::std::uint64_t);
   }
 
-  [[nodiscard]] _CCCL_API static constexpr ::cuda::std::uint32_t __required_scratch_mem_alignment() noexcept
+  [[nodiscard]] _CCCL_HOST_API static constexpr ::cuda::std::uint32_t __required_scratch_mem_alignment() noexcept
   {
     return alignof(::cuda::std::max_align_t);
   }
@@ -341,7 +346,7 @@ private:
     {
       // Cannot use barrier because the barrier may not yet be constucteed. Instead, we use the
       // first byte of the shared memory to
-      auto __ref = ::cuda::std::atomic_ref<::cuda::std::byte>{__shared_mem[0]};
+      auto __ref = ::cuda::std::atomic_ref{__shared_mem[0]};
 
       __ref.wait(__MAGIC_INIT_VALUE, ::cuda::std::memory_order_acquire);
     }
