@@ -407,31 +407,31 @@ public:
         : __end_{::cuda::std::move(__s.__end_)}
     {}
 
-    _CCCL_TEMPLATE(bool _OtherConst)
-    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
-    _CCCL_API friend constexpr bool operator==(const __iterator<_OtherConst>& __x, const __sentinel& __y)
+    template <bool _OtherConst>
+    _CCCL_API friend constexpr auto operator==(const __iterator<_OtherConst>& __x, const __sentinel& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
     {
       return __x.__get_outer() == __y.__end_;
     }
 
 #if _CCCL_STD_VER <= 2017
-    _CCCL_TEMPLATE(bool _OtherConst)
-    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
-    _CCCL_API friend constexpr bool operator==(const __sentinel& __x, const __iterator<_OtherConst>& __y)
+    template <bool _OtherConst>
+    _CCCL_API friend constexpr auto operator==(const __sentinel& __x, const __iterator<_OtherConst>& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
     {
       return __y.__get_outer() == __x.__end_;
     }
 
-    _CCCL_TEMPLATE(bool _OtherConst)
-    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
-    _CCCL_API friend constexpr bool operator!=(const __iterator<_OtherConst>& __x, const __sentinel& __y)
+    template <bool _OtherConst>
+    _CCCL_API friend constexpr auto operator!=(const __iterator<_OtherConst>& __x, const __sentinel& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
     {
       return __x.__get_outer() != __y.__end_;
     }
 
-    _CCCL_TEMPLATE(bool _OtherConst)
-    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
-    _CCCL_API friend constexpr bool operator!=(const __sentinel& __x, const __iterator<_OtherConst>& __y)
+    template <bool _OtherConst>
+    _CCCL_API friend constexpr auto operator!=(const __sentinel& __x, const __iterator<_OtherConst>& __y)
+      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
     {
       return __y.__get_outer() != __x.__end_;
     }
