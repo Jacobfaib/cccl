@@ -88,14 +88,6 @@ _CCCL_DIAG_PUSH
 // source-level changes you can make to silence MSVC here so we must disable the warning.
 _CCCL_DIAG_SUPPRESS_MSVC(4238)
 
-// NVCC 12.9 - 13.1 tends to OOM and/or crash with [[no_unique_address]] and reasonably complex
-// views, so we disable it.
-#if _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER <= 2020)
-#  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS
-#else // ^^^ nvcc 12.9 - 13.1 && <= c++20 ^^^ / vvv !(nvcc 12.9 - 13.1) || > c++20 vvv
-#  define _CCCL_MAYBE_NO_UNIQUE_ADDRESS _CCCL_NO_UNIQUE_ADDRESS
-#endif // _CCCL_CUDA_COMPILER(NVCC, >=, 12, 9) && _CCCL_CUDA_COMPILER(NVCC, <=, 13, 1) && (_CCCL_STD_VER <= 2020)
-
 #if _CCCL_HAS_CONCEPTS()
 template <input_range _View>
   requires view<_View> && input_range<range_reference_t<_View>>
@@ -117,9 +109,11 @@ class join_view : public view_interface<join_view<_View>>
   using __inner_cache_type _CCCL_NODEBUG =
     conditional_t<__use_inner_cache, __non_propagating_cache<remove_cvref_t<__inner_range_type>>, __empty_cache>;
 
-  _CCCL_MAYBE_NO_UNIQUE_ADDRESS _View __base_{};
-  _CCCL_MAYBE_NO_UNIQUE_ADDRESS __outer_cache_type __outer_{};
-  _CCCL_MAYBE_NO_UNIQUE_ADDRESS __inner_cache_type __inner_{};
+  // These should be [[no_unique_address]] bute nvcc 12.9 - 13.1 tends to OOM and/or crash with
+  // [[no_unique_address]] and reasonably complex views, so we can't use it.
+  _View __base_{};
+  __outer_cache_type __outer_{};
+  __inner_cache_type __inner_{};
 
 public:
   template <bool _Const>
@@ -145,17 +139,15 @@ public:
     static constexpr bool __outer_present = forward_range<__base>;
     using __outer_type _CCCL_NODEBUG      = conditional_t<__outer_present, __outer, ::cuda::std::ranges::__empty_cache>;
 
-    _CCCL_MAYBE_NO_UNIQUE_ADDRESS __outer_type __outer_{};
+    // __outer_ should be [[no_unique_address]] bute nvcc 12.9 - 13.1 tends to OOM and/or crash
+    // with [[no_unique_address]] and reasonably complex views, so we can't use it.
+    __outer_type __outer_{};
     __optional_box<__inner> __inner_{};
     __parent* __parent_ = nullptr;
 
     struct __get_outer_emplace
     {
       __iterator& __iter_;
-
-      _CCCL_API constexpr __get_outer_emplace(__iterator& __iter) noexcept
-          : __iter_{__iter}
-      {}
 
       _CCCL_API constexpr decltype(auto) operator()() const noexcept
       {
@@ -196,7 +188,7 @@ public:
     }
 
   public:
-    _CCCL_API constexpr __outer& __get_outer() noexcept
+    [[nodiscard]] _CCCL_API constexpr __outer& __get_outer() noexcept
     {
       if constexpr (forward_range<__base>)
       {
@@ -209,7 +201,7 @@ public:
       _CCCL_UNREACHABLE();
     }
 
-    _CCCL_API constexpr const __outer& __get_outer() const noexcept
+    [[nodiscard]] _CCCL_API constexpr const __outer& __get_outer() const noexcept
     {
       if constexpr (forward_range<__base>)
       {
@@ -262,14 +254,14 @@ public:
         , __parent_{__i.__parent_}
     {}
 
-    _CCCL_API constexpr decltype(auto) operator*() const
+    [[nodiscard]] _CCCL_API constexpr decltype(auto) operator*() const
     {
       return **__inner_;
     }
 
     _CCCL_TEMPLATE(class _Inner2 = __inner)
     _CCCL_REQUIRES(__has_arrow<_Inner2> _CCCL_AND copyable<_Inner2>)
-    _CCCL_API constexpr _Inner2 operator->() const
+    [[nodiscard]] _CCCL_API constexpr _Inner2 operator->() const
     {
       return *__inner_;
     }
@@ -353,18 +345,19 @@ public:
       return __tmp;
     }
 
-    template <bool __ref_is_glvalue2 = __ref_is_glvalue>
-    _CCCL_API friend constexpr auto operator==(const __iterator& __x, const __iterator& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(__ref_is_glvalue2&& equality_comparable<iterator_t<__base>>&&
-                                      equality_comparable<iterator_t<range_reference_t<__base>>>)
+    _CCCL_TEMPLATE(bool __ref_is_glvalue2 = __ref_is_glvalue)
+    _CCCL_REQUIRES(__ref_is_glvalue2 _CCCL_AND equality_comparable<iterator_t<__base>> _CCCL_AND
+                     equality_comparable<iterator_t<range_reference_t<__base>>>)
+    _CCCL_API friend constexpr bool operator==(const __iterator& __x, const __iterator& __y)
     {
       return __x.__outer_ == __y.__outer_ && __x.__inner_ == __y.__inner_;
     }
 #if _CCCL_STD_VER <= 2017
-    template <bool __ref_is_glvalue2 = __ref_is_glvalue>
-    _CCCL_API friend constexpr auto operator!=(const __iterator& __x, const __iterator& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(__ref_is_glvalue2&& equality_comparable<iterator_t<__base>>&&
-                                      equality_comparable<iterator_t<range_reference_t<__base>>>)
+    _CCCL_TEMPLATE(bool __ref_is_glvalue2 = __ref_is_glvalue)
+    _CCCL_REQUIRES(__ref_is_glvalue2 _CCCL_AND equality_comparable<iterator_t<__base>> _CCCL_AND
+                     equality_comparable<iterator_t<range_reference_t<__base>>>)
+    _CCCL_API friend constexpr bool operator!=(const __iterator& __x, const __iterator& __y)
+
     {
       return __x.__outer_ != __y.__outer_ || __x.__inner_ != __y.__inner_;
     }
@@ -378,12 +371,12 @@ public:
       return ::cuda::std::ranges::iter_move(*__i.__inner_);
     }
 
-    template <class _Inner2 = __inner>
-    _CCCL_API friend constexpr auto
+    _CCCL_TEMPLATE(class _Inner2 = __inner)
+    _CCCL_REQUIRES(indirectly_swappable<_Inner2>)
+    _CCCL_API friend constexpr void
     iter_swap(const __iterator& __x, const __iterator& __y) noexcept(__noexcept_swappable<_Inner2>)
-      _CCCL_TRAILING_REQUIRES(void)(indirectly_swappable<_Inner2>)
     {
-      return ::cuda::std::ranges::iter_swap(*__x.__inner_, *__y.__inner_);
+      ::cuda::std::ranges::iter_swap(*__x.__inner_, *__y.__inner_);
     }
   };
 
@@ -414,31 +407,31 @@ public:
         : __end_{::cuda::std::move(__s.__end_)}
     {}
 
-    template <bool _OtherConst>
-    _CCCL_API friend constexpr auto operator==(const __iterator<_OtherConst>& __x, const __sentinel& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_TEMPLATE(bool _OtherConst)
+    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_API friend constexpr bool operator==(const __iterator<_OtherConst>& __x, const __sentinel& __y)
     {
       return __x.__get_outer() == __y.__end_;
     }
 
 #if _CCCL_STD_VER <= 2017
-    template <bool _OtherConst>
-    _CCCL_API friend constexpr auto operator==(const __sentinel& __x, const __iterator<_OtherConst>& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_TEMPLATE(bool _OtherConst)
+    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_API friend constexpr bool operator==(const __sentinel& __x, const __iterator<_OtherConst>& __y)
     {
       return __y.__get_outer() == __x.__end_;
     }
 
-    template <bool _OtherConst>
-    _CCCL_API friend constexpr auto operator!=(const __iterator<_OtherConst>& __x, const __sentinel& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_TEMPLATE(bool _OtherConst)
+    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_API friend constexpr bool operator!=(const __iterator<_OtherConst>& __x, const __sentinel& __y)
     {
       return __x.__get_outer() != __y.__end_;
     }
 
-    template <bool _OtherConst>
-    _CCCL_API friend constexpr auto operator!=(const __sentinel& __x, const __iterator<_OtherConst>& __y)
-      _CCCL_TRAILING_REQUIRES(bool)(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_TEMPLATE(bool _OtherConst)
+    _CCCL_REQUIRES(sentinel_for<sentinel_t<__base>, iterator_t<__maybe_const<_OtherConst, _View>>>)
+    _CCCL_API friend constexpr bool operator!=(const __sentinel& __x, const __iterator<_OtherConst>& __y)
     {
       return __y.__get_outer() != __x.__end_;
     }
@@ -464,17 +457,17 @@ public:
 
   _CCCL_TEMPLATE(class _View2 = _View)
   _CCCL_REQUIRES(copy_constructible<_View2>)
-  _CCCL_API constexpr _View base() const& noexcept
+  [[nodiscard]] _CCCL_API constexpr _View base() const& noexcept
   {
     return __base_;
   }
 
-  _CCCL_API constexpr _View base() &&
+  [[nodiscard]] _CCCL_API constexpr _View base() &&
   {
     return ::cuda::std::move(__base_);
   }
 
-  _CCCL_API constexpr auto begin()
+  [[nodiscard]] _CCCL_API constexpr auto begin()
   {
     if constexpr (forward_range<_View>)
     {
@@ -493,12 +486,12 @@ public:
   _CCCL_TEMPLATE(class _View2 = _View)
   _CCCL_REQUIRES(forward_range<const _View2> _CCCL_AND is_reference_v<range_reference_t<const _View2>> _CCCL_AND
                    input_range<range_reference_t<const _View2>>)
-  _CCCL_API constexpr __iterator</*const*/ true> begin() const
+  [[nodiscard]] _CCCL_API constexpr __iterator</*const*/ true> begin() const
   {
     return __iterator</*const*/ true>{*this, ::cuda::std::ranges::begin(__base_)};
   }
 
-  _CCCL_API constexpr auto end()
+  [[nodiscard]] _CCCL_API constexpr auto end()
   {
     if constexpr (forward_range<_View> && is_reference_v<__inner_range_type> && forward_range<__inner_range_type>
                   && common_range<_View> && common_range<__inner_range_type>)
@@ -515,7 +508,7 @@ public:
   _CCCL_TEMPLATE(class _View2 = _View)
   _CCCL_REQUIRES(forward_range<const _View2> _CCCL_AND is_reference_v<range_reference_t<const _View2>> _CCCL_AND
                    input_range<range_reference_t<const _View2>>)
-  _CCCL_API constexpr auto end() const
+  [[nodiscard]] _CCCL_API constexpr auto end() const
   {
     using __const_inner_range _CCCL_NODEBUG = range_reference_t<const _View>;
 
@@ -547,11 +540,10 @@ _CCCL_BEGIN_NAMESPACE_CPO(__join_view)
 struct __fn : __range_adaptor_closure<__fn>
 {
   template <class _Range>
-  [[nodiscard]] _CCCL_API constexpr auto operator()(_Range&& __range) const
-    noexcept(noexcept(/**/ join_view<all_t<_Range&&>>(::cuda::std::forward<_Range>(__range))))
-      -> join_view<all_t<_Range&&>>
+  [[nodiscard]] _CCCL_API constexpr join_view<all_t<_Range&&>> operator()(_Range&& __range) const
+    noexcept(noexcept(/**/ join_view<all_t<_Range&&>>{::cuda::std::forward<_Range>(__range)}))
   {
-    return /*-----------*/ join_view<all_t<_Range&&>>(::cuda::std::forward<_Range>(__range));
+    return /*-----------*/ join_view<all_t<_Range&&>>{::cuda::std::forward<_Range>(__range)};
   }
 };
 
@@ -563,8 +555,6 @@ _CCCL_GLOBAL_CONSTANT auto join = __join_view::__fn{};
 } // namespace __cpo
 
 _CCCL_END_NAMESPACE_CUDA_STD_VIEWS
-
-#undef _CCCL_MAYBE_NO_UNIQUE_ADDRESS
 
 #include <cuda/std/__cccl/epilogue.h>
 

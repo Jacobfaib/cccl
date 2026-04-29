@@ -55,8 +55,9 @@ _CCCL_BEGIN_NAMESPACE_CUDA_STD_RANGES
 // that does this, see below for the details.
 
 template <class _Tp, class = void>
-struct __ob_destruct_base
+class __ob_destruct_base
 {
+public:
   union
   {
     _CCCL_NO_UNIQUE_ADDRESS _Tp __val_;
@@ -88,8 +89,9 @@ struct __ob_destruct_base
 };
 
 template <class _Tp>
-struct __ob_destruct_base<_Tp, enable_if_t<is_trivially_destructible_v<_Tp>>>
+class __ob_destruct_base<_Tp, enable_if_t<is_trivially_destructible_v<_Tp>>>
 {
+public:
   union
   {
     _CCCL_NO_UNIQUE_ADDRESS _Tp __val_;
@@ -107,37 +109,28 @@ struct __ob_destruct_base<_Tp, enable_if_t<is_trivially_destructible_v<_Tp>>>
 
   _CCCL_API constexpr void __reset() noexcept
   {
-    if (__engaged_)
-    {
-      __engaged_ = false;
-    }
+    __engaged_ = false;
   }
 };
 
 template <class _Tp, class = void>
-struct __ob_copy_base : public __ob_destruct_base<_Tp>
+class __ob_copy_base : public __ob_destruct_base<_Tp>
 {
-  using __base = __ob_destruct_base<_Tp>;
-
-  _CCCL_API constexpr __ob_copy_base() noexcept
-      : __base{}
-  {}
-
+public:
+  _CCCL_HIDE_FROM_ABI constexpr __ob_copy_base() noexcept              = default;
   _CCCL_HIDE_FROM_ABI __ob_copy_base(const __ob_copy_base&)            = delete;
   _CCCL_HIDE_FROM_ABI __ob_copy_base& operator=(const __ob_copy_base&) = delete;
-
-  _CCCL_HIDE_FROM_ABI __ob_copy_base(__ob_copy_base&&)            = default;
-  _CCCL_HIDE_FROM_ABI __ob_copy_base& operator=(__ob_copy_base&&) = default;
+  _CCCL_HIDE_FROM_ABI __ob_copy_base(__ob_copy_base&&)                 = default;
+  _CCCL_HIDE_FROM_ABI __ob_copy_base& operator=(__ob_copy_base&&)      = default;
 };
 
 template <class _Tp>
-struct __ob_copy_base<_Tp, enable_if_t<copyable<_Tp>>> : public __ob_destruct_base<_Tp>
+class __ob_copy_base<_Tp, enable_if_t<copyable<_Tp>>> : public __ob_destruct_base<_Tp>
 {
+public:
   using __base = __ob_destruct_base<_Tp>;
 
-  _CCCL_API constexpr __ob_copy_base() noexcept
-      : __base{}
-  {}
+  _CCCL_HIDE_FROM_ABI constexpr __ob_copy_base() noexcept = default;
 
 #if _CCCL_HAS_CONCEPTS()
   _CCCL_HIDE_FROM_ABI __ob_copy_base(const __ob_copy_base&)
@@ -219,10 +212,7 @@ class __optional_box<_Tp, enable_if_t<movable<_Tp>>, enable_if_t<!default_initia
 public:
   using __base = __ob_copy_base<_Tp>;
 
-  _CCCL_API constexpr __optional_box() noexcept
-      : __base{}
-  {}
-
+  _CCCL_HIDE_FROM_ABI constexpr __optional_box() noexcept              = default;
   _CCCL_HIDE_FROM_ABI __optional_box(const __optional_box&)            = default;
   _CCCL_HIDE_FROM_ABI __optional_box& operator=(const __optional_box&) = default;
 
@@ -307,25 +297,25 @@ public:
     return *this;
   }
 
-  _CCCL_API constexpr _Tp const& operator*() const noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp const& operator*() const noexcept
   {
     return this->__val_;
   }
-  _CCCL_API constexpr _Tp& operator*() noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp& operator*() noexcept
   {
     return this->__val_;
   }
 
-  _CCCL_API constexpr const _Tp* operator->() const noexcept
+  [[nodiscard]] _CCCL_API constexpr const _Tp* operator->() const noexcept
   {
     return ::cuda::std::addressof(this->__val_);
   }
-  _CCCL_API constexpr _Tp* operator->() noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp* operator->() noexcept
   {
     return ::cuda::std::addressof(this->__val_);
   }
 
-  _CCCL_API constexpr explicit operator bool() const noexcept
+  [[nodiscard]] _CCCL_API constexpr explicit operator bool() const noexcept
   {
     return this->__engaged_;
   }
@@ -413,25 +403,25 @@ public:
     return *this;
   }
 
-  _CCCL_API constexpr _Tp const& operator*() const noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp const& operator*() const noexcept
   {
     return this->__val_;
   }
-  _CCCL_API constexpr _Tp& operator*() noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp& operator*() noexcept
   {
     return this->__val_;
   }
 
-  _CCCL_API constexpr const _Tp* operator->() const noexcept
+  [[nodiscard]] _CCCL_API constexpr const _Tp* operator->() const noexcept
   {
     return ::cuda::std::addressof(this->__val_);
   }
-  _CCCL_API constexpr _Tp* operator->() noexcept
+  [[nodiscard]] _CCCL_API constexpr _Tp* operator->() noexcept
   {
     return ::cuda::std::addressof(this->__val_);
   }
 
-  _CCCL_API constexpr explicit operator bool() const noexcept
+  [[nodiscard]] _CCCL_API constexpr explicit operator bool() const noexcept
   {
     return true;
   }
