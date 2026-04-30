@@ -16,10 +16,6 @@
 
 #include <testing.cuh>
 
-[[nodiscard]] cudax::thread_group make_group() {}
-
-static void foo() {}
-
 TEST_CASE("basic", "[multi_gpu][transform][basic]")
 {
   constexpr auto size = 10;
