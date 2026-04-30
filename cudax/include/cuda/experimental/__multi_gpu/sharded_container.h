@@ -20,7 +20,10 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/__functional/call_or.h>
+#include <cuda/__memory_pool/device_memory_pool.h>
 #include <cuda/__memory_resource/any_resource.h>
+#include <cuda/__memory_resource/get_memory_resource.h>
 #include <cuda/std/__ranges/access.h>
 #include <cuda/std/__ranges/concepts.h>
 #include <cuda/std/__utility/move.h>
@@ -42,10 +45,33 @@ public:
   using resource_type     = ::cuda::mr::any_resource<::cuda::mr::device_accessible>;
   using resource_ref_type = ::cuda::mr::resource_ref<::cuda::mr::device_accessible>;
 
-  _CCCL_TEMPLATE(typename Range)
-  _CCCL_REQUIRES(::cuda::std::ranges::range<Range>)
-  shard(Range&& __range, logical_device __dev, resource_type __res)
+  _CCCL_TEMPLATE(typename _Range)
+  _CCCL_REQUIRES(::cuda::std::ranges::range<_Range>)
+  shard(_Range&& __range, logical_device __dev, resource_type __res)
       : shard{::cuda::std::ranges::begin(__range), ::cuda::std::ranges::end(__range), __dev, ::cuda::std::move(__res)}
+  {}
+
+  _CCCL_TEMPLATE(typename _Range)
+  _CCCL_REQUIRES(::cuda::std::ranges::range<_Range>)
+  shard(_Range&& __range, device_ref __dev, resource_type __res)
+      : shard{::cuda::std::forward<_Range>(__range), logical_device{__dev}, ::cuda::std::move(__res)}
+  {}
+
+  _CCCL_TEMPLATE(typename _Range)
+  _CCCL_REQUIRES(::cuda::std::ranges::range<_Range>)
+  shard(_Range&& __range, logical_device __dev)
+      : shard{
+          ::cuda::std::ranges::begin(__range),
+          ::cuda::std::ranges::end(__range),
+          ::cuda::std::move(__dev),
+          ::cuda::__call_or(
+            ::cuda::mr::get_memory_resource, ::cuda::device_default_memory_pool(__dev.underlying_device()), __range)}
+  {}
+
+  _CCCL_TEMPLATE(typename _Range)
+  _CCCL_REQUIRES(::cuda::std::ranges::range<_Range>)
+  shard(_Range&& __range, device_ref __dev)
+      : shard{::cuda::std::forward<_Range>(__range), logical_device{__dev}}
   {}
 
   shard(iterator_type __b, iterator_type __e, logical_device __dev, resource_type __res)
@@ -86,6 +112,12 @@ private:
 template <typename Range>
 _CCCL_HOST_API shard(Range&&, logical_device, ::cuda::mr::any_resource<::cuda::mr::device_accessible>)
   -> shard<::cuda::std::ranges::iterator_t<Range>>;
+
+template <typename Range>
+_CCCL_HOST_API shard(Range&&, logical_device) -> shard<::cuda::std::ranges::iterator_t<Range>>;
+
+template <typename Range>
+_CCCL_HOST_API shard(Range&&, device_ref) -> shard<::cuda::std::ranges::iterator_t<Range>>;
 
 template <typename Iterator>
 class basic_sharded_buffer

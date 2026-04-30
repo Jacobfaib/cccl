@@ -21,6 +21,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cuda/__device/all_devices.h>
 #include <cuda/std/__algorithm/min.h>
 #include <cuda/std/__barrier/barrier.h>
 #include <cuda/std/__cstddef/byte.h>
@@ -126,6 +127,13 @@ class thread_group
   };
 
 public:
+  _CCCL_HOST_API thread_group(const ::cuda::__all_devices& __all_devices)
+      : thread_group{/*__rank*/ 0,
+                     /*__group_size*/ 1,
+                     static_cast<::cuda::std::uint32_t>(__all_devices.size()),
+                     __singleton_shared_mem()}
+  {}
+
   _CCCL_HOST_API thread_group(::cuda::std::uint32_t __rank,
                               ::cuda::std::uint32_t __group_size,
                               ::cuda::std::uint32_t __num_gpus,
@@ -351,6 +359,19 @@ private:
       __ref.wait(__MAGIC_INIT_VALUE, ::cuda::std::memory_order_acquire);
     }
     return __shared_mem;
+  }
+
+  [[nodiscard]] _CCCL_HOST_API static const ::std::shared_ptr<::cuda::std::byte[]>& __singleton_shared_mem()
+  {
+    static const auto __mem = [] {
+      auto __ret =
+        ::std::shared_ptr<::cuda::std::byte[]>{new ::cuda::std::byte[required_shared_memory_size(/*group_size*/ 1)]{}};
+
+      initialize_shared_memory(__ret.get());
+      return __ret;
+    }();
+
+    return __mem;
   }
 
   ::cuda::std::uint32_t __rank_{};
