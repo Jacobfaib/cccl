@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CUDA_EXPERIMENTAL___THREAD_GROUP_THREAD_GROUP_H
-#define _CUDA_EXPERIMENTAL___THREAD_GROUP_THREAD_GROUP_H
+#ifndef _CUDA_EXPERIMENTAL___MULTI_GPU_THREAD_GROUP_H
+#define _CUDA_EXPERIMENTAL___MULTI_GPU_THREAD_GROUP_H
 
 #include <cuda/std/detail/__config>
 

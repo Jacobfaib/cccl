@@ -1,0 +1,128 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of CUDA Experimental in CUDA C++ Core Libraries,
+// under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+#include <cuda/std/detail/__config>
+
+#if defined(_CCCL_IMPLICIT_SYSTEM_HEADER_GCC)
+#  pragma GCC system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_CLANG)
+#  pragma clang system_header
+#elif defined(_CCCL_IMPLICIT_SYSTEM_HEADER_MSVC)
+#  pragma system_header
+#endif // no system header
+
+#include <cuda/__memory_resource/any_resource.h>
+#include <cuda/std/__ranges/access.h>
+#include <cuda/std/__ranges/concepts.h>
+#include <cuda/std/__utility/move.h>
+#include <cuda/std/span>
+
+#include <cuda/experimental/__device/logical_device.cuh>
+
+#include <vector>
+
+#include <cuda/std/__cccl/prologue.h>
+
+namespace cuda::experimental
+{
+template <typename Iterator>
+class shard
+{
+public:
+  using iterator_type     = Iterator;
+  using resource_type     = ::cuda::mr::any_resource<::cuda::mr::device_accessible>;
+  using resource_ref_type = ::cuda::mr::resource_ref<::cuda::mr::device_accessible>;
+
+  _CCCL_TEMPLATE(typename Range)
+  _CCCL_REQUIRES(::cuda::std::ranges::range<Range>)
+  shard(Range&& __range, logical_device __dev, resource_type __res)
+      : shard{::cuda::std::ranges::begin(__range), ::cuda::std::ranges::end(__range), __dev, ::cuda::std::move(__res)}
+  {}
+
+  shard(iterator_type __b, iterator_type __e, logical_device __dev, resource_type __res)
+      : __begin_{__b}
+      , __end_{__e}
+      , __device_{__dev}
+      , __resource_{::cuda::std::move(__res)}
+  {}
+
+  // To disallow range-for interface to the shard, since this would be surprising
+  [[nodiscard]] constexpr iterator_type iter_begin() const
+  {
+    return __begin_;
+  }
+
+  [[nodiscard]] constexpr iterator_type iter_end() const
+  {
+    return __begin_;
+  }
+
+  [[nodiscard]] constexpr const logical_device& device() const
+  {
+    return __begin_;
+  }
+
+  [[nodiscard]] constexpr resource_ref_type resource() const
+  {
+    return __resource_;
+  }
+
+private:
+  iterator_type __begin_;
+  iterator_type __end_;
+  logical_device __device_;
+  resource_type __resource_;
+};
+
+template <typename Range>
+_CCCL_HOST_API shard(Range&&, logical_device, ::cuda::mr::any_resource<::cuda::mr::device_accessible>)
+  -> shard<::cuda::std::ranges::iterator_t<Range>>;
+
+template <typename Iterator>
+class basic_sharded_buffer
+{
+public:
+  using shard_type = shard<Iterator>;
+  using size_type  = ::cuda::std::size_t;
+
+  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const
+  {
+    return shards_;
+  }
+
+  [[nodiscard]] ::cuda::std::span<shard_type> shards()
+  {
+    return shards_;
+  }
+
+  [[nodiscard]] size_type size() const
+  {
+    size_type ret = 0;
+
+    for (auto&& s : shards())
+    {
+      ret += ::cuda::std::distance(s.iter_begin(), s.iter_end());
+    }
+    return ret;
+  }
+
+  [[nodiscard]] bool empty() const
+  {
+    return size() == 0;
+  }
+
+private:
+  ::std::vector<shard_type> shards_{};
+};
+} // namespace cuda::experimental
+
+#include <cuda/std/__cccl/epilogue.h>
