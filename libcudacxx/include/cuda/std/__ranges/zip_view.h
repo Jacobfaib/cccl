@@ -55,30 +55,15 @@ _CCCL_BEGIN_NAMESPACE_CUDA_STD_RANGES
 
 _LIBCUDACXX_BEGIN_HIDDEN_FRIEND_NAMESPACE
 
-template <class... _Ranges>
-_CCCL_CONCEPT __zip_is_common =
-  (sizeof...(_Ranges) == 1 && (common_range<_Ranges> && ...))
-  || (!(bidirectional_range<_Ranges> && ...) && (common_range<_Ranges> && ...))
-  || ((random_access_range<_Ranges> && ...) && (sized_range<_Ranges> && ...));
-
-template <class _Tp, class _Up>
-_CCCL_API auto __tuple_or_pair_test() -> pair<_Tp, _Up>;
-
-template <class... _Types>
-_CCCL_API auto __tuple_or_pair_test() _CCCL_TRAILING_REQUIRES(tuple<_Types...>)((sizeof...(_Types) != 2));
-
-template <class... _Types>
-using __tuple_or_pair = decltype(__tuple_or_pair_test<_Types...>());
-
 struct __zv_functors
 {
   // view functors
   struct __zip_begin
   {
     template <class... _Types>
-    [[nodiscard]] _CCCL_API constexpr __tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::begin)&, _Types>...>
+    [[nodiscard]] _CCCL_API constexpr tuple<invoke_result_t<decltype(::cuda::std::ranges::begin)&, _Types>...>
     operator()(_Types&&... __tuple_elements) const
-      noexcept(noexcept(__tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::begin)&, _Types>...>{
+      noexcept(noexcept(tuple<invoke_result_t<decltype(::cuda::std::ranges::begin)&, _Types>...>{
         ::cuda::std::invoke(::cuda::std::ranges::begin, ::cuda::std::forward<_Types>(__tuple_elements))...}))
     {
       return {::cuda::std::invoke(::cuda::std::ranges::begin, ::cuda::std::forward<_Types>(__tuple_elements))...};
@@ -95,9 +80,9 @@ struct __zv_functors
   struct __zip_end
   {
     template <class... _Types>
-    [[nodiscard]] _CCCL_API constexpr __tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::end)&, _Types>...>
+    [[nodiscard]] _CCCL_API constexpr tuple<invoke_result_t<decltype(::cuda::std::ranges::end)&, _Types>...>
     operator()(_Types&&... __tuple_elements) const
-      noexcept(noexcept(__tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::end)&, _Types>...>{
+      noexcept(noexcept(tuple<invoke_result_t<decltype(::cuda::std::ranges::end)&, _Types>...>{
         ::cuda::std::invoke(::cuda::std::ranges::end, ::cuda::std::forward<_Types>(__tuple_elements))...}))
     {
       return {::cuda::std::invoke(::cuda::std::ranges::end, ::cuda::std::forward<_Types>(__tuple_elements))...};
@@ -148,11 +133,10 @@ struct __zv_functors
 
   template <class _Tuple1, class _Tuple2>
   [[nodiscard]] _CCCL_API static constexpr bool
-  __iter_op_eq(const _Tuple1& __tuple1, const _Tuple2& __tuple2) noexcept(noexcept(__zv_functors::__iter_op_eq(
-    __tuple1, __tuple2, ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
+  __iter_op_eq(const _Tuple1& __tuple1, const _Tuple2& __tuple2) noexcept(noexcept(
+    __zv_functors::__iter_op_eq(__tuple1, __tuple2, make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
   {
-    return __zv_functors::__iter_op_eq(
-      __tuple1, __tuple2, ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
+    return __zv_functors::__iter_op_eq(__tuple1, __tuple2, make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
   }
 
   struct __zip_op_star
@@ -168,10 +152,10 @@ struct __zv_functors
 
     template <class... _Types>
     [[nodiscard]] _CCCL_API constexpr auto operator()(_Types&&... __tuple_elements) const
-      noexcept(noexcept(__tuple_or_pair<invoke_result_t<__op_star&, _Types>...>{
+      noexcept(noexcept(tuple<invoke_result_t<__op_star&, _Types>...>{
         ::cuda::std::invoke(__op_star{}, ::cuda::std::forward<_Types>(__tuple_elements))...}))
     {
-      return __tuple_or_pair<invoke_result_t<__op_star&, _Types>...>{
+      return tuple<invoke_result_t<__op_star&, _Types>...>{
         ::cuda::std::invoke(__op_star{}, ::cuda::std::forward<_Types>(__tuple_elements))...};
     }
   };
@@ -316,10 +300,10 @@ struct __zv_functors
 
     template <class... _Types>
     [[nodiscard]] _CCCL_API constexpr auto operator()(_Types&&... __tuple_elements) const
-      noexcept(noexcept(__tuple_or_pair<invoke_result_t<__zip_op_index::__op_index&, _Types>...>{
+      noexcept(noexcept(tuple<invoke_result_t<__zip_op_index::__op_index&, _Types>...>{
         ::cuda::std::invoke(__zip_op_index::__op_index{__n}, ::cuda::std::forward<_Types>(__tuple_elements))...}))
     {
-      return __tuple_or_pair<invoke_result_t<__zip_op_index::__op_index&, _Types>...>{
+      return tuple<invoke_result_t<__zip_op_index::__op_index&, _Types>...>{
         ::cuda::std::invoke(__zip_op_index::__op_index{__n}, ::cuda::std::forward<_Types>(__tuple_elements))...};
     }
   };
@@ -367,19 +351,19 @@ struct __zv_functors
   [[nodiscard]] _CCCL_API static constexpr _Diff
   __iter_op_minus(const _Tuple1& __tuple1, const _Tuple2& __tuple2) noexcept(
     noexcept(__zv_functors::__iter_op_minus<_Diff>(
-      __tuple1, __tuple2, ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
+      __tuple1, __tuple2, make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
   {
     return __zv_functors::__iter_op_minus<_Diff>(
-      __tuple1, __tuple2, ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
+      __tuple1, __tuple2, make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
   }
 
   struct __zip_iter_move
   {
     template <class... _Types>
     [[nodiscard]]
-    _CCCL_API constexpr __tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::iter_move)&, _Types>...>
+    _CCCL_API constexpr tuple<invoke_result_t<decltype(::cuda::std::ranges::iter_move)&, _Types>...>
     operator()(_Types&&... __tuple_elements) const
-      noexcept(noexcept(__tuple_or_pair<invoke_result_t<decltype(::cuda::std::ranges::iter_move)&, _Types>...>{
+      noexcept(noexcept(tuple<invoke_result_t<decltype(::cuda::std::ranges::iter_move)&, _Types>...>{
         ::cuda::std::invoke(::cuda::std::ranges::iter_move, ::cuda::std::forward<_Types>(__tuple_elements))...}))
     {
       return {::cuda::std::invoke(::cuda::std::ranges::iter_move, ::cuda::std::forward<_Types>(__tuple_elements))...};
@@ -409,14 +393,20 @@ struct __zv_functors
   _CCCL_API static constexpr void __iter_swap(_Tuple1&& __tuple1, _Tuple2&& __tuple2) noexcept(noexcept(
     __zv_functors::__iter_swap(::cuda::std::forward<_Tuple1>(__tuple1),
                                ::cuda::std::forward<_Tuple2>(__tuple2),
-                               ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
+                               make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{})))
   {
     return __zv_functors::__iter_swap(
       ::cuda::std::forward<_Tuple1>(__tuple1),
       ::cuda::std::forward<_Tuple2>(__tuple2),
-      ::cuda::std::make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
+      make_index_sequence<tuple_size_v<remove_cvref_t<_Tuple1>>>{});
   }
 };
+
+template <class... _Ranges>
+_CCCL_CONCEPT __zip_is_common =
+  (sizeof...(_Ranges) == 1 && (common_range<_Ranges> && ...))
+  || (!(bidirectional_range<_Ranges> && ...) && (common_range<_Ranges> && ...))
+  || ((random_access_range<_Ranges> && ...) && (sized_range<_Ranges> && ...));
 
 template <bool _Const, class... _Views>
 _CCCL_CONCEPT __zip_all_random_access = (random_access_range<__maybe_const<_Const, _Views>> && ...);
@@ -457,13 +447,13 @@ template <class... _Views>
 #endif // !_CCCL_HAS_CONCEPTS()
 class zip_view : public view_interface<zip_view<_Views...>>
 {
-  _CCCL_NO_UNIQUE_ADDRESS tuple<_Views...> __views_;
-
 #if _CCCL_STD_VER <= 2017
   static_assert(__zip_all_input<_Views...>, "zip_view requires input_range's as input");
   static_assert(__zip_all_views<_Views...>, "zip_view requires view's as input");
   static_assert(sizeof...(_Views) > 0, "zip_view requires a nonzero number of input ranges");
 #endif // _CCCL_STD_VER <= 2017
+
+  tuple<_Views...> __views_;
 
   template <bool _OtherConst>
   using __iterator = __zip_iterator<_OtherConst, _Views...>;
@@ -480,16 +470,16 @@ public:
 
   _CCCL_TEMPLATE(class _Packed = __packed_views<_Views...>)
   _CCCL_REQUIRES(_Packed::__none_simple)
-  [[nodiscard]] _CCCL_API constexpr __iterator<false> begin()
+  [[nodiscard]] _CCCL_API constexpr __iterator</*const*/ false> begin()
   {
-    return __iterator<false>{__zv_functors::__view_begin(__views_)};
+    return __iterator</*const*/ false>{__zv_functors::__view_begin(__views_)};
   }
 
   _CCCL_TEMPLATE(class _Packed = __packed_views<_Views...>)
   _CCCL_REQUIRES(_Packed::__all_const_range)
-  [[nodiscard]] _CCCL_API constexpr __iterator<true> begin() const
+  [[nodiscard]] _CCCL_API constexpr __iterator</*const*/ true> begin() const
   {
-    return __iterator<true>{__zv_functors::__view_begin(__views_)};
+    return __iterator</*const*/ true>{__zv_functors::__view_begin(__views_)};
   }
 
   _CCCL_TEMPLATE(class _Packed = __packed_views<_Views...>)
@@ -498,9 +488,9 @@ public:
   {
     if constexpr (!__zip_is_common<_Views...>)
     {
-      return __sentinel<false>{__zv_functors::__view_end(__views_)};
+      return __sentinel</*const*/ false>{__zv_functors::__view_end(__views_)};
     }
-    else if constexpr (__zip_all_random_access<false, _Views...>)
+    else if constexpr (__zip_all_random_access</*const*/ false, _Views...>)
     {
       // MSVC cannot deal with iter_difference_t here
       using difference_type = common_type_t<range_difference_t<_Views>...>;
@@ -508,7 +498,7 @@ public:
     }
     else
     {
-      return __iterator<false>{__zv_functors::__view_end(__views_)};
+      return __iterator</*const*/ false>{__zv_functors::__view_end(__views_)};
     }
     _CCCL_UNREACHABLE();
   }
@@ -519,9 +509,9 @@ public:
   {
     if constexpr (!__zip_is_common<const _Views...>)
     {
-      return __sentinel<true>{__zv_functors::__view_end(__views_)};
+      return __sentinel</*const*/ true>{__zv_functors::__view_end(__views_)};
     }
-    else if constexpr (__zip_all_random_access<true, _Views...>)
+    else if constexpr (__zip_all_random_access</*const*/ true, _Views...>)
     {
       // MSVC cannot deal with iter_difference_t here
       using difference_type = common_type_t<range_difference_t<const _Views>...>;
@@ -529,7 +519,7 @@ public:
     }
     else
     {
-      return __iterator<true>{__zv_functors::__view_end(__views_)};
+      return __iterator</*const*/ true>{__zv_functors::__view_end(__views_)};
     }
     _CCCL_UNREACHABLE();
   }
@@ -589,7 +579,7 @@ using __zv_iter_category_base =
 template <bool _Const, class... _Views>
 class __zip_iterator : public __zv_iter_category_base<_Const, _Views...>
 {
-  __tuple_or_pair<iterator_t<__maybe_const<_Const, _Views>>...> __current_;
+  tuple<iterator_t<__maybe_const<_Const, _Views>>...> __current_;
 
   template <bool, class...>
   friend class __zip_iterator;
@@ -598,12 +588,12 @@ class __zip_iterator : public __zv_iter_category_base<_Const, _Views...>
   friend class __zip_sentinel;
 
 public:
-  _CCCL_API constexpr explicit __zip_iterator(__tuple_or_pair<iterator_t<__maybe_const<_Const, _Views>>...> __current)
+  _CCCL_API constexpr explicit __zip_iterator(tuple<iterator_t<__maybe_const<_Const, _Views>>...> __current)
       : __current_{::cuda::std::move(__current)}
   {}
 
   using iterator_concept = decltype(__get_zip_view_iterator_tag<_Const, _Views...>());
-  using value_type       = __tuple_or_pair<range_value_t<__maybe_const<_Const, _Views>>...>;
+  using value_type       = tuple<range_value_t<__maybe_const<_Const, _Views>>...>;
   using difference_type  = common_type_t<range_difference_t<__maybe_const<_Const, _Views>>...>;
 
   _CCCL_HIDE_FROM_ABI __zip_iterator() = default;
@@ -845,7 +835,7 @@ class __zip_sentinel
   template <bool, class...>
   friend class __zip_sentinel;
 
-  __tuple_or_pair<sentinel_t<__maybe_const<_Const, _Views>>...> __end_;
+  tuple<sentinel_t<__maybe_const<_Const, _Views>>...> __end_;
 
   // hidden friend cannot access private member of iterator because they are friends of friends
   template <bool _OtherConst>
@@ -857,8 +847,8 @@ class __zip_sentinel
 public:
   _CCCL_HIDE_FROM_ABI __zip_sentinel() = default;
 
-  _CCCL_API constexpr explicit __zip_sentinel(__tuple_or_pair<sentinel_t<__maybe_const<_Const, _Views>>...> __end)
-      : __end_{__end}
+  _CCCL_API constexpr explicit __zip_sentinel(tuple<sentinel_t<__maybe_const<_Const, _Views>>...> __end)
+      : __end_{::cuda::std::move(__end)}
   {}
 
   template <bool _OtherConst>
@@ -942,7 +932,7 @@ struct __fn
 {
   [[nodiscard]] _CCCL_API constexpr empty_view<tuple<>> operator()() const noexcept
   {
-    return {};
+    return empty<tuple<>>;
   }
 
   template <class... _Ranges>
@@ -953,7 +943,7 @@ struct __fn
   [[nodiscard]] _CCCL_API constexpr zip_view<all_t<_Ranges>...> operator()(_Ranges&&... __rs) const
     noexcept(noexcept(zip_view<all_t<_Ranges>...>{::cuda::std::forward<_Ranges>(__rs)...}))
   {
-    return zip_view<all_t<_Ranges>...>{::cuda::std::forward<_Ranges>(__rs)...};
+    return /*------*/ zip_view<all_t<_Ranges>...>{::cuda::std::forward<_Ranges>(__rs)...};
   }
 };
 
@@ -964,15 +954,6 @@ inline namespace __cpo
 _CCCL_GLOBAL_CONSTANT auto zip = __zip::__fn{};
 } // namespace __cpo
 _CCCL_END_NAMESPACE_CUDA_STD_VIEWS
-
-// GCC and MSVC2019 have issues determining _IsFancyPointer in C++17 because they fail to instantiate pointer_traits
-#if (_CCCL_COMPILER(GCC) || _CCCL_COMPILER(MSVC)) && _CCCL_STD_VER <= 2017
-_CCCL_BEGIN_NAMESPACE_STD
-template <bool _Const, class... _Views>
-struct _IsFancyPointer<::cuda::std::ranges::__zip_iterator<_Const, _Views...>> : false_type
-{};
-_CCCL_END_NAMESPACE_STD
-#endif // _CCCL_COMPILER(MSVC) && _CCCL_STD_VER <= 2017
 
 #include <cuda/std/__cccl/epilogue.h>
 
