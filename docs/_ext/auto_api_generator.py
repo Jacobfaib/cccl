@@ -421,14 +421,22 @@ def extract_doxygen_items(xml_dir):
     return items
 
 
+# Unlike other normal symbols, doxygen treats them as floating in the global namespace
+# (which, technically, is correct). As such, they aren't namespaced, and the name of the
+# generated files would just be <name of file containing macro>_<refid>, which is nearly
+# impossible to name in hand-written rst code.
+#
+# We therefore perform special mangling of the generated file name and prepend this prefix
+# to it.
+MACRO_FILE_NAME_PREFIX = "macro_"
+
+
 def format_macro_doc_filename(macro_name):
     """Create a stable filename for a generated macro page. Macros are not namespace
     members so their refid's (and generated pages) are just the name of the file and a
     hash. This makes it impossible to refer to macros in hand-written rst code."""
-    safe_name = "".join(
-        char if char.isalnum() or char == "_" else "_" for char in macro_name
-    )
-    return f"macro_{safe_name}"
+    macro_name = macro_name.casefold().replace(" ", "_")
+    return f"{MACRO_FILE_NAME_PREFIX}{macro_name}"
 
 
 def extract_doxygen_classes(xml_dir, project_name=None):
@@ -1247,7 +1255,7 @@ def generate_api_docs(app, config):
                 "struct*.rst",
                 "group*.rst",
                 "namespace*.rst",
-                "macro_*.rst",
+                f"{MACRO_FILE_NAME_PREFIX}*.rst",
             ]:
                 for file in api_dir.glob(pattern):
                     file.unlink()
