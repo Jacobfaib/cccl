@@ -119,42 +119,88 @@ _CCCL_HOST_API shard(Range&&, logical_device) -> shard<::cuda::std::ranges::iter
 template <typename Range>
 _CCCL_HOST_API shard(Range&&, device_ref) -> shard<::cuda::std::ranges::iterator_t<Range>>;
 
-template <typename Iterator>
-class basic_sharded_buffer
+template <typename _Iterator, ::cuda::std::size_t _N = ::cuda::std::dynamic_extent>
+class sharded_view
 {
 public:
-  using shard_type = shard<Iterator>;
+  using shard_type = shard<_Iterator>;
   using size_type  = ::cuda::std::size_t;
 
-  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const
+  constexpr sharded_view() = default;
+
+  constexpr explicit sharded_view(::cuda::std::span<shard_type, _N> __shards) noexcept
+      : __shards_{__shards}
+  {}
+
+  [[nodiscard]] ::cuda::std::span<const shard_type> shards() const noexcept
   {
-    return shards_;
+    return __shards_;
   }
 
-  [[nodiscard]] ::cuda::std::span<shard_type> shards()
+  [[nodiscard]] ::cuda::std::span<shard_type> shards() noexcept
   {
-    return shards_;
+    return __shards_;
   }
 
-  [[nodiscard]] size_type size() const
+  [[nodiscard]] size_type size() const noexcept
   {
-    size_type ret = 0;
+    size_type __ret = 0;
 
-    for (auto&& s : shards())
+    for (auto&& __s : shards())
     {
-      ret += ::cuda::std::distance(s.iter_begin(), s.iter_end());
+      __ret += ::cuda::std::distance(__s.iter_begin(), __s.iter_end());
     }
-    return ret;
+    return __ret;
   }
 
-  [[nodiscard]] bool empty() const
+  [[nodiscard]] bool empty() const noexcept
   {
     return size() == 0;
   }
 
 private:
-  ::std::vector<shard_type> shards_{};
+  ::cuda::std::span<shard_type, _N> __shards_{};
 };
+
+template <typename _Iterator>
+class sharded_buffer;
+
+template <typename _Tp>
+inline constexpr bool __is_sharded_buf = false;
+
+template <typename _Tp>
+inline constexpr bool __is_sharded_buf<sharded_buffer<_Tp>> = true;
+
+template <typename _Iterator>
+class sharded_buffer : public sharded_view<_Iterator>
+{
+  using __base = sharded_view<_Iterator>;
+
+public:
+  using typename __base::shard_type;
+
+  constexpr sharded_buffer() = default;
+
+  constexpr explicit sharded_buffer(::std::vector<shard_type> __shards) noexcept
+      : __base{__shards}
+      , __owned_shards_{::cuda::std::move(__shards)}
+  {}
+
+  _CCCL_TEMPLATE(typename _FirstShard, typename... _Shards)
+  _CCCL_REQUIRES((!__is_sharded_buf<_FirstShard>) _CCCL_AND ::cuda::std::is_constructible_v<shard_type, _FirstShard>
+                   _CCCL_AND((::cuda::std::is_constructible_v<shard_type, _Shards> && ...)))
+  constexpr explicit sharded_buffer(_FirstShard&& __first, _Shards&&... __shards)
+      : sharded_buffer{::std::vector<shard_type>{
+          ::cuda::std::forward<_FirstShard>(__first), ::cuda::std::forward<_Shards>(__shards)...}}
+  {}
+
+private:
+  ::std::vector<shard_type> __owned_shards_{};
+};
+
+_CCCL_TEMPLATE(typename _FirstShard, typename... _Shards)
+_CCCL_REQUIRES(!__is_sharded_buf<_FirstShard>)
+_CCCL_HOST_API sharded_buffer(_FirstShard, _Shards...) -> sharded_buffer<typename _FirstShard::iterator_type>;
 } // namespace cuda::experimental
 
 #include <cuda/std/__cccl/epilogue.h>

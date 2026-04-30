@@ -18,20 +18,27 @@
 
 [[nodiscard]] cudax::thread_group make_group() {}
 
-static void foo()
-{
-  thrust::device_vector<int> d(10);
-
-  auto shard = cudax::shard{d, cuda::devices[0]};
-
-  cudax::transform(cuda::devices, g);
-}
+static void foo() {}
 
 TEST_CASE("basic", "[multi_gpu][transform][basic]")
 {
-  thrust::device_vector<int> d(10);
+  constexpr auto size = 10;
+  thrust::device_vector<int> d_input(size, 1);
+  thrust::device_vector<int> d_output(size, 0);
 
-  cudax::thread_group g;
+  auto input_shard  = cudax::shard{d_input, cuda::devices[0]};
+  auto output_shard = cudax::shard{d_output, cuda::devices[0]};
+  auto in_buf       = cudax::sharded_buffer{input_shard};
+  auto out_buf      = cudax::sharded_buffer{output_shard};
 
-  cudax::transform(g);
+  cudax::transform(cuda::devices, in_buf, out_buf, [](int x) {
+    return x + 1;
+  });
+
+  thrust::host_vector<int> h = d_output;
+
+  for (auto&& v : h)
+  {
+    REQUIRE(v == 2);
+  }
 }
