@@ -155,11 +155,10 @@ TEST_FUNC constexpr bool test()
     assert(v.begin() != v.end());
     assert(v.begin() + 4 == v.end());
 
-    // const_iterator (const int*) converted to iterator (int*)
-#if TEST_COMPILER(NVRTC) // conversion from "int *" to "const int *" is invalid in constant-expression
-    if (!cuda::std::is_constant_evaluated())
-#endif // TEST_COMPILER(NVRTC)
+    _CCCL_IF_NOT_CONSTEVAL // conversion from "int *" to "const int *" is invalid in constant-expression
+    {
       assert(v.begin() + 4 == cuda::std::as_const(v).end());
+    }
 
     using Iter      = cuda::std::ranges::iterator_t<decltype(v)>;
     using ConstIter = cuda::std::ranges::iterator_t<const decltype(v)>;
