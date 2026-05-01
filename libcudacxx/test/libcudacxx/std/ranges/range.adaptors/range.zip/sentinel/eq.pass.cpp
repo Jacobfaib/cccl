@@ -155,7 +155,8 @@ TEST_FUNC constexpr bool test()
     assert(v.begin() != v.end());
     assert(v.begin() + 4 == v.end());
 
-    _CCCL_IF_NOT_CONSTEVAL // conversion from "int *" to "const int *" is invalid in constant-expression
+    // conversion from "int *" to "const int *" is invalid in constant-expression
+    if (!TEST_IS_CONSTANT_EVALUATED())
     {
       assert(v.begin() + 4 == cuda::std::as_const(v).end());
     }
