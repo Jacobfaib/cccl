@@ -5,6 +5,8 @@
 
 #include <thrust/detail/vector_base.h>
 
+#include <cuda/__memory_resource/legacy_pinned_memory_resource.h>
+#include <cuda/buffer>
 #include <cuda/std/type_traits>
 
 #include <memory>
