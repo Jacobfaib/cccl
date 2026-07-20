@@ -60,7 +60,22 @@ namespace detail
 template <typename DeterminismT>
 inline constexpr bool is_non_deterministic_v =
   ::cuda::std::is_same_v<DeterminismT, ::cuda::execution::determinism::not_guaranteed_t>;
+
+namespace reduce
+{
+struct get_terminal_epilogue_t : ::cuda::std::execution::__basic_query<get_terminal_epilogue_t>
+{};
+
+inline constexpr get_terminal_epilogue_t get_terminal_epilogue{};
+} // namespace reduce
 } // namespace detail
+
+//! @brief Creates an execution-environment property that invokes `epilogue` once after a reduction's terminal pass.
+template <typename EpilogueT>
+[[nodiscard]] CUB_RUNTIME_FUNCTION auto terminal_epilogue(EpilogueT epilogue)
+{
+  return ::cuda::std::execution::prop{detail::reduce::get_terminal_epilogue, epilogue};
+}
 
 //! @rst
 //! DeviceReduce provides device-wide, parallel operations for computing
@@ -184,6 +199,7 @@ private:
             typename OutputIteratorT,
             typename ReductionOpT,
             typename TransformOpT,
+            typename EpilogueOpT,
             typename T,
             typename NumItemsT,
             ::cuda::execution::determinism::__determinism_t Determinism>
@@ -194,6 +210,7 @@ private:
     ReductionOpT reduction_op,
     TransformOpT transform_op,
     T init,
+    EpilogueOpT epilogue,
     ::cuda::execution::determinism::__determinism_holder_t<Determinism>,
     const EnvT& env)
   {
@@ -204,6 +221,8 @@ private:
 
     if constexpr (Determinism == ::cuda::execution::determinism::__determinism_t::__gpu_to_gpu)
     {
+      static_assert(::cuda::std::is_same_v<EpilogueOpT, detail::reduce::no_op>,
+                    "Terminal epilogues are unsupported with gpu_to_gpu determinism");
       // Only instantiated with `plus<float|double>`; RFA hardcodes `deterministic_sum_t<accum_t>`.
       (void) reduction_op;
       using default_policy_selector = detail::reduce::
@@ -229,6 +248,8 @@ private:
     }
     else if constexpr (Determinism == ::cuda::execution::determinism::__determinism_t::__not_guaranteed)
     {
+      static_assert(::cuda::std::is_same_v<EpilogueOpT, detail::reduce::no_op>,
+                    "Terminal epilogues require run_to_run determinism");
       using default_policy_selector =
         detail::reduce::policy_selector_from_types<accum_t, offset_t, ReductionOpT, Determinism>;
       return detail::dispatch_with_env_and_tuning<default_policy_selector>(
@@ -243,7 +264,10 @@ private:
             init,
             stream,
             transform_op,
-            policy_selector);
+            policy_selector,
+            {},
+            {},
+            epilogue);
         });
     }
     else
@@ -262,7 +286,10 @@ private:
             init,
             stream,
             transform_op,
-            policy_selector);
+            policy_selector,
+            {},
+            {},
+            epilogue);
         });
     }
   }
@@ -286,6 +313,7 @@ private:
     T init,
     const EnvT& env)
   {
+    const auto epilogue = ::cuda::__call_or(detail::reduce::get_terminal_epilogue, detail::reduce::no_op{}, env);
     static_assert(!::cuda::std::execution::__queryable_with<EnvT, ::cuda::execution::determinism::__get_determinism_t>,
                   "Determinism should be used inside requires to have an effect.");
     using requirements_t = ::cuda::std::execution::
@@ -350,7 +378,7 @@ private:
         ::cuda::execution::determinism::run_to_run_t,
         default_determinism_t>;
 
-      return reduce_impl(d_in, d_out, num_items, reduction_op, transform_op, init, determinism_t{}, env);
+      return reduce_impl(d_in, d_out, num_items, reduction_op, transform_op, init, epilogue, determinism_t{}, env);
     }
   }
 
@@ -384,7 +412,8 @@ private:
     // TODO(NaderAlAwar): Relax this once non-deterministic implementation for min / max is available
     using determinism_t = ::cuda::execution::determinism::run_to_run_t;
 
-    return reduce_impl(d_in, d_out, num_items, reduction_op, ::cuda::std::identity{}, init, determinism_t{}, env);
+    return reduce_impl(
+      d_in, d_out, num_items, reduction_op, ::cuda::std::identity{}, init, detail::reduce::no_op{}, determinism_t{}, env);
   }
 
 public:
