@@ -45,6 +45,16 @@ struct empty_problem_init_t
 struct no_init_t
 {};
 
+//! Default terminal epilogue used by the public DeviceReduce APIs.
+struct no_op
+{
+  template <class T, class OutputIteratorT>
+  _CCCL_HOST_DEVICE_API void operator()(const T& value, OutputIteratorT&& d_out) const noexcept
+  {
+    *d_out = value;
+  }
+};
+
 //! If this value is passed as initial value to a `DeviceReduce` algorithm, no initial value will be incorporated into
 //! the total aggregate.
 inline constexpr auto no_init = no_init_t{};
@@ -66,6 +76,26 @@ template <class OutputIteratorT>
 _CCCL_HOST_DEVICE _CCCL_FORCEINLINE void handle_empty_problem(OutputIteratorT&&, no_init_t)
 {}
 
+template <class ReductionOpT, class InitValueT, class AccumT>
+_CCCL_HOST_DEVICE _CCCL_FORCEINLINE auto
+finalize_aggregate(ReductionOpT reduction_op, InitValueT init, AccumT block_aggregate)
+{
+  return reduction_op(init, block_aggregate);
+}
+
+template <class ReductionOpT, class InitValueT, class AccumT>
+_CCCL_HOST_DEVICE _CCCL_FORCEINLINE AccumT
+finalize_aggregate(ReductionOpT, empty_problem_init_t<InitValueT>, AccumT block_aggregate)
+{
+  return block_aggregate;
+}
+
+template <class ReductionOpT, class AccumT>
+_CCCL_HOST_DEVICE _CCCL_FORCEINLINE AccumT finalize_aggregate(ReductionOpT, no_init_t, AccumT block_aggregate)
+{
+  return block_aggregate;
+}
+
 /**
  * @brief Applies initial value to the block aggregate and stores the result to the output iterator.
  *
@@ -78,7 +108,7 @@ template <class OutputIteratorT, class ReductionOpT, class InitValueT, class Acc
 _CCCL_HOST_DEVICE void
 finalize_and_store_aggregate(OutputIteratorT d_out, ReductionOpT reduction_op, InitValueT init, AccumT block_aggregate)
 {
-  *d_out = reduction_op(init, block_aggregate);
+  *d_out = finalize_aggregate(reduction_op, init, block_aggregate);
 }
 
 /**
@@ -304,7 +334,8 @@ template <typename PolicySelector,
           typename ReductionOpT,
           typename InitValueT,
           typename AccumT,
-          typename TransformOpT = ::cuda::std::identity>
+          typename TransformOpT = ::cuda::std::identity,
+          typename EpilogueOpT  = no_op>
 #if _CCCL_HAS_CONCEPTS()
   requires reduce_policy_selector<PolicySelector>
 #endif // _CCCL_HAS_CONCEPTS()
@@ -315,7 +346,8 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
                                        const OffsetT num_items,
                                        ReductionOpT reduction_op,
                                        const InitValueT init,
-                                       TransformOpT transform_op)
+                                       TransformOpT transform_op,
+                                       EpilogueOpT epilogue = {})
 {
   static constexpr ReducePassPolicy policy = current_policy<PolicySelector>().single_tile;
   // TODO(bgruber): pass policy directly as template argument to AgentReduce in C++20
@@ -360,7 +392,8 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
   // Output result
   if (threadIdx.x == 0)
   {
-    detail::reduce::finalize_and_store_aggregate(d_out, reduction_op, init, block_aggregate);
+    const auto final_aggregate = detail::reduce::finalize_aggregate(reduction_op, init, block_aggregate);
+    epilogue(final_aggregate, d_out);
   }
 }
 
@@ -373,7 +406,8 @@ template <typename PolicySelector,
           typename ReductionOpT,
           typename InitValueT,
           typename AccumT,
-          typename TransformOpT = ::cuda::std::identity>
+          typename TransformOpT = ::cuda::std::identity,
+          typename EpilogueOpT  = no_op>
 #if _CCCL_HAS_CONCEPTS()
   requires reduce_policy_selector<PolicySelector>
 #endif // _CCCL_HAS_CONCEPTS()
@@ -385,7 +419,8 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
                                                const int first_pass_grid_size,
                                                ReductionOpT reduction_op,
                                                const InitValueT init,
-                                               TransformOpT transform_op)
+                                               TransformOpT transform_op,
+                                               EpilogueOpT epilogue = {})
 {
   const OffsetT actual_num_items = CUB_NS_QUALIFIER::detail::parameter_from_device<OffsetT>(kernel_num_items);
   static constexpr ReducePassPolicy first_pass_policy = current_policy<PolicySelector>().multi_tile;
@@ -436,7 +471,8 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
   // Output result
   if (threadIdx.x == 0)
   {
-    detail::reduce::finalize_and_store_aggregate(d_out, reduction_op, init, block_aggregate);
+    const auto final_aggregate = detail::reduce::finalize_aggregate(reduction_op, init, block_aggregate);
+    epilogue(final_aggregate, d_out);
   }
 }
 } // namespace detail::reduce

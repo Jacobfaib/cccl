@@ -71,6 +71,12 @@ option(CCCL_FORCE_TILE_TESTS "Force tests to be run as a tile program" OFF)
 option(CCCL_ENABLE_TILE "Enable tile support" ${CCCL_FORCE_TILE_TESTS})
 
 option(
+  CCCL_ENABLE_MGMN_BENCHMARKS
+  "Enable the multi-GPU/multi-node (mgmn) benchmarks."
+  OFF
+)
+
+option(
   CCCL_ENABLE_UNSTABLE
   "Enable targets and developer build options for unstable projects."
   OFF
@@ -131,7 +137,9 @@ add_subdirectory(libcudacxx)
 add_subdirectory(cub)
 add_subdirectory(thrust)
 
-if (CCCL_ENABLE_UNSTABLE)
+# The mgmn benchmarks consume the cudax headers. Even with the unstable dev build off,
+# descending into cudax defines the `cudax::cudax` interface target via its subdir helper.
+if (CCCL_ENABLE_UNSTABLE OR CCCL_ENABLE_MGMN_BENCHMARKS)
   add_subdirectory(cudax)
 endif()
 
@@ -158,6 +166,10 @@ endif()
 
 if (CCCL_ENABLE_NVBENCH_HELPER)
   add_subdirectory(nvbench_helper)
+endif()
+
+if (CCCL_ENABLE_MGMN_BENCHMARKS)
+  add_subdirectory(benchmarks/mgmn)
 endif()
 
 # Must stay at the end of this file.

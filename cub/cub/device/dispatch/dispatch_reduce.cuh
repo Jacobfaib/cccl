@@ -60,7 +60,8 @@ template <typename PolicySelector,
           typename InitValueT,
           typename AccumT,
           typename TransformOpT,
-          bool StableReductionOrder = true>
+          bool StableReductionOrder = true,
+          typename EpilogueOpT      = no_op>
 struct DeviceReduceKernelSource
 {
   // PolicySelector must be stateless, so we can pass the type to the kernel
@@ -68,14 +69,16 @@ struct DeviceReduceKernelSource
 
   CUB_DEFINE_KERNEL_GETTER(
     SingleTileKernel,
-    DeviceReduceSingleTileKernel<PolicySelector,
-                                 InputIteratorT,
-                                 OutputIteratorT,
-                                 OffsetT, // TODO(bgruber): problem size fits a single tile, should we just use int?
-                                 ReductionOpT,
-                                 InitValueT,
-                                 AccumT,
-                                 TransformOpT>)
+    DeviceReduceSingleTileKernel<
+      PolicySelector,
+      InputIteratorT,
+      OutputIteratorT,
+      OffsetT, // TODO(bgruber): problem size fits a single tile, should we just use int?
+      ReductionOpT,
+      InitValueT,
+      AccumT,
+      TransformOpT,
+      EpilogueOpT>)
 
   // The atomic code path finishes in one kernel, the two-phase code path writes to an intermediate buffer of
   // accumulators
@@ -95,13 +98,16 @@ struct DeviceReduceKernelSource
 
   CUB_DEFINE_KERNEL_GETTER(
     SingleTileSecondKernel,
-    DeviceReduceSingleTileKernel<PolicySelector,
-                                 AccumT*,
-                                 OutputIteratorT,
-                                 int, // Always used with int offsets
-                                 ReductionOpT,
-                                 InitValueT,
-                                 AccumT>)
+    DeviceReduceSingleTileKernel<
+      PolicySelector,
+      AccumT*,
+      OutputIteratorT,
+      int, // Always used with int offsets
+      ReductionOpT,
+      InitValueT,
+      AccumT,
+      ::cuda::std::identity,
+      EpilogueOpT>)
 
   CUB_DEFINE_KERNEL_GETTER(
     DeferredSingleTileSecondKernel,
@@ -113,7 +119,9 @@ struct DeviceReduceKernelSource
       KernelNumItemsT,
       ReductionOpT,
       InitValueT,
-      AccumT>)
+      AccumT,
+      ::cuda::std::identity,
+      EpilogueOpT>)
 
   CUB_RUNTIME_FUNCTION static constexpr size_t AccumSize()
   {
@@ -191,6 +199,7 @@ template <
   typename AccumT     = ::cuda::std::__accumulator_t<ReductionOpT, cub::detail::it_value_t<InputIteratorT>, InitValueT>,
   typename TransformOpT = ::cuda::std::identity,
   typename PolicyHub    = detail::reduce::policy_hub<AccumT, OffsetT, ReductionOpT>,
+  typename EpilogueOpT  = detail::reduce::no_op,
   typename KernelSource = detail::reduce::DeviceReduceKernelSource<
     detail::reduce::policy_selector_from_hub<PolicyHub>,
     InputIteratorT,
@@ -200,7 +209,9 @@ template <
     ReductionOpT,
     InitValueT,
     AccumT,
-    TransformOpT>,
+    TransformOpT,
+    true,
+    EpilogueOpT>,
   typename KernelLauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
 struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchReduce
 {
@@ -238,6 +249,8 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
 
   TransformOpT transform_op;
 
+  EpilogueOpT epilogue;
+
   KernelSource kernel_source;
 
   KernelLauncherFactory launcher_factory;
@@ -259,7 +272,8 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
     int ptx_version,
     TransformOpT transform_op              = {},
     KernelSource kernel_source             = {},
-    KernelLauncherFactory launcher_factory = {})
+    KernelLauncherFactory launcher_factory = {},
+    EpilogueOpT epilogue                   = {})
       : d_temp_storage(d_temp_storage)
       , temp_storage_bytes(temp_storage_bytes)
       , d_in(d_in)
@@ -270,6 +284,7 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
       , stream(stream)
       , ptx_version(ptx_version)
       , transform_op(transform_op)
+      , epilogue(epilogue)
       , kernel_source(kernel_source)
       , launcher_factory(launcher_factory)
   {}
@@ -313,7 +328,7 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
 
     // Invoke single_reduce_sweep_kernel
     launcher_factory(1, policy.SingleTile().ThreadsPerBlock(), 0, stream)
-      .doit(single_tile_kernel, d_in, d_out, num_items, reduction_op, init, transform_op);
+      .doit(single_tile_kernel, d_in, d_out, num_items, reduction_op, init, transform_op, epilogue);
 
     // Check for failure to launch
     if (const auto error = CubDebug(cudaPeekAtLastError()))
@@ -438,8 +453,14 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
 
     // Invoke DeviceReduceSingleTileKernel
     launcher_factory(1, active_policy.SingleTile().ThreadsPerBlock(), 0, stream)
-      .doit(
-        single_tile_kernel, d_block_reductions, d_out, reduce_grid_size, reduction_op, init, ::cuda::std::identity{});
+      .doit(single_tile_kernel,
+            d_block_reductions,
+            d_out,
+            reduce_grid_size,
+            reduction_op,
+            init,
+            ::cuda::std::identity{},
+            epilogue);
 
     // Check for failure to launch
     if (const auto error = CubDebug(cudaPeekAtLastError()))
@@ -520,7 +541,8 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
     TransformOpT transform_op              = {},
     KernelSource kernel_source             = {},
     KernelLauncherFactory launcher_factory = {},
-    MaxPolicyT max_policy                  = {})
+    MaxPolicyT max_policy                  = {},
+    EpilogueOpT epilogue                   = {})
   {
     // Get PTX version
     int ptx_version = 0;
@@ -542,7 +564,8 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
       ptx_version,
       transform_op,
       kernel_source,
-      launcher_factory);
+      launcher_factory,
+      epilogue);
 
     // Ignore Wmaybe-uninitialized to work around a GCC 13 issue:
     // https://github.com/NVIDIA/cccl/issues/4053
@@ -593,6 +616,7 @@ template <
                                  ::cuda::std::invoke_result_t<TransformOpT, ::cuda::std::iter_value_t<InputIteratorT>>,
                                  InitValueT>,
   typename PolicyHub    = detail::reduce::policy_hub<AccumT, OffsetT, ReductionOpT>,
+  typename EpilogueOpT  = detail::reduce::no_op,
   typename KernelSource = detail::reduce::DeviceReduceKernelSource<
     typename PolicyHub::MaxPolicy,
     InputIteratorT,
@@ -602,7 +626,9 @@ template <
     ReductionOpT,
     InitValueT,
     AccumT,
-    TransformOpT>,
+    TransformOpT,
+    true,
+    EpilogueOpT>,
   typename KernelLauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
 using DispatchTransformReduce CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") =
   DispatchReduce<InputIteratorT,
@@ -613,6 +639,7 @@ using DispatchTransformReduce CCCL_DEPRECATED_BECAUSE("Use the tuning API for De
                  AccumT,
                  TransformOpT,
                  PolicyHub,
+                 EpilogueOpT,
                  KernelSource,
                  KernelLauncherFactory>;
 _CCCL_SUPPRESS_DEPRECATED_POP
@@ -664,7 +691,8 @@ template <bool StableReductionOrder,
           typename InitValueT,
           typename TransformOpT,
           typename KernelSource,
-          typename KernelLauncherFactory>
+          typename KernelLauncherFactory,
+          typename EpilogueOpT>
 CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
   void* d_temp_storage,
   size_t& temp_storage_bytes,
@@ -677,7 +705,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
   TransformOpT transform_op,
   ReducePolicy active_policy,
   KernelSource kernel_source,
-  KernelLauncherFactory launcher_factory)
+  KernelLauncherFactory launcher_factory,
+  EpilogueOpT epilogue)
 {
   using offset_t = num_items_offset_t<OffsetT>;
 
@@ -831,7 +860,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
                     reduce_grid_size,
                     reduction_op,
                     init,
-                    ::cuda::std::identity{})))
+                    ::cuda::std::identity{},
+                    epilogue)))
       {
         return error;
       }
@@ -846,7 +876,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
                     reduce_grid_size,
                     reduction_op,
                     init,
-                    ::cuda::std::identity{})))
+                    ::cuda::std::identity{},
+                    epilogue)))
       {
         return error;
       }
@@ -897,6 +928,7 @@ template <
   typename ReductionOpT,
   typename InitValueT     = non_void_value_t<OutputIteratorT, it_value_t<InputIteratorT>>,
   typename TransformOpT   = ::cuda::std::identity,
+  typename EpilogueOpT    = no_op,
   typename AccumT         = decltype(select_accum_t<InputIteratorT, InitValueT, ReductionOpT, TransformOpT>(
     static_cast<OverrideAccumT*>(nullptr))),
   typename PolicySelector = policy_selector_from_types<
@@ -914,7 +946,8 @@ template <
     InitValueT,
     AccumT,
     TransformOpT,
-    StableReductionOrder>,
+    StableReductionOrder,
+    EpilogueOpT>,
   typename KernelLauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
 #if _CCCL_HAS_CONCEPTS()
   requires reduce_policy_selector<PolicySelector>
@@ -931,8 +964,11 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
   TransformOpT transform_op              = {},
   PolicySelector policy_selector         = {},
   KernelSource kernel_source             = {},
-  KernelLauncherFactory launcher_factory = {})
+  KernelLauncherFactory launcher_factory = {},
+  EpilogueOpT epilogue                   = {})
 {
+  static_assert(StableReductionOrder || ::cuda::std::is_same_v<EpilogueOpT, no_op>,
+                "Custom DeviceReduce epilogues require a stable reduction order");
   using offset_t = num_items_offset_t<OffsetT>;
 
   ::cuda::compute_capability cc{};
@@ -1005,8 +1041,14 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
         // Invoke single_reduce_sweep_kernel
         if (const auto error = CubDebug(
               launcher_factory(1, active_policy.single_tile.threads_per_block, 0, stream)
-                .doit(
-                  kernel_source.SingleTileKernel(), d_in, d_out, offset_num_items, reduction_op, init, transform_op)))
+                .doit(kernel_source.SingleTileKernel(),
+                      d_in,
+                      d_out,
+                      offset_num_items,
+                      reduction_op,
+                      init,
+                      transform_op,
+                      epilogue)))
         {
           return error;
         }
@@ -1049,7 +1091,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
       transform_op,
       active_policy,
       kernel_source,
-      launcher_factory);
+      launcher_factory,
+      epilogue);
   });
 }
 } // namespace detail::reduce
