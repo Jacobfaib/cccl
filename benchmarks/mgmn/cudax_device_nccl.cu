@@ -43,7 +43,7 @@ struct device_nccl_epilogue
   ncclWindow_t source{};
   ncclWindow_t destination{};
 
-  _CCCL_DEVICE_API void operator()(float value) const
+  _CCCL_DEVICE_API void operator()(float value) const noexcept
   {
     *local_aggregate = value;
 

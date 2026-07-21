@@ -46,3 +46,7 @@ add_mgmn_benchmark(cub_full_device cub_full_device.cu)
 add_mgmn_benchmark(cudax_host_nccl cudax_host_nccl.cu)
 add_mgmn_benchmark(cub_green_atomic cub_green_atomic.cu)
 add_mgmn_benchmark(cudax_device_nccl cudax_device_nccl.cu)
+target_compile_definitions(
+  cudax_device_nccl
+  PRIVATE NCCL_DEVICE_PERMIT_EXPERIMENTAL_CODE=1
+)
