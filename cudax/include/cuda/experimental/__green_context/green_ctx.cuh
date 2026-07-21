@@ -55,6 +55,27 @@ struct green_context
   green_context(const green_context&)            = delete;
   green_context& operator=(const green_context&) = delete;
 
+  green_context(green_context&& __other) noexcept
+      : __dev_id(::cuda::std::exchange(__other.__dev_id, -1))
+      , __green_ctx(::cuda::std::exchange(__other.__green_ctx, nullptr))
+      , __transformed(::cuda::std::exchange(__other.__transformed, nullptr))
+  {}
+
+  green_context& operator=(green_context&& __other) noexcept
+  {
+    if (this != &__other)
+    {
+      if (__green_ctx)
+      {
+        [[maybe_unused]] cudaError_t __status = ::cuda::__driver::__greenCtxDestroyNoThrow(__green_ctx);
+      }
+      __dev_id      = ::cuda::std::exchange(__other.__dev_id, -1);
+      __green_ctx   = ::cuda::std::exchange(__other.__green_ctx, nullptr);
+      __transformed = ::cuda::std::exchange(__other.__transformed, nullptr);
+    }
+    return *this;
+  }
+
   // TODO this probably should be the runtime equivalent once available
   [[nodiscard]] static green_context from_native_handle(CUgreenCtx __gctx)
   {

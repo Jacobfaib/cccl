@@ -1,34 +1,44 @@
-cmake_minimum_required(VERSION 3.24)
+# Multi-GPU/multi-node (mgmn) benchmarks. Added from the top-level CCCL build when
+# CCCL_ENABLE_MGMN_BENCHMARKS is set, so the CCCL targets (cudax, CUB, libcu++) already exist.
 
-project(cccl_mgmn_benchmarks LANGUAGES CXX CUDA)
+enable_language(CUDA)
+find_package(CUDAToolkit REQUIRED)
 
-find_package(CUDAToolkit 13 REQUIRED)
-find_package(benchmark 1.9.5 REQUIRED)
+cccl_get_nccl(REQUIRED)
 
-find_path(NCCL_INCLUDE_DIR nccl.h REQUIRED)
-find_library(NCCL_LIBRARY nccl REQUIRED)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CUDA_STANDARD 20)
-set(CMAKE_CUDA_ARCHITECTURES native)
+# Pull google-benchmark through CPM, which ships in the CCCL repo's cmake directory.
+# CPMFindPackage prefers an existing local install and downloads the pinned tag otherwise.
+include("${CCCL_SOURCE_DIR}/cmake/CPM.cmake")
+CPMFindPackage(
+  NAME benchmark
+  VERSION 1.9.5
+  GIT_REPOSITORY
+  "https://github.com/google/benchmark.git"
+  GIT_TAG v1.9.5
+  OPTIONS
+  "BENCHMARK_ENABLE_TESTING OFF"
+  "BENCHMARK_ENABLE_INSTALL OFF"
+)
 
 function(add_mgmn_benchmark target source)
   add_executable(${target} ${source})
-  target_include_directories(
-    ${target}
-    PRIVATE
-      ${PROJECT_SOURCE_DIR}/../../cub
-      ${PROJECT_SOURCE_DIR}/../../cudax/include
-      ${PROJECT_SOURCE_DIR}/../../libcudacxx/include
-      ${NCCL_INCLUDE_DIR}
-  )
   target_link_libraries(
     ${target}
-    PRIVATE benchmark::benchmark CUDA::cuda_driver ${NCCL_LIBRARY}
+    PRIVATE
+      libcudacxx::libcudacxx
+      cudax::cudax
+      CUB::CUB
+      benchmark::benchmark
+      CUDA::cuda_driver
+      NCCL::nccl
   )
   target_compile_options(
     ${target}
     PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda>
+  )
+  set_target_properties(
+    ${target}
+    PROPERTIES CUDA_STANDARD 20 CXX_STANDARD 20 CUDA_ARCHITECTURES native
   )
 endfunction()
 
