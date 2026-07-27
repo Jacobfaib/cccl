@@ -166,7 +166,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", action="count", default=0)
     parser.add_argument(
-        "--binary-dir", type=pathlib.Path, default=pathlib.Path("build/mgmn")
+        "--binary-dir",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent.parent.parent
+        / "build"
+        / "mgmn_bench"
+        / "benchmarks"
+        / "mgmn",
     )
     parser.add_argument("--log-dir", type=pathlib.Path)
     parser.add_argument("--device", type=int, default=0)
