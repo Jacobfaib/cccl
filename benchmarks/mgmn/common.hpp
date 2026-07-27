@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,50 +17,120 @@
 
 namespace mgmn
 {
+inline constexpr std::string_view sizes_option = "--cccl-benchmark-sizes";
+
+//! Describes how to pass element counts, appended to every parse failure so the message is
+//! actionable on its own.
+inline std::string sizes_usage()
+{
+  return std::string{"usage: "} + std::string{sizes_option} + "=<N>[,<N>...] or " + std::string{sizes_option}
+       + " <N> [<N>...]  (each count must be a unique positive integer <= "
+       + std::to_string((std::numeric_limits<int>::max)()) + ")";
+}
+
 inline std::size_t parse_size(std::string_view value)
 {
+  if (value.empty())
+  {
+    throw std::invalid_argument("empty element count in " + std::string{sizes_option} + ". " + sizes_usage());
+  }
+
   std::size_t result{};
   const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), result);
-  if (error != std::errc{} || end != value.data() + value.size() || result == 0)
+  if (end != value.data() + value.size() || error == std::errc::invalid_argument)
   {
-    throw std::invalid_argument("invalid positive element count: " + std::string{value});
+    throw std::invalid_argument("'" + std::string{value} + "' is not a valid element count. " + sizes_usage());
+  }
+  if (error == std::errc::result_out_of_range)
+  {
+    throw std::invalid_argument("element count '" + std::string{value} + "' is out of range. " + sizes_usage());
+  }
+  if (result == 0)
+  {
+    throw std::invalid_argument("element count must be positive, got '0'. " + sizes_usage());
   }
   return result;
+}
+
+//! Parse one comma-separated group of counts, appending to `result`. Rejects values that cannot be
+//! represented by `int` (google-benchmark's `Arg` takes `int64_t`, but the sizes are also used as
+//! `int` element counts) and duplicates, which would silently register the same case twice.
+inline void parse_sizes_into(std::string_view values, std::vector<std::size_t>& result)
+{
+  while (true)
+  {
+    const auto separator   = values.find(',');
+    const std::size_t size = parse_size(values.substr(0, separator));
+    if (size > static_cast<std::size_t>((std::numeric_limits<int>::max)()))
+    {
+      throw std::invalid_argument(
+        "element count " + std::to_string(size) + " is too large to be represented by int. " + sizes_usage());
+    }
+    if (std::find(result.begin(), result.end(), size) != result.end())
+    {
+      throw std::invalid_argument("duplicate element count " + std::to_string(size) + ". " + sizes_usage());
+    }
+    result.push_back(size);
+
+    if (separator == std::string_view::npos)
+    {
+      return;
+    }
+    values.remove_prefix(separator + 1);
+  }
 }
 
 inline std::vector<std::size_t> parse_sizes(std::string_view values)
 {
   std::vector<std::size_t> result;
-  while (!values.empty())
-  {
-    const auto separator   = values.find(',');
-    const std::size_t size = parse_size(values.substr(0, separator));
-    if (size > static_cast<std::size_t>((std::numeric_limits<int>::max)())
-        || std::find(result.begin(), result.end(), size) != result.end())
-    {
-      throw std::invalid_argument("element counts must be unique and representable by int");
-    }
-    result.push_back(size);
-    values.remove_prefix(separator == std::string_view::npos ? values.size() : separator + 1);
-  }
+  parse_sizes_into(values, result);
   return result;
 }
 
+//! Extract the element counts from `argv`, removing the consumed arguments so the remainder can be
+//! handed to `benchmark::Initialize`.
+//!
+//! Accepts both `--cccl-benchmark-sizes=1,2,3` and `--cccl-benchmark-sizes 1 2 3`. In the
+//! space-separated form the option consumes every following argument until the next one beginning
+//! with `-`; google-benchmark's own flags are all `--benchmark_*`, so they are never swallowed.
+//! Individual arguments may still be comma-separated, making `--cccl-benchmark-sizes 1,2 3` valid.
 inline std::vector<std::size_t> take_sizes_option(int& argc, char** argv)
 {
-  constexpr std::string_view prefix = "--cccl-benchmark-sizes=";
+  const std::string prefix{std::string{sizes_option} + "="};
   std::vector<std::size_t> sizes;
+  bool seen  = false;
   int output = 1;
   for (int input = 1; input < argc; ++input)
   {
     const std::string_view arg{argv[input]};
     if (arg.starts_with(prefix))
     {
-      if (!sizes.empty())
+      if (seen)
       {
-        throw std::invalid_argument("--cccl-benchmark-sizes may only be specified once");
+        throw std::invalid_argument(std::string{sizes_option} + " may only be specified once. " + sizes_usage());
       }
-      sizes = parse_sizes(arg.substr(prefix.size()));
+      seen = true;
+      parse_sizes_into(arg.substr(prefix.size()), sizes);
+    }
+    else if (arg == sizes_option)
+    {
+      if (seen)
+      {
+        throw std::invalid_argument(std::string{sizes_option} + " may only be specified once. " + sizes_usage());
+      }
+      seen = true;
+      // Consume the following arguments up to the next option.
+      int value = input + 1;
+      for (; value < argc && !std::string_view{argv[value]}.starts_with('-'); ++value)
+      {
+        parse_sizes_into(argv[value], sizes);
+      }
+      if (sizes.empty())
+      {
+        throw std::invalid_argument(
+          std::string{sizes_option} + " requires at least one element count. " + sizes_usage());
+      }
+      input = value - 1;
     }
     else
     {
@@ -67,9 +138,9 @@ inline std::vector<std::size_t> take_sizes_option(int& argc, char** argv)
     }
   }
   argc = output;
-  if (sizes.empty())
+  if (!seen)
   {
-    throw std::invalid_argument("missing --cccl-benchmark-sizes option");
+    throw std::invalid_argument("missing required option " + std::string{sizes_option} + ". " + sizes_usage());
   }
   return sizes;
 }

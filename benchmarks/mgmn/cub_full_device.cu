@@ -20,9 +20,11 @@ void benchmark_cub_full_device(benchmark::State& state)
   const auto elements = static_cast<std::size_t>(state.range(0));
   const auto device   = cuda::devices[0];
   cuda::stream stream{device};
-  const std::vector<float> input_values(elements, 1.0F);
-  auto input  = cuda::make_device_buffer<float>(stream, device, input_values);
-  auto output = cuda::make_device_buffer<float>(stream, device, 1, cuda::no_init);
+  const auto input = cuda::make_device_buffer<float>(stream, device, elements, 1.0F);
+  auto output      = cuda::make_device_buffer<float>(stream, device, 1, cuda::no_init);
+
+  const auto env = cuda::std::execution::env{cuda::stream_ref{stream}, input.memory_resource()};
+
   cuda::timed_event start{device};
   cuda::timed_event stop{device};
 
@@ -31,12 +33,7 @@ void benchmark_cub_full_device(benchmark::State& state)
     static_cast<void>(_);
     start.record(stream);
     _CCCL_TRY_CUDA_API(
-      cub::DeviceReduce::Sum,
-      "cub::DeviceReduce::Sum failed",
-      input.begin(),
-      output.begin(),
-      elements,
-      cuda::stream_ref{stream});
+      cub::DeviceReduce::Sum, "cub::DeviceReduce::Sum failed", input.begin(), output.begin(), elements, env);
     stop.record(stream);
     stop.sync();
     state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
