@@ -38,56 +38,6 @@ namespace cudax = cuda::experimental;
 
 namespace mgmn::locality
 {
-//! The 13.4 driver constants, declared locally because the toolkit's `cuda.h` may predate them.
-//! The values are part of the driver ABI, so hard-coding them is safe for a benchmark; each is
-//! validated at run time by the driver call that consumes it.
-inline constexpr auto attribute_locality_domain_count              = static_cast<CUdevice_attribute>(147);
-inline constexpr auto mem_location_type_locality_domain            = static_cast<CUmemLocationType>(0x6);
-inline constexpr auto pointer_attribute_locality_domain            = static_cast<CUpointer_attribute>(24);
-inline constexpr unsigned int sm_resource_group_locality_domain_id = 0x2;
-
-//! Mirror of the 13.4 `CU_DEV_SM_RESOURCE_GROUP_PARAMS`. Layout must match the driver's, since a
-//! pointer to an array of these is handed to `cuDevSmResourceSplit`.
-struct sm_resource_group_params
-{
-  unsigned int smCount{};
-  unsigned int coscheduledSmCount{};
-  unsigned int preferredCoscheduledSmCount{};
-  unsigned int flags{};
-  unsigned int localityDomainId{};
-  unsigned int reserved[11]{};
-};
-
-//! Mirror of the 13.4 `CUmemLocation`, whose `id` union gains a `localized` member carrying the
-//! (device, locality domain) pair. Same size and layout as the driver's type.
-struct mem_location
-{
-  CUmemLocationType type{};
-  union
-  {
-    int id;
-    struct
-    {
-      unsigned char deviceId;
-      unsigned char localityDomainId;
-      unsigned char reserved[2];
-    } localized;
-  };
-};
-
-//! Mirror of the 13.4 `CUmemPoolProps` with the extended location type. The trailing reserved bytes
-//! keep the struct the size the driver expects.
-struct mem_pool_props
-{
-  CUmemAllocationType allocType{};
-  CUmemAllocationHandleType handleTypes{};
-  mem_location location{};
-  void* win32SecurityAttributes{};
-  size_t maxSize{};
-  unsigned short usage{};
-  unsigned char reserved[54]{};
-};
-
 //! Resolve a driver entry point by name at the given ABI version. Mirrors the
 //! `_CCCLRT_GET_DRIVER_FUNCTION_VERSIONED` macro in `cuda/__driver/driver_api.h`, which is
 //! `#undef`-ed there and so is not reachable from here. Unlike that macro, the symbol is named by
@@ -102,7 +52,7 @@ template <typename FnT>
 [[nodiscard]] inline unsigned int domain_count(cuda::device_ref device)
 {
   int count = 0;
-  if (::cuDeviceGetAttribute(&count, attribute_locality_domain_count, device.get()) != CUDA_SUCCESS)
+  if (::cuDeviceGetAttribute(&count, CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_COUNT, device.get()) != CUDA_SUCCESS)
   {
     return 0;
   }
@@ -117,17 +67,17 @@ template <typename FnT>
 [[nodiscard]] inline std::vector<CUdevResource> split_by_domain(cuda::device_ref device, unsigned int domains)
 {
   using split_fn_t = CUresult(CUDAAPI*)(
-    CUdevResource*, unsigned int, const CUdevResource*, CUdevResource*, unsigned int, sm_resource_group_params*);
+    CUdevResource*, unsigned int, const CUdevResource*, CUdevResource*, unsigned int, CU_DEV_SM_RESOURCE_GROUP_PARAMS*);
   static auto driver_fn = get_driver_function<split_fn_t>("cuDevSmResourceSplit", 13, 4);
 
   CUdevResource full{};
   ::cuda::__driver::__call_driver_fn(
     ::cuDeviceGetDevResource, "Failed to query the device SM resource", device.get(), &full, CU_DEV_RESOURCE_TYPE_SM);
 
-  std::vector<sm_resource_group_params> params(domains);
-  for (unsigned int domain = 0; domain != domains; ++domain)
+  std::vector<CU_DEV_SM_RESOURCE_GROUP_PARAMS> params(domains);
+  for (unsigned int domain = 0; domain < domains; ++domain)
   {
-    params[domain].flags            = sm_resource_group_locality_domain_id;
+    params[domain].flags            = CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID;
     params[domain].localityDomainId = domain;
   }
 
@@ -149,12 +99,12 @@ template <typename FnT>
 //! Allocations from this pool are stream-ordered (`cuMemAllocFromPoolAsync`).
 [[nodiscard]] inline CUmemoryPool create_domain_pool(cuda::device_ref device, unsigned int domain)
 {
-  using create_fn_t     = CUresult(CUDAAPI*)(CUmemoryPool*, const mem_pool_props*);
+  using create_fn_t     = CUresult(CUDAAPI*)(CUmemoryPool*, const CUmemPoolProps*);
   static auto driver_fn = get_driver_function<create_fn_t>("cuMemPoolCreate", 13, 4);
 
-  mem_pool_props props{};
+  CUmemPoolProps props{};
   props.allocType                           = CU_MEM_ALLOCATION_TYPE_PINNED;
-  props.location.type                       = mem_location_type_locality_domain;
+  props.location.type                       = CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN;
   props.location.localized.deviceId         = static_cast<unsigned char>(device.get());
   props.location.localized.localityDomainId = static_cast<unsigned char>(domain);
 
@@ -172,7 +122,7 @@ template <typename FnT>
     ::cuPointerGetAttribute,
     "Failed to query the locality domain of a pointer",
     &ordinal,
-    pointer_attribute_locality_domain,
+    CU_POINTER_ATTRIBUTE_LOCALITY_DOMAIN_ORDINAL,
     reinterpret_cast<CUdeviceptr>(ptr));
   return ordinal;
 }

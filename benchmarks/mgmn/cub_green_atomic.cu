@@ -42,10 +42,12 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   const auto elements = static_cast<std::size_t>(state.range(0));
   const auto device   = cuda::devices[0];
 
+  cudaSetDevice(device.get());
+  cudaDeviceSynchronize();
   device.init();
 
   // One rank per locality domain, so each rank's SMs and its data sit in the same partition.
-  const auto rank_count = static_cast<int>(mgmn::locality::domain_count(device));
+  const auto rank_count = mgmn::locality::domain_count(device);
 
   if (rank_count < 2)
   {
@@ -86,7 +88,7 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   local_outputs.reserve(rank_count);
   envs.reserve(rank_count);
 
-  for (int rank = 0; rank != rank_count; ++rank)
+  for (int rank = 0; rank < rank_count; ++rank)
   {
     // Allocated from the domain-local pool, with the domain's green context current so the fill
     // kernel that writes the initial values also runs on that domain's SMs.
