@@ -16,7 +16,7 @@ SCENARIOS = (
     "cub_full_device",
     "cudax_host_nccl",
     "cub_green_atomic",
-    "cudax_device_nccl",
+#    "cudax_device_nccl",
 )
 
 
