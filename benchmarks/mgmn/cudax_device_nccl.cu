@@ -36,9 +36,13 @@ struct rank_windows
 };
 
 //! Terminal-epilogue hook for the device NCCL path. Each domain's final CUB reduction publishes its
-//! local aggregate into its registered source window, then rank 0 fuses every rank-local aggregate
-//! with a single-element device-side reduce/copy over the LSA team, bracketed by LSA barriers. No
-//! host-launched collective occurs in the timed interval.
+//! local aggregate into its registered source window, then every rank fuses the rank-local
+//! aggregates with a single-element device-side reduce/copy over the LSA team, bracketed by LSA
+//! barriers. No host-launched collective occurs in the timed interval.
+//!
+//! CUB invokes the terminal epilogue from a single thread of a single block (see the
+//! `threadIdx.x == 0` guard in `kernel_reduce.cuh`), so `ncclCoopThread` is the cooperation level
+//! that matches the caller and barrier index 0 is uncontended.
 struct device_nccl_epilogue
 {
   float* local_aggregate{};
@@ -50,14 +54,14 @@ struct device_nccl_epilogue
   {
     *local_aggregate = value;
 
+    // `ncclLsaReduceSumCopy` is not rank-collective in the sense of one rank doing the work for
+    // all: every rank issues the call for its own region. Guarding it to a single rank leaves the
+    // others idling in the trailing barrier while that rank performs every remote read serially.
     const ncclCoopThread cooperative = ncclCoopThread{};
     ncclLsaBarrierSession<ncclCoopThread> barrier{cooperative, devcomm, ncclTeamTagLsa{}, 0};
-    barrier.sync(cooperative, cuda::memory_order_acq_rel);
-    if (devcomm.rank == 0)
-    {
-      ncclLsaReduceSumCopy<float>(cooperative, source, 0, destination, 0, 1, ncclTeamLsa(devcomm));
-    }
-    barrier.sync(cooperative, cuda::memory_order_acq_rel);
+    barrier.sync(cooperative, cuda::memory_order_acquire);
+    ncclLsaReduceSumCopy<float>(cooperative, source, 0, destination, 0, 1, ncclTeamLsa(devcomm));
+    barrier.sync(cooperative, cuda::memory_order_release);
   }
 };
 
