@@ -61,11 +61,7 @@ inline void parse_sizes_into(std::string_view values, std::vector<std::size_t>& 
   {
     const auto separator   = values.find(',');
     const std::size_t size = parse_size(values.substr(0, separator));
-    if (size > static_cast<std::size_t>((std::numeric_limits<int>::max)()))
-    {
-      throw std::invalid_argument(
-        "element count " + std::to_string(size) + " is too large to be represented by int. " + sizes_usage());
-    }
+
     if (std::find(result.begin(), result.end(), size) != result.end())
     {
       throw std::invalid_argument("duplicate element count " + std::to_string(size) + ". " + sizes_usage());
@@ -165,7 +161,7 @@ int run_benchmark(int argc, char** argv, const char* scenario, BenchmarkT benchm
   registration->UseManualTime();
   for (const auto size : sizes)
   {
-    registration->Arg(static_cast<std::int64_t>(size));
+    registration->Arg(static_cast<std::size_t>(size));
   }
   benchmark::RunSpecifiedBenchmarks();
   benchmark::Shutdown();
