@@ -106,11 +106,17 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     completed.emplace_back(device);
   }
 
-  // Each domain owns its input share, CUB destination, and NCCL scalar windows, all drawn from that
-  // domain's localized pool. The green context is made current so the fill kernel that writes the
-  // initial values also runs on that domain's SMs.
+  // Each domain owns its input share and CUB destination, drawn from that domain's localized pool.
+  // The green context is made current so the fill kernel that writes the initial values also runs
+  // on that domain's SMs.
   std::vector<cuda::device_buffer<float>> inputs;
   std::vector<cuda::device_buffer<float>> outputs;
+  // The NCCL scalar windows deliberately come from ordinary device memory instead. Allocations from
+  // a `CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN` pool cannot be resolved by the address-range
+  // query `ncclCommWindowRegister` performs, so registering them fails with `invalid argument` out
+  // of `cuMemGetAddressRange`. Nothing is lost: these are single floats touched once per reduction
+  // by the epilogue, so their placement is irrelevant next to the bulk input traffic, and the
+  // aggregate is read by every rank and so has no natural home in any one domain regardless.
   std::vector<cuda::device_buffer<float>> aggregates;
   std::vector<cuda::device_buffer<float>> destinations;
 
@@ -124,8 +130,8 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     const auto resource = resources[rank]->ref();
     inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, per_rank, 1.0F));
     outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
-    aggregates.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
-    destinations.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
+    aggregates.emplace_back(cuda::make_device_buffer<float>(streams[rank], device, 1, cuda::no_init));
+    destinations.emplace_back(cuda::make_device_buffer<float>(streams[rank], device, 1, cuda::no_init));
   }
   for (auto&& s : streams)
   {

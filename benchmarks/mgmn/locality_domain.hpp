@@ -103,8 +103,12 @@ template <typename FnT>
   static auto driver_fn = get_driver_function<create_fn_t>("cuMemPoolCreate", 13, 4);
 
   CUmemPoolProps props{};
-  // props.handleTypes                         = CUmemAllocationHandleType(// CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR |
-  // 									CU_MEM_HANDLE_TYPE_FABRIC);
+  // Exportable handles are a precondition for registering allocations from this pool as NCCL
+  // symmetric memory windows. Both types are requested: POSIX file descriptors cover
+  // single-process multi-rank on one node, while fabric handles are what a multi-node MNNVL setup
+  // needs and require IMEX to be configured.
+  props.handleTypes =
+    static_cast<CUmemAllocationHandleType>(CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR | CU_MEM_HANDLE_TYPE_FABRIC);
   props.allocType                           = CU_MEM_ALLOCATION_TYPE_PINNED;
   props.location.type                       = CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN;
   props.location.localized.deviceId         = static_cast<unsigned char>(device.get());
