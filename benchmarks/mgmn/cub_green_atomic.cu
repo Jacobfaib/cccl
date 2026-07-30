@@ -31,9 +31,11 @@ struct atomic_epilogue
 {
   float* aggregate{};
 
-  _CCCL_DEVICE_API void operator()(float value) const
+  template <typename OutputIteratorT>
+  _CCCL_DEVICE_API void operator()(float value, OutputIteratorT&& d_out) const
   {
     ::cuda::atomic_ref<float, ::cuda::thread_scope_device>{*aggregate}.fetch_add(value, ::cuda::memory_order_relaxed);
+    *d_out = value;
   }
 };
 

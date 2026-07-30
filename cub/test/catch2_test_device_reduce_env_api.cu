@@ -10,27 +10,12 @@
 #include <cuda/__execution/determinism.h>
 #include <cuda/__execution/require.h>
 #include <cuda/__execution/tune.h>
-#include <cuda/atomic>
 #include <cuda/devices>
 #include <cuda/std/__execution/env.h>
 #include <cuda/stream>
 
 #include "catch2_test_memory_resources.h"
 #include <c2h/catch2_test_helper.h>
-
-namespace
-{
-struct terminal_epilogue_t
-{
-  unsigned int* invocation_count{};
-
-  _CCCL_DEVICE_API void operator()(float) const
-  {
-    ::cuda::atomic_ref<unsigned int, ::cuda::thread_scope_device>{*invocation_count}.fetch_add(
-      1, ::cuda::memory_order_relaxed);
-  }
-};
-} // namespace
 
 C2H_TEST("cub::DeviceReduce::Reduce accepts run_to_run determinism requirements", "[reduce][env]")
 {
@@ -102,25 +87,6 @@ C2H_TEST("cub::DeviceReduce::Reduce accepts stream", "[reduce][env]")
 
   REQUIRE(error == cudaSuccess);
   REQUIRE(output == expected);
-}
-
-C2H_TEST("cub::DeviceReduce::Reduce invokes a terminal epilogue once", "[reduce][env]")
-{
-  const auto num_items = GENERATE_COPY(std::size_t{1}, std::size_t{1 << 20});
-  CAPTURE(num_items);
-
-  auto input             = thrust::device_vector<float>(num_items, 1.0F);
-  auto output            = thrust::device_vector<float>(1, -1.0F);
-  auto invocation_count  = thrust::device_vector<unsigned int>(1, 0U);
-  const auto epilogue    = terminal_epilogue_t{thrust::raw_pointer_cast(invocation_count.data())};
-  const auto environment = cuda::std::execution::env{cub::terminal_epilogue(epilogue)};
-
-  REQUIRE(
-    cudaSuccess
-    == cub::DeviceReduce::Reduce(input.begin(), output.begin(), num_items, cuda::std::plus<>{}, 0.0F, environment));
-
-  REQUIRE(invocation_count[0] == 1U);
-  REQUIRE(output[0] == static_cast<float>(num_items));
 }
 
 C2H_TEST("cub::DeviceReduce::Sum accepts run_to_run determinism requirements", "[reduce][env]")

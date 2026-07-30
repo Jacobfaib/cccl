@@ -34,42 +34,38 @@ struct rank_windows
   ncclWindow_t destination{};
 };
 
-//! Terminal-epilogue hook for the device NCCL path: each rank publishes its aggregate into its
-//! symmetric window and rank 0 sums them into the single output scalar, matching the one-result
-//! semantics of `cub_full_device`. No host-launched collective occurs in the timed interval.
-//!
-//! CUB calls the epilogue from one thread of one block, hence `ncclCoopThread` and a single barrier
-//! at index 0, where the upstream `01_allreduce_lsa` example uses `ncclCoopCta` and `blockIdx.x`.
+//! Terminal-epilogue hook for the device NCCL path: every rank publishes its aggregate into its
+//! symmetric window, rank 0 sums them and publishes the total, then every rank stores that total to
+//! its own output, matching the broadcast semantics of `cudax::reduce(cudax::broadcasted, ...)`.
 struct device_nccl_epilogue
 {
   ncclDevComm devcomm{};
   ncclWindow_t source{};
-  float* destination{};
 
-  _CCCL_DEVICE_API void operator()(float value) const noexcept
+  template <typename OutputIteratorT>
+  _CCCL_DEVICE_API void operator()(float value, OutputIteratorT&& d_out) const noexcept
   {
     const ncclCoopThread cooperative = ncclCoopThread{};
     ncclLsaBarrierSession<ncclCoopThread> barrier{cooperative, devcomm, ncclTeamTagLsa(), 0};
 
-    // Rank 0 accumulates, so it keeps its contribution in a register instead of publishing it.
-    if (devcomm.lsaRank != 0)
-    {
-      *static_cast<float*>(ncclGetLocalPointer(source, 0)) = value;
-    }
+    *static_cast<float*>(ncclGetLocalPointer(source, 0)) = value;
 
-    barrier.sync(cooperative, cuda::memory_order_acquire);
+    barrier.sync(cooperative, cuda::memory_order_acq_rel);
 
     if (devcomm.lsaRank == 0)
     {
-      float total = value;
-      for (int peer = 1; peer < devcomm.lsaSize; ++peer)
+      float total = 0.0F;
+      for (int peer = 0; peer < devcomm.lsaSize; ++peer)
       {
         total += *static_cast<const float*>(ncclGetLsaPointer(source, 0, peer));
       }
-      *destination = total;
+      *static_cast<float*>(ncclGetLocalPointer(source, 0)) = total;
     }
 
-    // Keeps a fast rank from overwriting its aggregate while rank 0 still reads the previous one.
+    barrier.sync(cooperative, cuda::memory_order_acq_rel);
+
+    *d_out = *static_cast<const float*>(ncclGetLsaPointer(source, 0, 0));
+
     barrier.sync(cooperative, cuda::memory_order_release);
   }
 };
@@ -123,12 +119,10 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   // Registered windows must come from `ncclMemAlloc`: `ncclCommWindowRegister` resolves the backing
   // allocation with `cuMemGetAddressRange`, which rejects stream-ordered pool allocations.
   std::vector<mgmn::nccl_buffer<float>> aggregates;
-  std::vector<mgmn::nccl_buffer<float>> destinations;
 
   inputs.reserve(rank_count);
   outputs.reserve(rank_count);
   aggregates.reserve(rank_count);
-  destinations.reserve(rank_count);
   for (int rank = 0; rank != rank_count; ++rank)
   {
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
@@ -136,7 +130,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, per_rank, 1.0F));
     outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
     aggregates.emplace_back(1);
-    destinations.emplace_back(1);
   }
   for (auto&& s : streams)
   {
@@ -182,14 +175,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
           &windows[rank].source,
           NCCL_WIN_COLL_SYMMETRIC),
         "ncclCommWindowRegister(source)");
-      mgmn::check_nccl(
-        ncclCommWindowRegister(
-          host_communicators[rank],
-          destinations[rank].data(),
-          destinations[rank].size_bytes(),
-          &windows[rank].destination,
-          NCCL_WIN_COLL_SYMMETRIC),
-        "ncclCommWindowRegister(destination)");
 
       ncclDevCommRequirements_t requirements = NCCL_DEV_COMM_REQUIREMENTS_INITIALIZER;
       requirements.lsaBarrierCount           = 1;
@@ -229,8 +214,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
       resources[rank]->ref(),
-      cub::terminal_epilogue(
-        device_nccl_epilogue{windows[rank].devcomm, windows[rank].source, destinations[rank].data()})});
+      cub::terminal_epilogue(device_nccl_epilogue{windows[rank].devcomm, windows[rank].source})});
   }
 
   for (auto _ : state)
@@ -268,8 +252,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     mgmn::check_nccl(ncclDevCommDestroy(host_communicators[rank], &windows[rank].devcomm), "ncclDevCommDestroy");
     mgmn::check_nccl(ncclCommWindowDeregister(host_communicators[rank], windows[rank].source),
                      "ncclCommWindowDeregister(source)");
-    mgmn::check_nccl(ncclCommWindowDeregister(host_communicators[rank], windows[rank].destination),
-                     "ncclCommWindowDeregister(destination)");
     mgmn::check_nccl(ncclCommDestroy(host_communicators[rank]), "ncclCommDestroy");
   };
   std::vector<std::future<void>> teardown(rank_count);

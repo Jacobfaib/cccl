@@ -48,9 +48,11 @@ struct no_init_t
 //! Default terminal epilogue used by the public DeviceReduce APIs.
 struct no_op
 {
-  template <class T>
-  _CCCL_HOST_DEVICE_API void operator()(const T&) const noexcept
-  {}
+  template <class T, class OutputIteratorT>
+  _CCCL_HOST_DEVICE_API void operator()(const T& value, OutputIteratorT&& d_out) const noexcept
+  {
+    *d_out = value;
+  }
 };
 
 //! If this value is passed as initial value to a `DeviceReduce` algorithm, no initial value will be incorporated into
@@ -391,8 +393,7 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
   if (threadIdx.x == 0)
   {
     const auto final_aggregate = detail::reduce::finalize_aggregate(reduction_op, init, block_aggregate);
-    epilogue(final_aggregate);
-    *d_out = final_aggregate;
+    epilogue(final_aggregate, d_out);
   }
 }
 
@@ -471,8 +472,7 @@ _CCCL_KERNEL_ATTRIBUTES __launch_bounds__(
   if (threadIdx.x == 0)
   {
     const auto final_aggregate = detail::reduce::finalize_aggregate(reduction_op, init, block_aggregate);
-    epilogue(final_aggregate);
-    *d_out = final_aggregate;
+    epilogue(final_aggregate, d_out);
   }
 }
 } // namespace detail::reduce

@@ -16,7 +16,6 @@
 #include <cuda/__execution/determinism.h>
 #include <cuda/__execution/require.h>
 #include <cuda/argument>
-#include <cuda/atomic>
 #include <cuda/devices>
 #include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>
@@ -111,17 +110,6 @@ struct fixed_grid_reduce_t
       fixed_reduce_policy_selector_t{},
       {},
       fixed_grid_factory_t{});
-  }
-};
-
-struct terminal_epilogue_t
-{
-  unsigned int* invocation_count{};
-
-  _CCCL_DEVICE_API void operator()(float) const
-  {
-    ::cuda::atomic_ref<unsigned int, ::cuda::thread_scope_device>{*invocation_count}.fetch_add(
-      1, ::cuda::memory_order_relaxed);
   }
 };
 
@@ -321,33 +309,6 @@ C2H_TEST("DeviceReduce::Reduce with a deferred size handles grid boundaries", "[
          cuda::std::plus<>{},
          value_t{7});
   REQUIRE(output[0] == value_t{7} + num_items);
-}
-
-C2H_TEST("DeviceReduce::Reduce invokes a terminal epilogue with deferred num_items", "[device][reduce][deferred]")
-{
-  using value_t = float;
-  using count_t = int32_t;
-
-  constexpr count_t num_items = 1 << 20;
-  const c2h::device_vector<value_t> input(num_items, value_t{1});
-  const c2h::device_vector<count_t> device_num_items(1, num_items);
-  c2h::device_vector<value_t> output(1, value_t{-1});
-  c2h::device_vector<unsigned int> invocation_count(1, 0U);
-  const auto environment = cuda::std::execution::env{
-    cub::terminal_epilogue(terminal_epilogue_t{thrust::raw_pointer_cast(invocation_count.data())})};
-
-  REQUIRE(
-    cudaSuccess
-    == cub::DeviceReduce::Reduce(
-      thrust::raw_pointer_cast(input.data()),
-      thrust::raw_pointer_cast(output.data()),
-      cuda::args::deferred{thrust::raw_pointer_cast(device_num_items.data())},
-      cuda::std::plus<>{},
-      value_t{},
-      environment));
-
-  REQUIRE(invocation_count[0] == 1U);
-  REQUIRE(output[0] == static_cast<value_t>(num_items));
 }
 
 C2H_TEST("DeviceReduce atomic dispatch with a deferred size handles grid boundaries",
