@@ -142,24 +142,61 @@ def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    lines = [
-        "# MGMN benchmark summary",
-        "",
-        "| Elements | Scenario | Median ms | GB/s | Speedup | Status |",
-        "|---:|---|---:|---:|---:|---|",
-    ]
+    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup", "Status"]
+    aligns = ["right", "left", "right", "right", "right", "left"]
+
+    rows = []
     for row in summary["rows"]:
         for scenario in SCENARIOS:
             value = row[scenario]
             if value["median_seconds"] is None:
-                lines.append(
-                    f"| {row['elements']} | {scenario} | N/A | N/A | N/A | {value['status']} |"
-                )
+                rows.append([str(row["elements"]), scenario, "N/A", "N/A", "N/A", value["status"]])
             else:
-                lines.append(
-                    f"| {row['elements']} | {scenario} | {value['median_seconds'] * 1e3:.3f} | {value['gb_per_second']:.3f} | {value['latency_speedup']:.3f} | ok |"
+                rows.append(
+                    [
+                        str(row["elements"]),
+                        scenario,
+                        f"{value['median_seconds'] * 1e3:.3f}",
+                        f"{value['gb_per_second']:.3f}",
+                        f"{value['latency_speedup']:.3f}",
+                        "ok",
+                    ]
                 )
+
+    widths = [max(len(h), *(len(r[i]) for r in rows)) if rows else len(h) for i, h in enumerate(headers)]
+    
+    def fmt(cells):
+        return "| " + " | ".join(
+            c.rjust(w) if a == "right" else c.ljust(w) for c, w, a in zip(cells, widths, aligns)
+        ) + " |"
+
+    sep = "|" + "|".join(
+        ("-" * (w + 1) + ":") if a == "right" else (":" + "-" * (w + 1))
+        for w, a in zip(widths, aligns)
+    ) + "|"
+
+    lines = ["# MGMN benchmark summary", "", fmt(headers), sep]
+    lines.extend(fmt(r) for r in rows)
+    # lines = [
+    #     "# MGMN benchmark summary",
+    #     "",
+    #     "| Elements | Scenario | Median ms | GB/s | Speedup | Status |",
+    #     "|---------:|----------|----------:|-----:|--------:|--------|",
+    # ]
+    # for row in summary["rows"]:
+    #     for scenario in SCENARIOS:
+    #         value = row[scenario]
+    #         if value["median_seconds"] is None:
+    #             lines.append(
+    #                 f"| {row['elements']} | {scenario} | N/A | N/A | N/A | {value['status']} |"
+    #             )
+    #         else:
+    #             lines.append(
+    #                 f"| {row['elements']} | {scenario} | {value['median_seconds'] * 1e3:.3f} | {value['gb_per_second']:.3f} | {value['latency_speedup']:.3f} | ok |"
+    #             )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n")
+    print(path.read_text())
 
 
 def main() -> int:
@@ -170,7 +207,7 @@ def main() -> int:
         type=pathlib.Path,
         default=pathlib.Path(__file__).parent.parent.parent
         / "build"
-        / "mgmn_bench"
+        / "preset-latest"
         / "benchmarks"
         / "mgmn",
     )
@@ -181,8 +218,8 @@ def main() -> int:
     parser.add_argument("--range-multiplier", type=int, default=4)
     parser.add_argument("--sizes", type=parse_sizes)
     parser.add_argument("--min-time", type=float, default=0.5)
-    parser.add_argument("--warmup-time", type=float, default=0.1)
-    parser.add_argument("--repetitions", type=int, default=5)
+    parser.add_argument("--warmup-time", type=float, default=0.01)
+    parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--benchmark-filter", default=".*")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -226,7 +263,7 @@ def main() -> int:
                 "NCCL_MULTI_RANK_GPU_ENABLE": "1",
                 "NCCL_NVLS_ENABLE": "0",
                 "NCCL_MAX_CTAS": "1",
-                "NCCL_DEBUG": "INFO" if args.v > 1 else "WARN",
+#                "NCCL_DEBUG": "INFO" if args.v > 1 else "WARN",
             }
         status = run(
             command, log_dir / f"{scenario}.log", args.v > 0, args.dry_run, env

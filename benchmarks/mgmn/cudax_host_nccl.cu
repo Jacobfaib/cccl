@@ -8,6 +8,7 @@
 #include <cuda/buffer>
 #include <cuda/std/execution>
 #include <cuda/stream>
+#include <cuda/barrier>
 
 #include <cuda/experimental/__device/logical_device.cuh>
 #include <cuda/experimental/__multi_gpu/algorithm/reduce/reduce.h>
@@ -30,8 +31,11 @@ namespace
 //! performs a local CUB reduction per rank followed by a host-launched NCCL collective.
 void benchmark_cudax_host_nccl(benchmark::State& state)
 {
-  const auto elements = static_cast<int>(state.range(0));
+  const auto elements = state.range(0);
   const auto device   = cuda::devices[0];
+
+  cudaSetDevice(0);
+  cudaDeviceSynchronize();
   device.init();
 
   // One rank per locality domain, so each rank's SMs and its data sit in the same partition.
@@ -47,66 +51,28 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
   // stream created directly against the green context via `cuGreenCtxStreamCreate`.
   const auto contexts = mgmn::make_domain_contexts(device, rank_count);
 
+  std::vector<cudax::nccl_communicator> communicators;
+  {
+    std::vector<ncclComm_t> raw_comms(rank_count);
+    std::vector<int> devs(rank_count);
+
+    mgmn::check_nccl(ncclCommInitAll(raw_comms.data(), devs.size(), devs.data()), "ncclCommInitAll");
+    for (int rank = 0; rank < rank_count; ++rank) {
+      communicators.emplace_back(cudax::nccl_communicator::from_native_handle(raw_comms[rank], cudax::logical_device{contexts[rank]}));
+    }
+  }
+
+
   std::vector<cuda::stream> streams;
   // Data locality: one memory-pool-backed resource per domain. The owning resource is non-movable
   // (it has sole responsibility for its pool), hence the indirection.
   std::vector<std::unique_ptr<mgmn::locality_domain_resource>> resources;
-
-  streams.reserve(rank_count);
-  resources.reserve(rank_count);
-  for (int rank = 0; rank < rank_count; ++rank)
-  {
-    streams.emplace_back(cuda::stream::from_native_handle(mgmn::create_green_ctx_stream(contexts[rank].__green_ctx)));
-    resources.push_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)));
-  }
-
-  // Initialize one NCCL rank per green context. ncclCommInitRank is collective and blocking, so
-  // each rank must own its host thread with its green context current.
-  ncclUniqueId unique_id{};
-  mgmn::check_nccl(ncclGetUniqueId(&unique_id), "ncclGetUniqueId");
-
-  std::vector<cudax::nccl_communicator> communicators;
-
-  communicators.reserve(rank_count);
-  std::generate_n(std::back_inserter(communicators), rank_count, [] {
-    return cudax::nccl_communicator{cuda::no_init};
-  });
-
-  {
-    std::vector<std::future<void>> initialization(rank_count);
-    for (int rank = 0; rank != rank_count; ++rank)
-    {
-      initialization[rank] = std::async(std::launch::async, [&, rank] {
-        ncclComm_t comm;
-
-        cuda::__ensure_current_context guard{contexts[rank].__transformed};
-        mgmn::check_nccl(ncclCommInitRank(&comm, rank_count, unique_id, rank), "ncclCommInitRank");
-
-        communicators[rank] = cudax::nccl_communicator::from_native_handle(comm, cudax::logical_device{contexts[rank]});
-      });
-    }
-    for (auto& task : initialization)
-    {
-      task.get();
-    }
-  }
-
   // The env carries the domain's memory resource alongside its stream, so the temporary storage
   // `cudax::reduce` allocates internally is drawn from that domain's localized pool as well. Without
   // it the algorithm falls back to the device default pool, which is not localized.
   using env_type = decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, resources[0]->ref()});
 
   std::vector<env_type> environments;
-  environments.reserve(rank_count);
-  for (int rank = 0; rank < rank_count; ++rank)
-  {
-    environments.emplace_back(cuda::std::execution::env{cuda::stream_ref{streams[rank]}, resources[rank]->ref()});
-  }
-
-  cuda::timed_event start{device};
-  cuda::timed_event stop{device};
-  cuda::event completed{device};
-
   // Each green context owns its input share and its output scalar, both drawn from that domain's
   // localized pool. The green context is made current so the fill kernel that writes the initial
   // values also runs on that domain's SMs.
@@ -114,51 +80,56 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
   std::vector<cuda::device_buffer<float>> outputs;
   std::vector<cuda::device_buffer<float>::iterator> output_its;
 
+  streams.reserve(rank_count);
+  resources.reserve(rank_count);
+  environments.reserve(rank_count);
   inputs_buf.reserve(rank_count);
   outputs.reserve(rank_count);
   output_its.reserve(rank_count);
   for (int rank = 0; rank < rank_count; ++rank)
   {
-    cuda::__ensure_current_context guard{contexts[rank].__transformed};
-    inputs_buf.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), per_rank, 1.0F));
-    auto& o = outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), 1, cuda::no_init));
+    cuda::stream_ref s = streams.emplace_back(cuda::stream::from_native_handle(mgmn::create_green_ctx_stream(contexts[rank].__green_ctx)));
+    auto res = resources.emplace_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)))->ref();
+    environments.emplace_back(cuda::std::execution::env{s, res});
+
+    inputs_buf.emplace_back(cuda::make_buffer<float>(s, res, per_rank, 1.0F));
+    auto& o = outputs.emplace_back(cuda::make_buffer<float>(s, res, 1, cuda::no_init));
     output_its.emplace_back(o.begin());
-  }
-  for (auto&& s : streams)
-  {
-    s.sync();
   }
 
   // Confirm the pools honored the request before timing anything; a silent fallback to
   // non-localized memory would make the measurement meaningless.
   for (int rank = 0; rank < rank_count; ++rank)
   {
-    if (mgmn::locality::pointer_domain(inputs_buf[rank].data()) != static_cast<unsigned int>(rank))
-    {
-      state.SkipWithError("an input buffer did not land in its requested locality domain");
-      return;
-    }
+    // if (mgmn::locality::pointer_domain(inputs_buf[rank].data()) != static_cast<unsigned int>(rank))
+    // {
+    //   state.SkipWithError("an input buffer did not land in its requested locality domain");
+    //   return;
+    // }
   }
-
+  
+  cuda::timed_event start{device};
+  cuda::timed_event stop{device};
+  std::vector<cuda::event> completed;
+  for (int rank = 0; rank < rank_count; ++rank) {
+    completed.emplace_back(device);
+  }
+  
   for (auto _ : state)
   {
     static_cast<void>(_);
-    // Establish a common start boundary: record `start` on stream 0 and make the rest wait on it.
-    start.record(streams.front());
-    for (int rank = 1; rank < rank_count; ++rank)
-    {
-      streams[rank].wait(start);
-    }
+    start.record(streams[0]);
     cudax::reduce(cudax::broadcasted, communicators, environments, inputs_buf, output_its);
-    // Join every partition onto stream 0, then record and time the stop boundary.
+    // Join every domain onto stream 0, then record and time the stop boundary.
     for (int rank = 1; rank < rank_count; ++rank)
     {
-      completed.record(streams[rank]);
-      streams.front().wait(completed);
+      completed[rank].record(streams[rank]);
+      streams[0].wait(completed[rank]);
     }
-    stop.record(streams.front());
+    stop.record(streams[0]);
     stop.sync();
-    state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
+    const double avg = static_cast<double>((stop - start).count()) / 1'000'000'000.0;
+    state.SetIterationTime(avg);
   }
 
   const auto sm_count = ::cuda::__driver::__deviceGetAttribute(

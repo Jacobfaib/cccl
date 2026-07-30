@@ -103,6 +103,8 @@ template <typename FnT>
   static auto driver_fn = get_driver_function<create_fn_t>("cuMemPoolCreate", 13, 4);
 
   CUmemPoolProps props{};
+  // props.handleTypes                         = CUmemAllocationHandleType(// CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR |
+  // 									CU_MEM_HANDLE_TYPE_FABRIC);
   props.allocType                           = CU_MEM_ALLOCATION_TYPE_PINNED;
   props.location.type                       = CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN;
   props.location.localized.deviceId         = static_cast<unsigned char>(device.get());
@@ -110,6 +112,9 @@ template <typename FnT>
 
   CUmemoryPool pool{};
   ::cuda::__driver::__call_driver_fn(driver_fn, "Failed to create a locality-domain memory pool", &pool, &props);
+
+  ::cuda::std::size_t thres = ::cuda::std::numeric_limits<size_t>::max();
+  ::cuda::__driver::__mempoolSetAttribute(pool, ::CU_MEMPOOL_ATTR_RELEASE_THRESHOLD, &thres);
   return pool;
 }
 
