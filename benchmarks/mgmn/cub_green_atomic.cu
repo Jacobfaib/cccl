@@ -77,8 +77,11 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   // ordinary device memory rather than biasing it toward one domain.
   auto aggregate = cuda::make_device_buffer<float>(cuda::stream_ref{cudaStream_t{}}, device, 1, cuda::no_init);
 
+  // The env carries the domain's memory resource alongside its stream, so the temporary storage CUB
+  // allocates for its two-pass reduction is drawn from that domain's localized pool rather than the
+  // non-localized device default pool.
   using env_type = decltype(cuda::std::execution::env{
-    cuda::stream_ref{streams[0]}, cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
+    cuda::stream_ref{streams[0]}, resources[0]->ref(), cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
 
   std::vector<cuda::device_buffer<float>> inputs;
   std::vector<cuda::device_buffer<float>> local_outputs;
@@ -96,7 +99,9 @@ void benchmark_cub_green_atomic(benchmark::State& state)
     inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), elements / rank_count, 1.0F));
     local_outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), 1, cuda::no_init));
     envs.emplace_back(cuda::std::execution::env{
-      cuda::stream_ref{streams[rank]}, cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
+      cuda::stream_ref{streams[rank]},
+      resources[rank]->ref(),
+      cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
   }
 
   for (auto&& s : streams)

@@ -198,7 +198,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     };
 
     std::vector<std::future<void>> initialization(rank_count);
-    for (int rank = 0; rank != rank_count; ++rank)
+    for (int rank = 0; rank < rank_count; ++rank)
     {
       initialization[rank] = std::async(std::launch::async, setup_rank, rank);
     }
@@ -213,9 +213,14 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     s.sync();
   }
 
+  // The env carries the domain's memory resource alongside its stream, so the temporary storage CUB
+  // allocates for its two-pass reduction is drawn from that domain's localized pool. Without it the
+  // dispatch falls back to the device default pool, which is not localized, and the second pass then
+  // reads the partial aggregates across domains on the critical path.
+  //
   // Built once rather than per iteration, which would charge the measurement for host-side work.
-  using env_type =
-    decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, cub::terminal_epilogue(device_nccl_epilogue{})});
+  using env_type = decltype(cuda::std::execution::env{
+    cuda::stream_ref{streams[0]}, resources[0]->ref(), cub::terminal_epilogue(device_nccl_epilogue{})});
 
   std::vector<env_type> envs;
   envs.reserve(rank_count);
@@ -223,6 +228,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   {
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
+      resources[rank]->ref(),
       cub::terminal_epilogue(
         device_nccl_epilogue{windows[rank].devcomm, windows[rank].source, destinations[rank].data()})});
   }
@@ -231,7 +237,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   {
     static_cast<void>(_);
     start.record(streams.front());
-    for (int rank = 0; rank != rank_count; ++rank)
+    for (int rank = 0; rank < rank_count; ++rank)
     {
       _CCCL_TRY_CUDA_API(
         cub::DeviceReduce::Reduce,
@@ -244,11 +250,11 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         envs[rank]);
     }
     // All records before any waits: interleaving them blocks the host between records.
-    for (int rank = 1; rank != rank_count; ++rank)
+    for (int rank = 1; rank < rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);
     }
-    for (int rank = 1; rank != rank_count; ++rank)
+    for (int rank = 1; rank < rank_count; ++rank)
     {
       streams.front().wait(completed[rank]);
     }
