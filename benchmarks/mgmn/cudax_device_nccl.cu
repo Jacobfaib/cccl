@@ -111,14 +111,13 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   // on that domain's SMs.
   std::vector<cuda::device_buffer<float>> inputs;
   std::vector<cuda::device_buffer<float>> outputs;
-  // The NCCL scalar windows deliberately come from ordinary device memory instead. Allocations from
-  // a `CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN` pool cannot be resolved by the address-range
-  // query `ncclCommWindowRegister` performs, so registering them fails with `invalid argument` out
-  // of `cuMemGetAddressRange`. Nothing is lost: these are single floats touched once per reduction
-  // by the epilogue, so their placement is irrelevant next to the bulk input traffic, and the
-  // aggregate is read by every rank and so has no natural home in any one domain regardless.
-  std::vector<cuda::device_buffer<float>> aggregates;
-  std::vector<cuda::device_buffer<float>> destinations;
+  // The scalars registered as NCCL symmetric windows must come from `ncclMemAlloc` rather than from
+  // any memory pool: `ncclCommWindowRegister` resolves the backing allocation with
+  // `cuMemGetAddressRange`, which rejects stream-ordered pool allocations - both the localized pool
+  // and the device default pool - with `invalid argument`. Their placement is otherwise irrelevant
+  // here, being single floats touched once per reduction by the epilogue.
+  std::vector<mgmn::nccl_buffer<float>> aggregates;
+  std::vector<mgmn::nccl_buffer<float>> destinations;
 
   inputs.reserve(rank_count);
   outputs.reserve(rank_count);
@@ -130,8 +129,8 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     const auto resource = resources[rank]->ref();
     inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, per_rank, 1.0F));
     outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
-    aggregates.emplace_back(cuda::make_device_buffer<float>(streams[rank], device, 1, cuda::no_init));
-    destinations.emplace_back(cuda::make_device_buffer<float>(streams[rank], device, 1, cuda::no_init));
+    aggregates.emplace_back(1);
+    destinations.emplace_back(1);
   }
   for (auto&& s : streams)
   {
@@ -173,7 +172,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         ncclCommWindowRegister(
           host_communicators[rank],
           aggregates[rank].data(),
-          sizeof(*aggregates[rank].data()),
+          aggregates[rank].size_bytes(),
           &windows[rank].source,
           NCCL_WIN_COLL_SYMMETRIC),
         "ncclCommWindowRegister(source)");
@@ -181,7 +180,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         ncclCommWindowRegister(
           host_communicators[rank],
           destinations[rank].data(),
-          sizeof(*destinations[rank].data()),
+          destinations[rank].size_bytes(),
           &windows[rank].destination,
           NCCL_WIN_COLL_SYMMETRIC),
         "ncclCommWindowRegister(destination)");
