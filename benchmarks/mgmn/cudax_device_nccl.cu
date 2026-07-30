@@ -34,16 +34,6 @@ struct rank_windows
   ncclWindow_t destination{};
 };
 
-__device__ __forceinline__ float multimem_load_sum(const float* addr)
-{
-  float value;
-  asm volatile("multimem.ld_reduce.global.add.f32 %0, [%1];"
-               : "=f"(value)
-               : "l"(__cvta_generic_to_global(addr))
-               : "memory");
-  return value;
-}
-
 //! Terminal-epilogue hook for the device NCCL path: every rank publishes its aggregate into its
 //! symmetric window, rank 0 sums them and publishes the total, then every rank stores that total to
 //! its own output, matching the broadcast semantics of `cudax::reduce(cudax::broadcasted, ...)`.
@@ -62,19 +52,17 @@ struct device_nccl_epilogue
 
     barrier.sync(cooperative, cuda::memory_order_acquire);
 
-    auto* local_pointer    = static_cast<float*>(ncclGetLocalPointer(source, 0));
-    auto* multimem_pointer = reinterpret_cast<float*>(ncclGetLsaMultimemPointer(window, 0, devcomm));
+    auto* const local_pointer = static_cast<float*>(ncclGetLocalPointer(window, 0));
 
-    *local_pointer = multimem_load_sum(multimem_pointer);
-    // for (int peer = 0; peer < nRanks; ++peer)
-    // {
-    //   if (rank == peer)
-    //   {
-    //     continue;
-    //   }
-    //   value += *static_cast<const float*>(ncclGetLsaPointer(source, 0, rank));
-    // }
-    // *local_pointer = value;
+    for (int peer = 0; peer < nRanks; ++peer)
+    {
+      if (rank == peer)
+      {
+        continue;
+      }
+      value += *static_cast<const float*>(ncclGetLsaPointer(window, 0, rank));
+    }
+    *local_pointer = value;
 
     barrier.sync(cooperative, cuda::memory_order_release);
   }
@@ -188,7 +176,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
 
       ncclDevCommRequirements_t requirements = NCCL_DEV_COMM_REQUIREMENTS_INITIALIZER;
       requirements.lsaBarrierCount           = 1;
-      requirements.lsaMultimem               = true;
       mgmn::check_nccl(ncclDevCommCreate(host_communicators[rank], &requirements, &windows[rank].devcomm),
                        "ncclDevCommCreate");
     };
