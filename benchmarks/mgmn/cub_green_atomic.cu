@@ -134,10 +134,6 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   for (auto _ : state)
   {
     static_cast<void>(_);
-    for (auto&& s : streams)
-    {
-      s.sync();
-    }
     start.record(streams.front());
     for (int rank = 0; rank < rank_count; ++rank)
     {
@@ -152,9 +148,15 @@ void benchmark_cub_green_atomic(benchmark::State& state)
         0.0F,
         envs[rank]);
     }
+    // Record every rank's completion before waiting on any of them. Interleaving the record and
+    // the wait makes each wait a barrier against the host issuing the next record, which shows up
+    // directly in the measurement at these timescales.
     for (int rank = 1; rank < rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);
+    }
+    for (int rank = 1; rank < rank_count; ++rank)
+    {
       streams.front().wait(completed[rank]);
     }
     stop.record(streams.front());

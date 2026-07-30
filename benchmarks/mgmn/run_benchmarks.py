@@ -261,8 +261,44 @@ def bar(fraction: float | None, width: int) -> str:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup"]
-    aligns = ["left", "left", "left", "left", "left"]
+    peak = summary["peak_bandwidth"]
+    columns = [
+        ("Scenario", "left", max(len(s) for s in SCENARIOS)),
+        ("Median ms", "right", 9),
+        ("GB/s", "right", 9),
+        ("Speedup", "right", 7),
+    ]
+    if peak["gb_per_second"]:
+        columns.append(("SOL", "right", 6))
+    header = "  ".join(
+        title.ljust(width) if align == "left" else title.rjust(width)
+        for title, align, width in columns
+    )
+    header = f"    {header}"
+    if peak["gb_per_second"]:
+        header += (
+            f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+            f"  {'vs peak'.center(SOL_BAR_WIDTH + 2)}"
+        )
+    else:
+        header += f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+
+    lines = ["# MGMN benchmark summary", ""]
+    device = peak.get("device") or {}
+    if device:
+        lines.append(
+            f"Device {device.get('name', 'unknown')}"
+            f" (compute capability {device.get('compute_cap', '?')},"
+            f" {device.get('memory.total', '?')} MiB)"
+        )
+    if peak["gb_per_second"]:
+        lines.append(
+            f"Peak bandwidth {peak['gb_per_second']:.1f} GB/s"
+            f" via {peak['source']}. SOL is the fraction of that peak achieved."
+        )
+    else:
+        lines.append(f"Peak bandwidth {peak['source']}; SOL omitted.")
+    lines.extend(["", "```", header, "  " + "-" * (len(header) + 2)])
 
     rows = []
     for row in summary["rows"]:
@@ -289,16 +325,22 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         for scenario in ordered:
             value = row[scenario]
             if value["median_seconds"] is None:
-                rows.append([str(row["elements"]), scenario, "N/A", "N/A", "N/A"])
+                cells = [scenario, "n/a", "n/a", "n/a", "n/a"][: len(columns)]
+                bars = f"  {value['status']}"
             else:
-                rows.append(
-                    [
-                        str(row["elements"]),
-                        scenario,
-                        f"{value['median_seconds'] * 1e3:.3f}",
-                        f"{value['gb_per_second']:.3f}",
-                        f"{value['latency_speedup']:.3f}",
-                    ]
+                sol = value["speed_of_light"]
+                cells = [
+                    scenario,
+                    f"{value['median_seconds'] * 1e3:.3f}",
+                    f"{value['gb_per_second']:.3f}",
+                    f"{value['latency_speedup']:.3f}",
+                    f"{sol * 100:.1f}%" if sol is not None else "n/a",
+                ][: len(columns)]
+                bars = (
+                    f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
+                    f"  {bar(sol, SOL_BAR_WIDTH)}"
+                    if peak["gb_per_second"]
+                    else f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
                 )
 
     widths = [
@@ -363,7 +405,10 @@ def main() -> int:
     )
     parser.add_argument("--log-dir", type=pathlib.Path)
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--min-elements", type=int, default=1 << 10)
+    # Below roughly a mebielement every scenario is dominated by fixed launch and event
+    # overhead - the multi-domain variants sit at a flat ~30us from 1Ki to 4Mi elements,
+    # independent of the data - so the sweep starts where the reduction itself dominates.
+    parser.add_argument("--min-elements", type=int, default=1 << 20)
     parser.add_argument("--max-elements", type=int, default=1 << 28)
     parser.add_argument("--range-multiplier", type=int, default=4)
     parser.add_argument("--sizes", type=parse_sizes)
