@@ -115,11 +115,11 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   // non-localized memory would make the measurement meaningless.
   for (int rank = 0; rank < rank_count; ++rank)
   {
-    // if (mgmn::locality::pointer_domain(inputs[rank].data()) != static_cast<unsigned int>(rank))
-    // {
-    //   state.SkipWithError("an input buffer did not land in its requested locality domain");
-    //   return;
-    // }
+    if (mgmn::locality::pointer_domain(inputs[rank].data()) != static_cast<unsigned int>(rank))
+    {
+      state.SkipWithError("an input buffer did not land in its requested locality domain");
+      return;
+    }
   }
 
   cuda::timed_event start{device};
