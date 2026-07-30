@@ -142,15 +142,15 @@ def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup", "Status"]
-    aligns = ["right", "left", "right", "right", "right", "left"]
+    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup"]
+    aligns = ["left", "left", "left", "left", "left"]
 
     rows = []
     for row in summary["rows"]:
         for scenario in SCENARIOS:
             value = row[scenario]
             if value["median_seconds"] is None:
-                rows.append([str(row["elements"]), scenario, "N/A", "N/A", "N/A", value["status"]])
+                rows.append([str(row["elements"]), scenario, "N/A", "N/A", "N/A"])
             else:
                 rows.append(
                     [
@@ -159,7 +159,6 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
                         f"{value['median_seconds'] * 1e3:.3f}",
                         f"{value['gb_per_second']:.3f}",
                         f"{value['latency_speedup']:.3f}",
-                        "ok",
                     ]
                 )
 
