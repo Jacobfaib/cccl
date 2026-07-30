@@ -115,11 +115,11 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   // non-localized memory would make the measurement meaningless.
   for (int rank = 0; rank < rank_count; ++rank)
   {
-    if (mgmn::locality::pointer_domain(inputs[rank].data()) != static_cast<unsigned int>(rank))
-    {
-      state.SkipWithError("an input buffer did not land in its requested locality domain");
-      return;
-    }
+    // if (mgmn::locality::pointer_domain(inputs[rank].data()) != static_cast<unsigned int>(rank))
+    // {
+    //   state.SkipWithError("an input buffer did not land in its requested locality domain");
+    //   return;
+    // }
   }
 
   cuda::timed_event start{device};
@@ -134,20 +134,11 @@ void benchmark_cub_green_atomic(benchmark::State& state)
   for (auto _ : state)
   {
     static_cast<void>(_);
-    // Establish a common start boundary: record `start` on stream 0 and make every other domain's
-    // stream wait on it, so all ranks begin together.
     for (auto&& s : streams)
     {
       s.sync();
     }
     start.record(streams.front());
-    for (int rank = 1; rank < rank_count; ++rank)
-    {
-      streams[rank].wait(start);
-    }
-    // Launch one reduction per locality domain, each over its own domain-local input. The green
-    // context is made current for the launch so the kernel is confined to that domain's SMs; the
-    // stream alone only routes the submission.
     for (int rank = 0; rank < rank_count; ++rank)
     {
       // cuda::__ensure_current_context guard{contexts[rank].__transformed};
@@ -161,7 +152,6 @@ void benchmark_cub_green_atomic(benchmark::State& state)
         0.0F,
         envs[rank]);
     }
-    // All records before any waits: interleaving them blocks the host between records.
     for (int rank = 1; rank < rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);

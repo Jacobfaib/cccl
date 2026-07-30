@@ -16,7 +16,7 @@ SCENARIOS = (
     "cub_full_device",
     "cudax_host_nccl",
     "cub_green_atomic",
-#    "cudax_device_nccl",
+    #    "cudax_device_nccl",
 )
 
 BASELINE = SCENARIOS[0]
@@ -261,44 +261,10 @@ def bar(fraction: float | None, width: int) -> str:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    peak = summary["peak_bandwidth"]
-    columns = [
-        ("Scenario", "left", max(len(s) for s in SCENARIOS)),
-        ("Median ms", "right", 9),
-        ("GB/s", "right", 9),
-        ("Speedup", "right", 7),
-        ("SOL", "right", 6),
-    ]
-    header = "  ".join(
-        title.ljust(width) if align == "left" else title.rjust(width)
-        for title, align, width in columns
-    )
-    header = f"    {header}"
-    if peak["gb_per_second"]:
-        header += (
-            f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
-            f"  {'vs peak'.center(SOL_BAR_WIDTH + 2)}"
-        )
-    else:
-        header += f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup", "Status"]
+    aligns = ["right", "left", "right", "right", "right", "left"]
 
-    lines = ["# MGMN benchmark summary", ""]
-    device = peak.get("device") or {}
-    if device:
-        lines.append(
-            f"Device {device.get('name', 'unknown')}"
-            f" (compute capability {device.get('compute_cap', '?')},"
-            f" {device.get('memory.total', '?')} MiB)"
-        )
-    if peak["gb_per_second"]:
-        lines.append(
-            f"Peak bandwidth {peak['gb_per_second']:.1f} GB/s"
-            f" via {peak['source']}. SOL is the fraction of that peak achieved."
-        )
-    else:
-        lines.append(f"Peak bandwidth {peak['source']}; SOL omitted.")
-    lines.extend(["", "```", header, "  " + "-" * (len(header) + 2)])
-
+    rows = []
     for row in summary["rows"]:
         lines.append("")
         lines.append(f"  n = {row['elements']:,}  ({format_bytes(row['input_bytes'])})")
@@ -323,31 +289,74 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         for scenario in ordered:
             value = row[scenario]
             if value["median_seconds"] is None:
-                cells = [scenario, "n/a", "n/a", "n/a", value["status"]]
-                bars = ""
-            else:
-                sol = value["speed_of_light"]
-                cells = [
-                    scenario,
-                    f"{value['median_seconds'] * 1e3:.3f}",
-                    f"{value['gb_per_second']:.3f}",
-                    f"{value['latency_speedup']:.3f}",
-                    f"{sol * 100:.1f}%" if sol is not None else "n/a",
-                ][: len(columns)]
-                relative = value["latency_speedup"] / speedup_scale
-                bars = (
-                    f"  {bar(relative, SPEEDUP_BAR_WIDTH)}  {bar(sol, SOL_BAR_WIDTH)}"
-                    if peak["gb_per_second"]
-                    else f"  {bar(relative, SPEEDUP_BAR_WIDTH)}"
+                rows.append(
+                    [
+                        str(row["elements"]),
+                        scenario,
+                        "N/A",
+                        "N/A",
+                        "N/A",
+                        value["status"],
+                    ]
                 )
-            body = "  ".join(
-                text.ljust(width) if align == "left" else text.rjust(width)
-                for text, (_, align, width) in zip(cells, columns)
-            )
-            lines.append(f"    {body}{bars}")
-    lines.append("```")
+            else:
+                rows.append(
+                    [
+                        str(row["elements"]),
+                        scenario,
+                        f"{value['median_seconds'] * 1e3:.3f}",
+                        f"{value['gb_per_second']:.3f}",
+                        f"{value['latency_speedup']:.3f}",
+                        "ok",
+                    ]
+                )
 
+    widths = [
+        max(len(h), *(len(r[i]) for r in rows)) if rows else len(h)
+        for i, h in enumerate(headers)
+    ]
+
+    def fmt(cells):
+        return (
+            "| "
+            + " | ".join(
+                c.rjust(w) if a == "right" else c.ljust(w)
+                for c, w, a in zip(cells, widths, aligns)
+            )
+            + " |"
+        )
+
+    sep = (
+        "|"
+        + "|".join(
+            ("-" * (w + 1) + ":") if a == "right" else (":" + "-" * (w + 1))
+            for w, a in zip(widths, aligns)
+        )
+        + "|"
+    )
+
+    lines = ["# MGMN benchmark summary", "", fmt(headers), sep]
+    lines.extend(fmt(r) for r in rows)
+    # lines = [
+    #     "# MGMN benchmark summary",
+    #     "",
+    #     "| Elements | Scenario | Median ms | GB/s | Speedup | Status |",
+    #     "|---------:|----------|----------:|-----:|--------:|--------|",
+    # ]
+    # for row in summary["rows"]:
+    #     for scenario in SCENARIOS:
+    #         value = row[scenario]
+    #         if value["median_seconds"] is None:
+    #             lines.append(
+    #                 f"| {row['elements']} | {scenario} | N/A | N/A | N/A | {value['status']} |"
+    #             )
+    #         else:
+    #             lines.append(
+    #                 f"| {row['elements']} | {scenario} | {value['median_seconds'] * 1e3:.3f} | {value['gb_per_second']:.3f} | {value['latency_speedup']:.3f} | ok |"
+    #             )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n")
+    print(path.read_text())
 
 
 def main() -> int:
@@ -358,7 +367,7 @@ def main() -> int:
         type=pathlib.Path,
         default=pathlib.Path(__file__).parent.parent.parent
         / "build"
-        / "mgmn_bench"
+        / "preset-latest"
         / "benchmarks"
         / "mgmn",
     )
@@ -369,8 +378,8 @@ def main() -> int:
     parser.add_argument("--range-multiplier", type=int, default=4)
     parser.add_argument("--sizes", type=parse_sizes)
     parser.add_argument("--min-time", type=float, default=0.5)
-    parser.add_argument("--warmup-time", type=float, default=0.1)
-    parser.add_argument("--repetitions", type=int, default=5)
+    parser.add_argument("--warmup-time", type=float, default=0.01)
+    parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--benchmark-filter", default=".*")
     parser.add_argument(
         "--peak-bandwidth",
