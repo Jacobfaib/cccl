@@ -65,6 +65,9 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
 {
   const auto elements = static_cast<std::size_t>(state.range(0));
   const auto device   = cuda::devices[0];
+
+  cudaSetDevice(device.get());
+  cudaDeviceSynchronize();
   device.init();
 
   // One rank per locality domain, so each rank's SMs and its data sit in the same partition.
@@ -94,7 +97,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     resources.push_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)));
   }
 
-  cuda::stream coordinator{device};
   cuda::timed_event start{device};
   cuda::timed_event stop{device};
   std::vector<cuda::event> completed;
@@ -200,26 +202,30 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     s.sync();
   }
 
+  // The env pairs the domain's stream with its terminal epilogue. Both are fixed for the whole run,
+  // so they are built once here rather than per iteration: constructing them inside the timed loop
+  // would charge the measurement for host-side work that is not part of the reduction.
+  using env_type =
+    decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, cub::terminal_epilogue(device_nccl_epilogue{})});
+
+  std::vector<env_type> envs;
+  envs.reserve(rank_count);
+  for (int rank = 0; rank != rank_count; ++rank)
+  {
+    envs.emplace_back(cuda::std::execution::env{
+      cuda::stream_ref{streams[rank]},
+      cub::terminal_epilogue(device_nccl_epilogue{
+        aggregates[rank].data(), windows[rank].devcomm, windows[rank].source, windows[rank].destination})});
+  }
+
   for (auto _ : state)
   {
     static_cast<void>(_);
-    // Establish a common start boundary: record `start` on the coordinator stream and make every
-    // domain's stream wait on it, so all ranks begin together.
-    start.record(coordinator);
+    start.record(streams.front());
+    // Launch one reduction per locality domain, each over its own domain-local input. The stream was
+    // created against the domain's green context, so the kernel is confined to that domain's SMs.
     for (int rank = 0; rank != rank_count; ++rank)
     {
-      streams[rank].wait(start);
-    }
-    // Launch one reduction per locality domain, each over its own domain-local input. The green
-    // context is made current for the launch so the kernel is confined to that domain's SMs; the
-    // stream alone only routes the submission.
-    for (int rank = 0; rank != rank_count; ++rank)
-    {
-      cuda::__ensure_current_context guard{contexts[rank].__transformed};
-      const auto epilogue = device_nccl_epilogue{
-        aggregates[rank].data(), windows[rank].devcomm, windows[rank].source, windows[rank].destination};
-      const auto environment =
-        cuda::std::execution::env{cuda::stream_ref{streams[rank]}, cub::terminal_epilogue(epilogue)};
       _CCCL_TRY_CUDA_API(
         cub::DeviceReduce::Reduce,
         "Device-NCCL terminal-epilogue reduction failed",
@@ -228,15 +234,20 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         per_rank,
         cuda::std::plus<>{},
         0.0F,
-        environment);
+        envs[rank]);
     }
-    // Join every domain onto the coordinator stream, then record and time the stop boundary.
-    for (int rank = 0; rank != rank_count; ++rank)
+    // Record every rank's completion before waiting on any of them. Interleaving the record and
+    // the wait makes each wait a barrier against the host issuing the next record, which shows up
+    // directly in the measurement at these timescales.
+    for (int rank = 1; rank != rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);
-      coordinator.wait(completed[rank]);
     }
-    stop.record(coordinator);
+    for (int rank = 1; rank != rank_count; ++rank)
+    {
+      streams.front().wait(completed[rank]);
+    }
+    stop.record(streams.front());
     stop.sync();
     state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
   }

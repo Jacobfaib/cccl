@@ -267,8 +267,9 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         ("Median ms", "right", 9),
         ("GB/s", "right", 9),
         ("Speedup", "right", 7),
-        ("SOL", "right", 6),
     ]
+    if peak["gb_per_second"]:
+        columns.append(("SOL", "right", 6))
     header = "  ".join(
         title.ljust(width) if align == "left" else title.rjust(width)
         for title, align, width in columns
@@ -305,8 +306,8 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         for scenario in SCENARIOS:
             value = row[scenario]
             if value["median_seconds"] is None:
-                cells = [scenario, "n/a", "n/a", "n/a", value["status"]]
-                bars = ""
+                cells = [scenario, "n/a", "n/a", "n/a", "n/a"][: len(columns)]
+                bars = f"  {value['status']}"
             else:
                 sol = value["speed_of_light"]
                 cells = [
@@ -315,7 +316,7 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
                     f"{value['gb_per_second']:.3f}",
                     f"{value['latency_speedup']:.3f}",
                     f"{sol * 100:.1f}%" if sol is not None else "n/a",
-                ]
+                ][: len(columns)]
                 bars = (
                     f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
                     f"  {bar(sol, SOL_BAR_WIDTH)}"
@@ -348,7 +349,10 @@ def main() -> int:
     )
     parser.add_argument("--log-dir", type=pathlib.Path)
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--min-elements", type=int, default=1 << 10)
+    # Below roughly a mebielement every scenario is dominated by fixed launch and event
+    # overhead - the multi-domain variants sit at a flat ~30us from 1Ki to 4Mi elements,
+    # independent of the data - so the sweep starts where the reduction itself dominates.
+    parser.add_argument("--min-elements", type=int, default=1 << 20)
     parser.add_argument("--max-elements", type=int, default=1 << 28)
     parser.add_argument("--range-multiplier", type=int, default=4)
     parser.add_argument("--sizes", type=parse_sizes)

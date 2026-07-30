@@ -115,6 +115,7 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
   cuda::timed_event start{device};
   cuda::timed_event stop{device};
   std::vector<cuda::event> completed;
+  completed.reserve(rank_count);
   for (int rank = 0; rank < rank_count; ++rank)
   {
     completed.emplace_back(device);
@@ -125,10 +126,16 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
     static_cast<void>(_);
     start.record(streams[0]);
     cudax::reduce(cudax::broadcasted, communicators, environments, inputs_buf, output_its);
-    // Join every domain onto stream 0, then record and time the stop boundary.
+    // Join every domain onto stream 0, then record and time the stop boundary. The records are
+    // all issued before any of the waits: interleaving them makes each wait a barrier against the
+    // host issuing the next record, which is a measurable fraction of the total at these
+    // timescales.
     for (int rank = 1; rank < rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);
+    }
+    for (int rank = 1; rank < rank_count; ++rank)
+    {
       streams[0].wait(completed[rank]);
     }
     stop.record(streams[0]);
