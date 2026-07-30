@@ -11,7 +11,6 @@
 #include <cuda/std/execution>
 #include <cuda/stream>
 
-#include <array>
 #include <cstddef>
 #include <future>
 #include <memory>
@@ -35,32 +34,42 @@ struct rank_windows
   ncclWindow_t destination{};
 };
 
-//! Terminal-epilogue hook for the device NCCL path. Each domain's final CUB reduction publishes its
-//! local aggregate into its registered source window, then every rank fuses the rank-local
-//! aggregates with a single-element device-side reduce/copy over the LSA team, bracketed by LSA
-//! barriers. No host-launched collective occurs in the timed interval.
+//! Terminal-epilogue hook for the device NCCL path: each rank publishes its aggregate into its
+//! symmetric window and rank 0 sums them into the single output scalar, matching the one-result
+//! semantics of `cub_full_device`. No host-launched collective occurs in the timed interval.
 //!
-//! CUB invokes the terminal epilogue from a single thread of a single block (see the
-//! `threadIdx.x == 0` guard in `kernel_reduce.cuh`), so `ncclCoopThread` is the cooperation level
-//! that matches the caller and barrier index 0 is uncontended.
+//! CUB calls the epilogue from one thread of one block, hence `ncclCoopThread` and a single barrier
+//! at index 0, where the upstream `01_allreduce_lsa` example uses `ncclCoopCta` and `blockIdx.x`.
 struct device_nccl_epilogue
 {
-  float* local_aggregate{};
   ncclDevComm devcomm{};
   ncclWindow_t source{};
-  ncclWindow_t destination{};
+  float* destination{};
 
   _CCCL_DEVICE_API void operator()(float value) const noexcept
   {
-    *local_aggregate = value;
-
-    // `ncclLsaReduceSumCopy` is not rank-collective in the sense of one rank doing the work for
-    // all: every rank issues the call for its own region. Guarding it to a single rank leaves the
-    // others idling in the trailing barrier while that rank performs every remote read serially.
     const ncclCoopThread cooperative = ncclCoopThread{};
-    ncclLsaBarrierSession<ncclCoopThread> barrier{cooperative, devcomm, ncclTeamTagLsa{}, 0};
+    ncclLsaBarrierSession<ncclCoopThread> barrier{cooperative, devcomm, ncclTeamTagLsa(), 0};
+
+    // Rank 0 accumulates, so it keeps its contribution in a register instead of publishing it.
+    if (devcomm.lsaRank != 0)
+    {
+      *static_cast<float*>(ncclGetLocalPointer(source, 0)) = value;
+    }
+
     barrier.sync(cooperative, cuda::memory_order_acquire);
-    ncclLsaReduceSumCopy<float>(cooperative, source, 0, destination, 0, 1, ncclTeamLsa(devcomm));
+
+    if (devcomm.lsaRank == 0)
+    {
+      float total = value;
+      for (int peer = 1; peer < devcomm.lsaSize; ++peer)
+      {
+        total += *static_cast<const float*>(ncclGetLsaPointer(source, 0, peer));
+      }
+      *destination = total;
+    }
+
+    // Keeps a fast rank from overwriting its aggregate while rank 0 still reads the previous one.
     barrier.sync(cooperative, cuda::memory_order_release);
   }
 };
@@ -75,7 +84,6 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   device.init();
 
   // One rank per locality domain, so each rank's SMs and its data sit in the same partition.
-  // `ncclLsaReduceSumCopy` reduces across the whole LSA team, so any rank count works.
   const auto rank_count = static_cast<int>(mgmn::locality::domain_count(device));
   if (rank_count < 2)
   {
@@ -110,16 +118,10 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     completed.emplace_back(device);
   }
 
-  // Each domain owns its input share and CUB destination, drawn from that domain's localized pool.
-  // The green context is made current so the fill kernel that writes the initial values also runs
-  // on that domain's SMs.
   std::vector<cuda::device_buffer<float>> inputs;
   std::vector<cuda::device_buffer<float>> outputs;
-  // The scalars registered as NCCL symmetric windows must come from `ncclMemAlloc` rather than from
-  // any memory pool: `ncclCommWindowRegister` resolves the backing allocation with
-  // `cuMemGetAddressRange`, which rejects stream-ordered pool allocations - both the localized pool
-  // and the device default pool - with `invalid argument`. Their placement is otherwise irrelevant
-  // here, being single floats touched once per reduction by the epilogue.
+  // Registered windows must come from `ncclMemAlloc`: `ncclCommWindowRegister` resolves the backing
+  // allocation with `cuMemGetAddressRange`, which rejects stream-ordered pool allocations.
   std::vector<mgmn::nccl_buffer<float>> aggregates;
   std::vector<mgmn::nccl_buffer<float>> destinations;
 
@@ -211,9 +213,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     s.sync();
   }
 
-  // The env pairs the domain's stream with its terminal epilogue. Both are fixed for the whole run,
-  // so they are built once here rather than per iteration: constructing them inside the timed loop
-  // would charge the measurement for host-side work that is not part of the reduction.
+  // Built once rather than per iteration, which would charge the measurement for host-side work.
   using env_type =
     decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, cub::terminal_epilogue(device_nccl_epilogue{})});
 
@@ -223,16 +223,14 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   {
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
-      cub::terminal_epilogue(device_nccl_epilogue{
-        aggregates[rank].data(), windows[rank].devcomm, windows[rank].source, windows[rank].destination})});
+      cub::terminal_epilogue(
+        device_nccl_epilogue{windows[rank].devcomm, windows[rank].source, destinations[rank].data()})});
   }
 
   for (auto _ : state)
   {
     static_cast<void>(_);
     start.record(streams.front());
-    // Launch one reduction per locality domain, each over its own domain-local input. The stream was
-    // created against the domain's green context, so the kernel is confined to that domain's SMs.
     for (int rank = 0; rank != rank_count; ++rank)
     {
       _CCCL_TRY_CUDA_API(
@@ -245,9 +243,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         0.0F,
         envs[rank]);
     }
-    // Record every rank's completion before waiting on any of them. Interleaving the record and
-    // the wait makes each wait a barrier against the host issuing the next record, which shows up
-    // directly in the measurement at these timescales.
+    // All records before any waits: interleaving them blocks the host between records.
     for (int rank = 1; rank != rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);

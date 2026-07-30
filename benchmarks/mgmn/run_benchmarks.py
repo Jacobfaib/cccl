@@ -303,7 +303,25 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
     for row in summary["rows"]:
         lines.append("")
         lines.append(f"  n = {row['elements']:,}  ({format_bytes(row['input_bytes'])})")
-        for scenario in SCENARIOS:
+        # Fastest first, so the ranking at each size is apparent without comparing numbers.
+        # Scenarios with no measurement sort last; ties keep their declaration order.
+        ordered = sorted(
+            SCENARIOS,
+            key=lambda scenario: (
+                row[scenario]["median_seconds"] is None,
+                row[scenario]["median_seconds"] or 0.0,
+            ),
+        )
+        # The speedup bar is scaled to the fastest scenario in the group rather than to the
+        # baseline: a scenario that beats the baseline exceeds 1.0, and clamping every such case to
+        # a full bar would render them indistinguishable from the baseline itself.
+        speedups = [
+            row[scenario]["latency_speedup"]
+            for scenario in ordered
+            if row[scenario]["latency_speedup"] is not None
+        ]
+        speedup_scale = max(speedups) if speedups else 1.0
+        for scenario in ordered:
             value = row[scenario]
             if value["median_seconds"] is None:
                 cells = [scenario, "n/a", "n/a", "n/a", "n/a"][: len(columns)]
@@ -317,11 +335,11 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
                     f"{value['latency_speedup']:.3f}",
                     f"{sol * 100:.1f}%" if sol is not None else "n/a",
                 ][: len(columns)]
+                relative = value["latency_speedup"] / speedup_scale
                 bars = (
-                    f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
-                    f"  {bar(sol, SOL_BAR_WIDTH)}"
+                    f"  {bar(relative, SPEEDUP_BAR_WIDTH)}  {bar(sol, SOL_BAR_WIDTH)}"
                     if peak["gb_per_second"]
-                    else f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
+                    else f"  {bar(relative, SPEEDUP_BAR_WIDTH)}"
                 )
             body = "  ".join(
                 text.ljust(width) if align == "left" else text.rjust(width)

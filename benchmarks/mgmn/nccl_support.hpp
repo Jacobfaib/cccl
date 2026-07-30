@@ -21,13 +21,9 @@ inline void check_nccl(ncclResult_t status, const char* operation)
   }
 }
 
-//! Owning device allocation obtained from `ncclMemAlloc`.
-//!
-//! Memory that is to be registered as an NCCL symmetric window must come from `ncclMemAlloc`:
-//! `ncclCommWindowRegister` resolves the backing allocation via `cuMemGetAddressRange`, which fails
-//! with `invalid argument` for stream-ordered memory-pool allocations (`cudaMallocAsync` and
-//! anything built on it, including `cuda::make_buffer`). `ncclMemAlloc` returns a plain VA-backed
-//! allocation with the properties NCCL's symmetric memory path requires.
+//! Owning device allocation obtained from `ncclMemAlloc`, which is required for memory registered
+//! as an NCCL symmetric window: `ncclCommWindowRegister` resolves the backing allocation via
+//! `cuMemGetAddressRange`, which fails for stream-ordered memory-pool allocations.
 template <typename T>
 class nccl_buffer
 {

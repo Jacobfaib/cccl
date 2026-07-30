@@ -141,9 +141,7 @@ void benchmark_cub_green_atomic(benchmark::State& state)
         0.0F,
         envs[rank]);
     }
-    // Record every rank's completion before waiting on any of them. Interleaving the record and
-    // the wait makes each wait a barrier against the host issuing the next record, which shows up
-    // directly in the measurement at these timescales.
+    // All records before any waits: interleaving them blocks the host between records.
     for (int rank = 1; rank < rank_count; ++rank)
     {
       completed[rank].record(streams[rank]);
