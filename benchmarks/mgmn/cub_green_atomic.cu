@@ -134,7 +134,7 @@ void benchmark_cub_green_atomic(benchmark::State& state)
     start.record(streams.front());
     for (int rank = 0; rank < rank_count; ++rank)
     {
-      //cuda::__ensure_current_context guard{contexts[rank].__transformed};
+      // cuda::__ensure_current_context guard{contexts[rank].__transformed};
       _CCCL_TRY_CUDA_API(
         cub::DeviceReduce::Reduce,
         "Terminal-epilogue CUB reduction failed",

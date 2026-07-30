@@ -81,7 +81,10 @@ public:
   locality_domain_resource(cuda::device_ref device, unsigned int domain)
       : locality_domain_resource_ref{locality::create_domain_pool(device, domain), device, domain}
   {
-    if (device.peers().size()) { enable_access_from(device.peers()); }
+    if (device.peers().size())
+    {
+      enable_access_from(device.peers());
+    }
   }
 
   locality_domain_resource(const locality_domain_resource&)            = delete;

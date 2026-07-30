@@ -16,8 +16,86 @@ SCENARIOS = (
     "cub_full_device",
     "cudax_host_nccl",
     "cub_green_atomic",
-#    "cudax_device_nccl",
+    #    "cudax_device_nccl",
 )
+
+BASELINE = SCENARIOS[0]
+
+#! Peak memory bandwidth per CUDA device, in GB/s, keyed by (compute capability, total
+#! memory in MiB as reported by nvidia-smi).
+#!
+#! `nvidia-smi` exposes no bus width on any current driver branch, so the usual
+#! `2 * clock * width / 8` derivation is unavailable and the values below come from
+#! published specifications instead. Vera Rubin NVL72 quotes 1580 TB/s of aggregate HBM
+#! bandwidth across the rack; each package presents two CUDA devices, so the per-device
+#! figure is 1580e3 / 144. Entries are added only once confirmed - an unknown key yields
+#! no SOL column rather than a fabricated denominator.
+KNOWN_PEAK_BANDWIDTH = {
+    ("10.7", 286524): 1580e3 / 144,
+}
+
+
+def query_device(device: int) -> dict[str, str]:
+    """Return the nvidia-smi properties of `device`, or an empty mapping if unavailable."""
+    fields = ("name", "memory.total", "clocks.max.memory", "compute_cap")
+    try:
+        output = subprocess.run(
+            [
+                "nvidia-smi",
+                f"--query-gpu={','.join(fields)}",
+                "--format=csv,noheader,nounits",
+                f"--id={device}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {}
+    values = [value.strip() for value in output.strip().splitlines()[0].split(",")]
+    if len(values) != len(fields):
+        return {}
+    return dict(zip(fields, values))
+
+
+def resolve_peak_bandwidth(args: argparse.Namespace) -> dict[str, Any]:
+    """Determine the per-device peak bandwidth in GB/s used to compute speed-of-light.
+
+    Resolution order is explicit flag, environment variable, then the table above. The
+    result records its own provenance so a summary can always be traced back to the
+    number it was normalized against.
+    """
+    properties = query_device(args.device)
+    resolved: dict[str, Any] = {"device": properties, "gb_per_second": None}
+    if args.peak_bandwidth is not None:
+        resolved |= {"gb_per_second": args.peak_bandwidth, "source": "--peak-bandwidth"}
+        return resolved
+    override = os.environ.get("CCCL_PEAK_BANDWIDTH_GB_S")
+    if override:
+        try:
+            resolved |= {
+                "gb_per_second": float(override),
+                "source": "CCCL_PEAK_BANDWIDTH_GB_S",
+            }
+            return resolved
+        except ValueError:
+            print(f"ignoring malformed CCCL_PEAK_BANDWIDTH_GB_S={override!r}")
+    try:
+        key = (properties["compute_cap"], int(properties["memory.total"]))
+    except (KeyError, ValueError):
+        resolved["source"] = "unavailable (nvidia-smi did not report the device)"
+        return resolved
+    if key not in KNOWN_PEAK_BANDWIDTH:
+        resolved["source"] = (
+            f"unavailable (no table entry for compute capability {key[0]} with {key[1]} MiB;"
+            " pass --peak-bandwidth)"
+        )
+        return resolved
+    resolved |= {
+        "gb_per_second": KNOWN_PEAK_BANDWIDTH[key],
+        "source": f"table entry for compute capability {key[0]} with {key[1]} MiB",
+    }
+    return resolved
 
 
 def parse_sizes(value: str) -> list[int]:
@@ -86,7 +164,9 @@ def run(
         return process.wait()
 
 
-def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
+def summarize(
+    results: dict[str, Any], log_dir: pathlib.Path, peak: dict[str, Any]
+) -> dict[str, Any]:
     rows: dict[int, dict[str, Any]] = {}
     for scenario, result in results.items():
         if result.get("status") != "ok":
@@ -124,7 +204,8 @@ def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
                 "gb_per_second": row["input_bytes"] / median / 1e9,
                 "raw_seconds": samples,
             }
-        baseline = row["cub_full_device"]["median_seconds"]
+        baseline = row[BASELINE]["median_seconds"]
+        baseline_throughput = row[BASELINE].get("gb_per_second")
         for scenario in SCENARIOS:
             measurement = row[scenario]
             measurement["latency_speedup"] = (
@@ -133,66 +214,121 @@ def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
                 else None
             )
             measurement["throughput_ratio"] = (
-                measurement["gb_per_second"] / row["cub_full_device"]["gb_per_second"]
-                if baseline and measurement["median_seconds"]
+                measurement["gb_per_second"] / baseline_throughput
+                if baseline_throughput and measurement["median_seconds"]
+                else None
+            )
+            measurement["speed_of_light"] = (
+                measurement["gb_per_second"] / peak["gb_per_second"]
+                if peak["gb_per_second"] and measurement["median_seconds"]
                 else None
             )
         summary_rows.append(row)
-    return {"log_dir": str(log_dir), "scenarios": results, "rows": summary_rows}
+    return {
+        "log_dir": str(log_dir),
+        "scenarios": results,
+        "peak_bandwidth": peak,
+        "rows": summary_rows,
+    }
+
+
+SPEEDUP_BAR_WIDTH = 12
+SOL_BAR_WIDTH = 20
+
+
+def format_bytes(count: int) -> str:
+    size = float(count)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if size < 1024 or unit == "TiB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{size:.0f} B"
+        size /= 1024
+    raise AssertionError("unreachable")
+
+
+def bar(fraction: float | None, width: int) -> str:
+    """Render `fraction` of a bracketed track `width` characters wide.
+
+    A `+` terminates bars that overshoot a whole character by at least half of one, which
+    recovers most of the resolution a plain `#` scale would otherwise round away. Values
+    are clamped, so a scenario faster than the baseline still reads as a full track.
+    """
+    if fraction is None:
+        return "[" + "?".center(width) + "]"
+    filled = max(0.0, min(1.0, fraction)) * width
+    whole = int(filled)
+    half = "+" if whole < width and filled - whole >= 0.5 else ""
+    return "[" + ("#" * whole + half).ljust(width) + "]"
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    headers = ["Elements", "Scenario", "Median ms", "GB/s", "Speedup"]
-    aligns = ["left", "left", "left", "left", "left"]
+    peak = summary["peak_bandwidth"]
+    columns = [
+        ("Scenario", "left", max(len(s) for s in SCENARIOS)),
+        ("Median ms", "right", 9),
+        ("GB/s", "right", 9),
+        ("Speedup", "right", 7),
+        ("SOL", "right", 6),
+    ]
+    header = "  ".join(
+        title.ljust(width) if align == "left" else title.rjust(width)
+        for title, align, width in columns
+    )
+    header = f"    {header}"
+    if peak["gb_per_second"]:
+        header += (
+            f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+            f"  {'vs peak'.center(SOL_BAR_WIDTH + 2)}"
+        )
+    else:
+        header += f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
 
-    rows = []
+    lines = ["# MGMN benchmark summary", ""]
+    device = peak.get("device") or {}
+    if device:
+        lines.append(
+            f"Device {device.get('name', 'unknown')}"
+            f" (compute capability {device.get('compute_cap', '?')},"
+            f" {device.get('memory.total', '?')} MiB)"
+        )
+    if peak["gb_per_second"]:
+        lines.append(
+            f"Peak bandwidth {peak['gb_per_second']:.1f} GB/s"
+            f" via {peak['source']}. SOL is the fraction of that peak achieved."
+        )
+    else:
+        lines.append(f"Peak bandwidth {peak['source']}; SOL omitted.")
+    lines.extend(["", "```", header, "  " + "-" * (len(header) + 2)])
+
     for row in summary["rows"]:
+        lines.append("")
+        lines.append(f"  n = {row['elements']:,}  ({format_bytes(row['input_bytes'])})")
         for scenario in SCENARIOS:
             value = row[scenario]
             if value["median_seconds"] is None:
-                rows.append([str(row["elements"]), scenario, "N/A", "N/A", "N/A"])
+                cells = [scenario, "n/a", "n/a", "n/a", value["status"]]
+                bars = ""
             else:
-                rows.append(
-                    [
-                        str(row["elements"]),
-                        scenario,
-                        f"{value['median_seconds'] * 1e3:.3f}",
-                        f"{value['gb_per_second']:.3f}",
-                        f"{value['latency_speedup']:.3f}",
-                    ]
+                sol = value["speed_of_light"]
+                cells = [
+                    scenario,
+                    f"{value['median_seconds'] * 1e3:.3f}",
+                    f"{value['gb_per_second']:.3f}",
+                    f"{value['latency_speedup']:.3f}",
+                    f"{sol * 100:.1f}%" if sol is not None else "n/a",
+                ]
+                bars = (
+                    f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
+                    f"  {bar(sol, SOL_BAR_WIDTH)}"
+                    if peak["gb_per_second"]
+                    else f"  {bar(value['latency_speedup'], SPEEDUP_BAR_WIDTH)}"
                 )
+            body = "  ".join(
+                text.ljust(width) if align == "left" else text.rjust(width)
+                for text, (_, align, width) in zip(cells, columns)
+            )
+            lines.append(f"    {body}{bars}")
+    lines.append("```")
 
-    widths = [max(len(h), *(len(r[i]) for r in rows)) if rows else len(h) for i, h in enumerate(headers)]
-    
-    def fmt(cells):
-        return "| " + " | ".join(
-            c.rjust(w) if a == "right" else c.ljust(w) for c, w, a in zip(cells, widths, aligns)
-        ) + " |"
-
-    sep = "|" + "|".join(
-        ("-" * (w + 1) + ":") if a == "right" else (":" + "-" * (w + 1))
-        for w, a in zip(widths, aligns)
-    ) + "|"
-
-    lines = ["# MGMN benchmark summary", "", fmt(headers), sep]
-    lines.extend(fmt(r) for r in rows)
-    # lines = [
-    #     "# MGMN benchmark summary",
-    #     "",
-    #     "| Elements | Scenario | Median ms | GB/s | Speedup | Status |",
-    #     "|---------:|----------|----------:|-----:|--------:|--------|",
-    # ]
-    # for row in summary["rows"]:
-    #     for scenario in SCENARIOS:
-    #         value = row[scenario]
-    #         if value["median_seconds"] is None:
-    #             lines.append(
-    #                 f"| {row['elements']} | {scenario} | N/A | N/A | N/A | {value['status']} |"
-    #             )
-    #         else:
-    #             lines.append(
-    #                 f"| {row['elements']} | {scenario} | {value['median_seconds'] * 1e3:.3f} | {value['gb_per_second']:.3f} | {value['latency_speedup']:.3f} | ok |"
-    #             )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n")
     print(path.read_text())
@@ -220,9 +356,16 @@ def main() -> int:
     parser.add_argument("--warmup-time", type=float, default=0.01)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--benchmark-filter", default=".*")
+    parser.add_argument(
+        "--peak-bandwidth",
+        type=float,
+        help="per-device peak memory bandwidth in GB/s, used to compute speed-of-light;"
+        " overrides autodetection",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     sizes = make_sizes(args)
+    peak = resolve_peak_bandwidth(args)
     root = pathlib.Path(__file__).resolve().parent
     log_dir = args.log_dir or root / "benchmark-results" / dt.datetime.now(
         dt.timezone.utc
@@ -232,6 +375,7 @@ def main() -> int:
         "sizes": sizes,
         "device": args.device,
         "scenarios": list(SCENARIOS),
+        "peak_bandwidth": peak,
         "commands": [],
     }
     (log_dir / "manifest.json").write_text(
@@ -262,7 +406,7 @@ def main() -> int:
                 "NCCL_MULTI_RANK_GPU_ENABLE": "1",
                 "NCCL_NVLS_ENABLE": "0",
                 "NCCL_MAX_CTAS": "1",
-#                "NCCL_DEBUG": "INFO" if args.v > 1 else "WARN",
+                #                "NCCL_DEBUG": "INFO" if args.v > 1 else "WARN",
             }
         status = run(
             command, log_dir / f"{scenario}.log", args.v > 0, args.dry_run, env
@@ -279,9 +423,14 @@ def main() -> int:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     summary = (
-        summarize(results, log_dir)
+        summarize(results, log_dir, peak)
         if not args.dry_run
-        else {"log_dir": str(log_dir), "scenarios": results, "rows": []}
+        else {
+            "log_dir": str(log_dir),
+            "scenarios": results,
+            "peak_bandwidth": peak,
+            "rows": [],
+        }
     )
     (log_dir / "summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"

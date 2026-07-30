@@ -5,10 +5,10 @@
 #include <cuda/__event/event.h>
 #include <cuda/__event/timed_event.h>
 #include <cuda/__runtime/ensure_current_context.h>
+#include <cuda/barrier>
 #include <cuda/buffer>
 #include <cuda/std/execution>
 #include <cuda/stream>
-#include <cuda/barrier>
 
 #include <cuda/experimental/__device/logical_device.cuh>
 #include <cuda/experimental/__multi_gpu/algorithm/reduce/reduce.h>
@@ -57,11 +57,12 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
     std::vector<int> devs(rank_count);
 
     mgmn::check_nccl(ncclCommInitAll(raw_comms.data(), devs.size(), devs.data()), "ncclCommInitAll");
-    for (int rank = 0; rank < rank_count; ++rank) {
-      communicators.emplace_back(cudax::nccl_communicator::from_native_handle(raw_comms[rank], cudax::logical_device{contexts[rank]}));
+    for (int rank = 0; rank < rank_count; ++rank)
+    {
+      communicators.emplace_back(
+        cudax::nccl_communicator::from_native_handle(raw_comms[rank], cudax::logical_device{contexts[rank]}));
     }
   }
-
 
   std::vector<cuda::stream> streams;
   // Data locality: one memory-pool-backed resource per domain. The owning resource is non-movable
@@ -88,8 +89,11 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
   output_its.reserve(rank_count);
   for (int rank = 0; rank < rank_count; ++rank)
   {
-    cuda::stream_ref s = streams.emplace_back(cuda::stream::from_native_handle(mgmn::create_green_ctx_stream(contexts[rank].__green_ctx)));
-    auto res = resources.emplace_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)))->ref();
+    cuda::stream_ref s =
+      streams.emplace_back(cuda::stream::from_native_handle(mgmn::create_green_ctx_stream(contexts[rank].__green_ctx)));
+    auto res =
+      resources.emplace_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)))
+        ->ref();
     environments.emplace_back(cuda::std::execution::env{s, res});
 
     inputs_buf.emplace_back(cuda::make_buffer<float>(s, res, per_rank, 1.0F));
@@ -107,14 +111,15 @@ void benchmark_cudax_host_nccl(benchmark::State& state)
       return;
     }
   }
-  
+
   cuda::timed_event start{device};
   cuda::timed_event stop{device};
   std::vector<cuda::event> completed;
-  for (int rank = 0; rank < rank_count; ++rank) {
+  for (int rank = 0; rank < rank_count; ++rank)
+  {
     completed.emplace_back(device);
   }
-  
+
   for (auto _ : state)
   {
     static_cast<void>(_);

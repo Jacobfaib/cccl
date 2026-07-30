@@ -24,7 +24,8 @@ void benchmark_cub_full_device(benchmark::State& state)
   auto output      = cuda::make_device_buffer<float>(stream, device, 1, cuda::no_init);
 
   const auto env = cuda::std::execution::env{
-    cuda::stream_ref{stream}, input.memory_resource(),
+    cuda::stream_ref{stream},
+    input.memory_resource(),
     cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
 
   cuda::timed_event start{device};
@@ -35,7 +36,14 @@ void benchmark_cub_full_device(benchmark::State& state)
     static_cast<void>(_);
     start.record(stream);
     _CCCL_TRY_CUDA_API(
-		       cub::DeviceReduce::Reduce, "cub::DeviceReduce::Reduce failed", input.begin(), output.begin(), elements, ::cuda::std::plus<>{}, float{}, env);
+      cub::DeviceReduce::Reduce,
+      "cub::DeviceReduce::Reduce failed",
+      input.begin(),
+      output.begin(),
+      elements,
+      ::cuda::std::plus<>{},
+      float{},
+      env);
     stop.record(stream);
     stop.sync();
     state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
