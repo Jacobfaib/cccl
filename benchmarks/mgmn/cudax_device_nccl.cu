@@ -43,28 +43,26 @@ struct device_nccl_epilogue
   ncclWindow_t source{};
 
   template <typename OutputIteratorT>
-  _CCCL_DEVICE_API void operator()(float value, OutputIteratorT&& d_out) const noexcept
+  _CCCL_DEVICE_API void operator()(float value, OutputIteratorT) const noexcept
   {
-    const ncclCoopThread cooperative = ncclCoopThread{};
-    ncclLsaBarrierSession<ncclCoopThread> barrier{cooperative, devcomm, ncclTeamTagLsa(), 0};
+    const auto cooperative = ncclCoopCta{};
+    ncclLsaBarrierSession<ncclCoopCta> barrier{cooperative, devcomm, ncclTeamTagLsa(), blockIdx.x};
+    const int rank   = devcomm.rank;
+    const int nRanks = devcomm.nRanks;
 
-    *static_cast<float*>(ncclGetLocalPointer(source, 0)) = value;
+    barrier.sync(cooperative, cuda::memory_order_acquire);
 
-    barrier.sync(cooperative, cuda::memory_order_acq_rel);
+    auto* local_pointer = static_cast<float*>(ncclGetLocalPointer(source, 0));
 
-    if (devcomm.lsaRank == 0)
+    for (int peer = 0; peer < nRanks; ++peer)
     {
-      float total = 0.0F;
-      for (int peer = 0; peer < devcomm.lsaSize; ++peer)
+      if (rank == peer)
       {
-        total += *static_cast<const float*>(ncclGetLsaPointer(source, 0, peer));
+        continue;
       }
-      *static_cast<float*>(ncclGetLocalPointer(source, 0)) = total;
+      value += *static_cast<const float*>(ncclGetLsaPointer(source, 0, rank));
     }
-
-    barrier.sync(cooperative, cuda::memory_order_acq_rel);
-
-    *d_out = *static_cast<const float*>(ncclGetLsaPointer(source, 0, 0));
+    *local_pointer = value;
 
     barrier.sync(cooperative, cuda::memory_order_release);
   }
