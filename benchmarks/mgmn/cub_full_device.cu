@@ -3,56 +3,53 @@
 
 #include <cub/device/device_reduce.cuh>
 
-#include <cuda/__event/timed_event.h>
 #include <cuda/__runtime/api_wrapper.h>
 #include <cuda/buffer>
+#include <cuda/std/execution>
+#include <cuda/std/functional>
 #include <cuda/stream>
 
-#include <cstdint>
-#include <vector>
+#include <cstddef>
 
 #include "common.hpp"
+#include <nvbench/nvbench.cuh>
 
 namespace
 {
-void benchmark_cub_full_device(benchmark::State& state)
+//! Baseline: one CUB reduction over the whole device, with no locality partitioning. Every other
+//! scenario is ranked against this one.
+void cub_full_device(nvbench::state& state)
 {
-  const auto elements = static_cast<std::size_t>(state.range(0));
-  const auto device   = cuda::devices[0];
+  const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
+  const auto device   = mgmn::state_device(state);
   cuda::stream stream{device};
+
   const auto input = cuda::make_device_buffer<float>(stream, device, elements, 1.0F);
   auto output      = cuda::make_device_buffer<float>(stream, device, 1, cuda::no_init);
+  stream.sync();
 
   const auto env = cuda::std::execution::env{
-    cuda::stream_ref{stream},
-    input.memory_resource(),
-    cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
+    input.memory_resource(), cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
 
-  cuda::timed_event start{device};
-  cuda::timed_event stop{device};
+  mgmn::add_common_throughput(state, elements);
 
-  for (auto _ : state)
-  {
-    static_cast<void>(_);
-    start.record(stream);
+  state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
+    const auto env_with_stream = cuda::std::execution::env{cuda::stream_ref{launch.get_stream().get_stream()}, env};
+
     _CCCL_TRY_CUDA_API(
       cub::DeviceReduce::Reduce,
       "cub::DeviceReduce::Reduce failed",
       input.begin(),
       output.begin(),
       elements,
-      ::cuda::std::plus<>{},
+      cuda::std::plus<>{},
       float{},
-      env);
-    stop.record(stream);
-    stop.sync();
-    state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
-  }
-  mgmn::set_common_counters(state, elements);
+      env_with_stream);
+  });
 }
 } // namespace
 
-int main(int argc, char** argv)
-{
-  return mgmn::run_benchmark(argc, argv, "cub_full_device", benchmark_cub_full_device);
-}
+NVBENCH_BENCH(cub_full_device)
+  .set_name("cub_full_device")
+  .add_int64_power_of_two_axis("Elements",
+                               nvbench::range(mgmn::min_elements_pow2, mgmn::max_elements_pow2, mgmn::elements_stride));

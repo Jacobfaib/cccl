@@ -3,12 +3,12 @@
 
 #include <cub/device/device_reduce.cuh>
 
-#include <cuda/__driver/driver_api.h>
 #include <cuda/__event/event.h>
-#include <cuda/__event/timed_event.h>
+#include <cuda/__runtime/api_wrapper.h>
 #include <cuda/__runtime/ensure_current_context.h>
 #include <cuda/buffer>
 #include <cuda/std/execution>
+#include <cuda/std/functional>
 #include <cuda/stream>
 
 #include <cstddef>
@@ -23,6 +23,7 @@
 #include "locality_domain.hpp"
 #include "locality_domain_resource.hpp"
 #include "nccl_support.hpp"
+#include <nvbench/nvbench.cuh>
 
 namespace
 {
@@ -68,10 +69,10 @@ struct device_nccl_epilogue
   }
 };
 
-void benchmark_cudax_device_nccl(benchmark::State& state)
+void cudax_device_nccl(nvbench::state& state)
 {
-  const auto elements = static_cast<std::size_t>(state.range(0));
-  const auto device   = cuda::devices[0];
+  const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
+  const auto device   = mgmn::state_device(state);
 
   cudaSetDevice(device.get());
   cudaDeviceSynchronize();
@@ -81,7 +82,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   const auto rank_count = static_cast<int>(mgmn::locality::domain_count(device));
   if (rank_count < 2)
   {
-    state.SkipWithError("the GPU does not expose multiple locality domains");
+    state.skip("the GPU does not expose multiple locality domains");
     return;
   }
   const auto per_rank = elements / rank_count;
@@ -103,13 +104,14 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
     resources.push_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)));
   }
 
-  cuda::timed_event start{device};
-  cuda::timed_event stop{device};
-  std::vector<cuda::event> completed;
-  completed.reserve(rank_count);
+  // Built once: creating events inside the measured region would charge the measurement for that
+  // host work.
+  cuda::event fork{device};
+  std::vector<cuda::event> join;
+  join.reserve(rank_count);
   for (int rank = 0; rank != rank_count; ++rank)
   {
-    completed.emplace_back(device);
+    join.emplace_back(device);
   }
 
   std::vector<cuda::device_buffer<float>> inputs;
@@ -140,7 +142,7 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   {
     if (mgmn::locality::pointer_domain(inputs[rank].data()) != static_cast<unsigned int>(rank))
     {
-      state.SkipWithError("an input buffer did not land in its requested locality domain");
+      state.skip("an input buffer did not land in its requested locality domain");
       return;
     }
   }
@@ -212,39 +214,25 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
         aggregates[rank].data(), windows[rank].devcomm, windows[rank].source, windows[rank].destination})});
   }
 
-  for (auto _ : state)
-  {
-    static_cast<void>(_);
-    start.record(streams.front());
-    // Launch one reduction per locality domain, each over its own domain-local input. The stream was
-    // created against the domain's green context, so the kernel is confined to that domain's SMs.
-    for (int rank = 0; rank != rank_count; ++rank)
-    {
-      _CCCL_TRY_CUDA_API(
-        cub::DeviceReduce::Reduce,
-        "Device-NCCL terminal-epilogue reduction failed",
-        inputs[rank].data(),
-        outputs[rank].data(),
-        per_rank,
-        cuda::std::plus<>{},
-        0.0F,
-        envs[rank]);
-    }
-    // Record every rank's completion before waiting on any of them. Interleaving the record and
-    // the wait makes each wait a barrier against the host issuing the next record, which shows up
-    // directly in the measurement at these timescales.
-    for (int rank = 1; rank != rank_count; ++rank)
-    {
-      completed[rank].record(streams[rank]);
-    }
-    for (int rank = 1; rank != rank_count; ++rank)
-    {
-      streams.front().wait(completed[rank]);
-    }
-    stop.record(streams.front());
-    stop.sync();
-    state.SetIterationTime(static_cast<double>((stop - start).count()) / 1'000'000'000.0);
-  }
+  mgmn::add_common_throughput(state, elements, rank_count);
+  mgmn::add_domain_count(state, rank_count);
+
+  state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
+    mgmn::run_forked_iteration(cuda::stream_ref{launch.get_stream().get_stream()}, streams, fork, join, [&] {
+      for (int rank = 0; rank < rank_count; ++rank)
+      {
+        _CCCL_TRY_CUDA_API(
+          cub::DeviceReduce::Reduce,
+          "Device-NCCL terminal-epilogue reduction failed",
+          inputs[rank].data(),
+          outputs[rank].data(),
+          per_rank,
+          cuda::std::plus<>{},
+          0.0F,
+          envs[rank]);
+      }
+    });
+  });
 
   const auto teardown_rank = [&](int rank) {
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
@@ -262,14 +250,10 @@ void benchmark_cudax_device_nccl(benchmark::State& state)
   {
     task.get();
   }
-
-  const auto sm_count = ::cuda::__driver::__deviceGetAttribute(CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, device.get());
-  mgmn::set_common_counters(state, static_cast<std::size_t>(elements), static_cast<unsigned int>(sm_count));
-  state.counters["locality_domains"] = static_cast<double>(rank_count);
 }
 } // namespace
 
-int main(int argc, char** argv)
-{
-  return mgmn::run_benchmark(argc, argv, "cudax_device_nccl", benchmark_cudax_device_nccl);
-}
+NVBENCH_BENCH(cudax_device_nccl)
+  .set_name("cudax_device_nccl")
+  .add_int64_power_of_two_axis("Elements",
+                               nvbench::range(mgmn::min_elements_pow2, mgmn::max_elements_pow2, mgmn::elements_stride));

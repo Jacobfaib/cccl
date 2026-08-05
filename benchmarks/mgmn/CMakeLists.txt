@@ -6,19 +6,9 @@ find_package(CUDAToolkit REQUIRED)
 
 cccl_get_nccl(REQUIRED)
 
-# Pull google-benchmark through CPM, which ships in the CCCL repo's cmake directory.
-# CPMFindPackage prefers an existing local install and downloads the pinned tag otherwise.
-include("${CCCL_SOURCE_DIR}/cmake/CPM.cmake")
-CPMFindPackage(
-  NAME benchmark
-  VERSION 1.9.5
-  GIT_REPOSITORY
-  "https://github.com/google/benchmark.git"
-  GIT_TAG v1.9.5
-  OPTIONS
-  "BENCHMARK_ENABLE_TESTING OFF"
-  "BENCHMARK_ENABLE_INSTALL OFF"
-)
+# NVBench, pinned by `CCCL_NVBENCH_SHA` and shared with the other CCCL benchmark suites.
+# `nvbench::main` supplies `main()`, so these sources define benchmarks only.
+cccl_get_nvbench()
 
 function(add_mgmn_benchmark target source)
   add_executable(${target} ${source})
@@ -28,7 +18,7 @@ function(add_mgmn_benchmark target source)
       libcudacxx::libcudacxx
       cudax::cudax
       CUB::CUB
-      benchmark::benchmark
+      nvbench::main
       CUDA::cuda_driver
       NCCL::nccl
   )
