@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Run and summarize the independently built MGMN reduction benchmarks."""
+"""Run and summarize the independently built MGMN reduction benchmarks.
+
+Each scenario is a separate NVBench executable, so NVBench cannot rank them against each
+other. This script runs all four, reads their JSON output, and emits a per-size comparison
+against the `cub_full_device` baseline.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +13,6 @@ import datetime as dt
 import json
 import os
 import pathlib
-import statistics
 import subprocess
 from typing import Any
 
@@ -21,81 +25,14 @@ SCENARIOS = (
 
 BASELINE = SCENARIOS[0]
 
-#! Peak memory bandwidth per CUDA device, in GB/s, keyed by (compute capability, total
-#! memory in MiB as reported by nvidia-smi).
-#!
-#! `nvidia-smi` exposes no bus width on any current driver branch, so the usual
-#! `2 * clock * width / 8` derivation is unavailable and the values below come from
-#! published specifications instead. Vera Rubin NVL72 quotes 1580 TB/s of aggregate HBM
-#! bandwidth across the rack; each package presents two CUDA devices, so the per-device
-#! figure is 1580e3 / 144. Entries are added only once confirmed - an unknown key yields
-#! no SOL column rather than a fabricated denominator.
-KNOWN_PEAK_BANDWIDTH = {
-    ("10.7", 286524): 1580e3 / 144,
-}
-
-
-def query_device(device: int) -> dict[str, str]:
-    """Return the nvidia-smi properties of `device`, or an empty mapping if unavailable."""
-    fields = ("name", "memory.total", "clocks.max.memory", "compute_cap")
-    try:
-        output = subprocess.run(
-            [
-                "nvidia-smi",
-                f"--query-gpu={','.join(fields)}",
-                "--format=csv,noheader,nounits",
-                f"--id={device}",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError):
-        return {}
-    values = [value.strip() for value in output.strip().splitlines()[0].split(",")]
-    if len(values) != len(fields):
-        return {}
-    return dict(zip(fields, values))
-
-
-def resolve_peak_bandwidth(args: argparse.Namespace) -> dict[str, Any]:
-    """Determine the per-device peak bandwidth in GB/s used to compute speed-of-light.
-
-    Resolution order is explicit flag, environment variable, then the table above. The
-    result records its own provenance so a summary can always be traced back to the
-    number it was normalized against.
-    """
-    properties = query_device(args.device)
-    resolved: dict[str, Any] = {"device": properties, "gb_per_second": None}
-    if args.peak_bandwidth is not None:
-        resolved |= {"gb_per_second": args.peak_bandwidth, "source": "--peak-bandwidth"}
-        return resolved
-    override = os.environ.get("CCCL_PEAK_BANDWIDTH_GB_S")
-    if override:
-        try:
-            resolved |= {
-                "gb_per_second": float(override),
-                "source": "CCCL_PEAK_BANDWIDTH_GB_S",
-            }
-            return resolved
-        except ValueError:
-            print(f"ignoring malformed CCCL_PEAK_BANDWIDTH_GB_S={override!r}")
-    try:
-        key = (properties["compute_cap"], int(properties["memory.total"]))
-    except (KeyError, ValueError):
-        resolved["source"] = "unavailable (nvidia-smi did not report the device)"
-        return resolved
-    if key not in KNOWN_PEAK_BANDWIDTH:
-        resolved["source"] = (
-            f"unavailable (no table entry for compute capability {key[0]} with {key[1]} MiB;"
-            " pass --peak-bandwidth)"
-        )
-        return resolved
-    resolved |= {
-        "gb_per_second": KNOWN_PEAK_BANDWIDTH[key],
-        "source": f"table entry for compute capability {key[0]} with {key[1]} MiB",
-    }
-    return resolved
+#! NVBench summary tags read out of each state. NVBench derives the bandwidth figures from
+#! the element counts and byte volumes the benchmarks declare, and normalizes utilization
+#! against the device's own peak bandwidth, so no peak-bandwidth table is needed here.
+GPU_TIME_TAG = "nv/cold/time/gpu/mean"
+GPU_NOISE_TAG = "nv/cold/time/gpu/stdev/relative"
+BANDWIDTH_TAG = "nv/cold/bw/global/bytes_per_second"
+UTILIZATION_TAG = "nv/cold/bw/global/utilization"
+SAMPLES_TAG = "nv/cold/sample_size"
 
 
 def parse_sizes(value: str) -> list[int]:
@@ -110,31 +47,34 @@ def parse_sizes(value: str) -> list[int]:
     return sizes
 
 
-def make_sizes(args: argparse.Namespace) -> list[int]:
+def make_axis_override(args: argparse.Namespace) -> str | None:
+    """Build the NVBench `-a` argument that overrides the `Elements` axis.
+
+    Returns None when the defaults compiled into the benchmarks are wanted. The axis is
+    declared power-of-two, so explicit sizes are passed as exponents and must therefore be
+    exact powers of two.
+    """
     if args.sizes:
-        sizes = args.sizes
-    else:
-        if args.range_multiplier < 2:
-            raise ValueError("--range-multiplier must be at least two")
-        if args.min_elements <= 0 or args.max_elements < args.min_elements:
-            raise ValueError("invalid element range")
-        sizes = []
-        size = args.min_elements
-        while size <= args.max_elements:
-            sizes.append(size)
-            if size > args.max_elements // args.range_multiplier:
-                break
-            size *= args.range_multiplier
-        if (
-            sizes[-1] != args.max_elements
-            and sizes[-1] * args.range_multiplier <= args.max_elements
-        ):
-            raise ValueError("element range does not terminate safely")
-    if any(size % 2 for size in sizes):
-        raise ValueError(
-            "all sizes must be divisible by two for green-context scenarios"
-        )
-    return sizes
+        exponents = []
+        for size in args.sizes:
+            if size & (size - 1):
+                raise ValueError(
+                    f"size {size} is not a power of two; the Elements axis is pow2"
+                )
+            exponents.append(size.bit_length() - 1)
+        return "Elements[pow2]=[" + ",".join(map(str, exponents)) + "]"
+    if (
+        args.min_elements_pow2 is None
+        and args.max_elements_pow2 is None
+        and args.stride is None
+    ):
+        return None
+    low = args.min_elements_pow2 if args.min_elements_pow2 is not None else 20
+    high = args.max_elements_pow2 if args.max_elements_pow2 is not None else 28
+    stride = args.stride if args.stride is not None else 2
+    if low <= 0 or high < low or stride < 1:
+        raise ValueError("invalid element exponent range")
+    return f"Elements[pow2]=[{low}:{high}:{stride}]"
 
 
 def run(
@@ -164,76 +104,98 @@ def run(
         return process.wait()
 
 
-def summarize(
-    results: dict[str, Any], log_dir: pathlib.Path, peak: dict[str, Any]
-) -> dict[str, Any]:
-    rows: dict[int, dict[str, Any]] = {}
-    for scenario, result in results.items():
-        if result.get("status") != "ok":
+def summary_value(state: dict[str, Any], tag: str) -> float | None:
+    """Read the scalar `value` of the summary tagged `tag` out of one NVBench state.
+
+    NVBench writes every summary datum as a `{name, type, value}` triple with the value
+    rendered as a string, so the number is recovered here rather than taken as-is.
+    """
+    for summary in state.get("summaries", []):
+        if summary.get("tag") != tag:
             continue
-        for benchmark in result["json"].get("benchmarks", []):
-            elements = benchmark.get("elements")
-            if elements is None or benchmark.get("run_type") == "aggregate":
+        for datum in summary.get("data", []):
+            if datum.get("name") == "value":
+                try:
+                    return float(datum["value"])
+                except (KeyError, TypeError, ValueError):
+                    return None
+    return None
+
+
+def axis_value(state: dict[str, Any], name: str) -> int | None:
+    for value in state.get("axis_values", []):
+        if value.get("name") == name:
+            try:
+                return int(float(value["value"]))
+            except (KeyError, TypeError, ValueError):
+                return None
+    return None
+
+
+def collect(document: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    """Reduce one NVBench JSON document to a measurement per element count."""
+    measurements: dict[int, dict[str, Any]] = {}
+    for benchmark in document.get("benchmarks", []):
+        for state in benchmark.get("states", []):
+            elements = axis_value(state, "Elements")
+            if elements is None:
                 continue
-            row = rows.setdefault(
-                int(elements),
-                {"elements": int(elements), "input_bytes": int(elements) * 4},
-            )
-            row.setdefault(scenario, []).append(float(benchmark["real_time"]) / 1e9)
-    summary_rows = []
-    for elements in sorted(rows):
-        row = rows[elements]
-        for scenario in SCENARIOS:
-            samples = row.get(scenario, [])
-            if not samples:
-                row[scenario] = {
-                    "status": results[scenario]["status"],
-                    "median_seconds": None,
+            if state.get("is_skipped"):
+                measurements[elements] = {
+                    "status": f"skipped ({state.get('skip_reason', 'no reason given')})",
+                    "seconds": None,
                 }
                 continue
-            median = statistics.median(samples)
-            mean = statistics.fmean(samples)
-            deviation = statistics.stdev(samples) if len(samples) > 1 else 0.0
-            row[scenario] = {
+            seconds = summary_value(state, GPU_TIME_TAG)
+            if seconds is None:
+                continue
+            measurements[elements] = {
                 "status": "ok",
-                "iterations": len(samples),
-                "median_seconds": median,
-                "mean_seconds": mean,
-                "stddev_seconds": deviation,
-                "coefficient_of_variation": deviation / mean if mean else 0.0,
-                "gb_per_second": row["input_bytes"] / median / 1e9,
-                "raw_seconds": samples,
+                "seconds": seconds,
+                "noise": summary_value(state, GPU_NOISE_TAG),
+                "samples": summary_value(state, SAMPLES_TAG),
+                "gb_per_second": (
+                    value / 1e9
+                    if (value := summary_value(state, BANDWIDTH_TAG)) is not None
+                    else None
+                ),
+                "utilization": summary_value(state, UTILIZATION_TAG),
             }
-        baseline = row[BASELINE]["median_seconds"]
-        baseline_throughput = row[BASELINE].get("gb_per_second")
+    return measurements
+
+
+def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
+    per_scenario = {
+        scenario: collect(result["json"])
+        for scenario, result in results.items()
+        if result.get("status") == "ok" and "json" in result
+    }
+    elements_seen = sorted(
+        {elements for values in per_scenario.values() for elements in values}
+    )
+
+    rows = []
+    for elements in elements_seen:
+        row: dict[str, Any] = {"elements": elements, "input_bytes": elements * 4}
+        for scenario in SCENARIOS:
+            row[scenario] = per_scenario.get(scenario, {}).get(
+                elements,
+                {"status": results[scenario]["status"], "seconds": None},
+            )
+        baseline = row[BASELINE]["seconds"]
         for scenario in SCENARIOS:
             measurement = row[scenario]
             measurement["latency_speedup"] = (
-                baseline / measurement["median_seconds"]
-                if baseline and measurement["median_seconds"]
+                baseline / measurement["seconds"]
+                if baseline and measurement["seconds"]
                 else None
             )
-            measurement["throughput_ratio"] = (
-                measurement["gb_per_second"] / baseline_throughput
-                if baseline_throughput and measurement["median_seconds"]
-                else None
-            )
-            measurement["speed_of_light"] = (
-                measurement["gb_per_second"] / peak["gb_per_second"]
-                if peak["gb_per_second"] and measurement["median_seconds"]
-                else None
-            )
-        summary_rows.append(row)
-    return {
-        "log_dir": str(log_dir),
-        "scenarios": results,
-        "peak_bandwidth": peak,
-        "rows": summary_rows,
-    }
+        rows.append(row)
+    return {"log_dir": str(log_dir), "scenarios": results, "rows": rows}
 
 
 SPEEDUP_BAR_WIDTH = 12
-SOL_BAR_WIDTH = 20
+UTILIZATION_BAR_WIDTH = 20
 
 
 def format_bytes(count: int) -> str:
@@ -261,44 +223,33 @@ def bar(fraction: float | None, width: int) -> str:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
-    peak = summary["peak_bandwidth"]
     columns = [
         ("Scenario", "left", max(len(s) for s in SCENARIOS)),
-        ("Median ms", "right", 9),
+        ("GPU ms", "right", 9),
         ("GB/s", "right", 9),
         ("Speedup", "right", 7),
+        ("BWUtil", "right", 6),
     ]
-    if peak["gb_per_second"]:
-        columns.append(("SOL", "right", 6))
     header = "  ".join(
         title.ljust(width) if align == "left" else title.rjust(width)
         for title, align, width in columns
     )
-    header = f"    {header}"
-    if peak["gb_per_second"]:
-        header += (
-            f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
-            f"  {'vs peak'.center(SOL_BAR_WIDTH + 2)}"
-        )
-    else:
-        header += f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+    header = (
+        f"    {header}"
+        f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+        f"  {'vs peak'.center(UTILIZATION_BAR_WIDTH + 2)}"
+    )
 
-    lines = ["# MGMN benchmark summary", ""]
-    device = peak.get("device") or {}
-    if device:
-        lines.append(
-            f"Device {device.get('name', 'unknown')}"
-            f" (compute capability {device.get('compute_cap', '?')},"
-            f" {device.get('memory.total', '?')} MiB)"
-        )
-    if peak["gb_per_second"]:
-        lines.append(
-            f"Peak bandwidth {peak['gb_per_second']:.1f} GB/s"
-            f" via {peak['source']}. SOL is the fraction of that peak achieved."
-        )
-    else:
-        lines.append(f"Peak bandwidth {peak['source']}; SOL omitted.")
-    lines.extend(["", "```", header, "  " + "-" * (len(header) + 2)])
+    lines = [
+        "# MGMN benchmark summary",
+        "",
+        "GPU times are NVBench cold-measurement means. BWUtil is NVBench's global memory",
+        "bandwidth utilization, normalized against the device's own peak bandwidth.",
+        "",
+        "```",
+        header,
+        "  " + "-" * (len(header) + 2),
+    ]
 
     for row in summary["rows"]:
         lines.append("")
@@ -308,8 +259,8 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         ordered = sorted(
             SCENARIOS,
             key=lambda scenario: (
-                row[scenario]["median_seconds"] is None,
-                row[scenario]["median_seconds"] or 0.0,
+                row[scenario]["seconds"] is None,
+                row[scenario]["seconds"] or 0.0,
             ),
         )
         # The speedup bar is scaled to the fastest scenario in the group rather than to the
@@ -323,23 +274,24 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         speedup_scale = max(speedups) if speedups else 1.0
         for scenario in ordered:
             value = row[scenario]
-            if value["median_seconds"] is None:
-                cells = [scenario, "n/a", "n/a", "n/a", "n/a"][: len(columns)]
+            if value["seconds"] is None:
+                cells = [scenario, "n/a", "n/a", "n/a", "n/a"]
                 bars = f"  {value['status']}"
             else:
-                sol = value["speed_of_light"]
+                utilization = value.get("utilization")
+                bandwidth = value.get("gb_per_second")
+                # NVBench reports utilization as a fraction of peak, not a percentage.
                 cells = [
                     scenario,
-                    f"{value['median_seconds'] * 1e3:.3f}",
-                    f"{value['gb_per_second']:.3f}",
+                    f"{value['seconds'] * 1e3:.3f}",
+                    f"{bandwidth:.3f}" if bandwidth is not None else "n/a",
                     f"{value['latency_speedup']:.3f}",
-                    f"{sol * 100:.1f}%" if sol is not None else "n/a",
-                ][: len(columns)]
+                    f"{utilization * 100.0:.1f}%" if utilization is not None else "n/a",
+                ]
                 relative = value["latency_speedup"] / speedup_scale
                 bars = (
-                    f"  {bar(relative, SPEEDUP_BAR_WIDTH)}  {bar(sol, SOL_BAR_WIDTH)}"
-                    if peak["gb_per_second"]
-                    else f"  {bar(relative, SPEEDUP_BAR_WIDTH)}"
+                    f"  {bar(relative, SPEEDUP_BAR_WIDTH)}"
+                    f"  {bar(utilization, UTILIZATION_BAR_WIDTH)}"
                 )
             body = "  ".join(
                 text.ljust(width) if align == "left" else text.rjust(width)
@@ -367,60 +319,57 @@ def main() -> int:
     )
     parser.add_argument("--log-dir", type=pathlib.Path)
     parser.add_argument("--device", type=int, default=0)
-    # Below roughly a mebielement every scenario is dominated by fixed launch and event
-    # overhead - the multi-domain variants sit at a flat ~30us from 1Ki to 4Mi elements,
-    # independent of the data - so the sweep starts where the reduction itself dominates.
-    parser.add_argument("--min-elements", type=int, default=1 << 20)
-    parser.add_argument("--max-elements", type=int, default=1 << 28)
-    parser.add_argument("--range-multiplier", type=int, default=4)
-    parser.add_argument("--sizes", type=parse_sizes)
-    parser.add_argument("--min-time", type=float, default=0.5)
-    parser.add_argument("--warmup-time", type=float, default=0.01)
-    parser.add_argument("--repetitions", type=int, default=3)
-    parser.add_argument("--benchmark-filter", default=".*")
+    # The benchmarks compile in a 2^20..2^28 sweep. These flags override that axis; leaving
+    # them unset runs the compiled-in default.
+    parser.add_argument("--min-elements-pow2", type=int)
+    parser.add_argument("--max-elements-pow2", type=int)
+    parser.add_argument("--stride", type=int)
     parser.add_argument(
-        "--peak-bandwidth",
-        type=float,
-        help="per-device peak memory bandwidth in GB/s, used to compute speed-of-light;"
-        " overrides autodetection",
+        "--sizes",
+        type=parse_sizes,
+        help="explicit element counts; each must be a power of two",
     )
+    parser.add_argument("--min-time", type=float, default=0.5)
+    parser.add_argument("--max-noise", type=float)
+    parser.add_argument("--timeout", type=float)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    sizes = make_sizes(args)
-    peak = resolve_peak_bandwidth(args)
+
+    axis = make_axis_override(args)
     root = pathlib.Path(__file__).resolve().parent
     log_dir = args.log_dir or root / "benchmark-results" / dt.datetime.now(
         dt.timezone.utc
     ).strftime("%Y%m%dT%H%M%SZ")
     log_dir.mkdir(parents=True, exist_ok=True)
-    manifest = {
-        "sizes": sizes,
+    manifest: dict[str, Any] = {
+        "axis": axis,
         "device": args.device,
         "scenarios": list(SCENARIOS),
-        "peak_bandwidth": peak,
         "commands": [],
     }
-    (log_dir / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
     results: dict[str, Any] = {}
     for scenario in SCENARIOS:
         json_path = log_dir / f"{scenario}.json"
         executable = args.binary_dir / scenario
         if not args.dry_run and not executable.is_file():
             raise FileNotFoundError(f"missing benchmark executable: {executable}")
+        # `CUDA_VISIBLE_DEVICES` already restricts the process to one GPU, which NVBench then
+        # sees as device 0. Without `-d` NVBench would sweep every device it can see.
         command = [
             str(executable),
-            f"--cccl-benchmark-sizes={','.join(map(str, sizes))}",
-            f"--benchmark_min_time={args.min_time}s",
-            f"--benchmark_min_warmup_time={args.warmup_time}",
-            f"--benchmark_repetitions={args.repetitions}",
-            "--benchmark_display_aggregates_only=true",
-            "--benchmark_report_aggregates_only=false",
-            "--benchmark_out_format=json",
-            f"--benchmark_out={json_path}",
-            f"--benchmark_filter={args.benchmark_filter}",
+            "--json",
+            str(json_path),
+            "-d",
+            "0",
+            "--min-time",
+            str(args.min_time),
         ]
+        if axis is not None:
+            command += ["-a", axis]
+        if args.max_noise is not None:
+            command += ["--max-noise", str(args.max_noise)]
+        if args.timeout is not None:
+            command += ["--timeout", str(args.timeout)]
         manifest["commands"].append(command)
         env = os.environ | {"CUDA_VISIBLE_DEVICES": str(args.device)}
         if "nccl" in scenario:
@@ -428,7 +377,6 @@ def main() -> int:
                 "NCCL_MULTI_RANK_GPU_ENABLE": "1",
                 "NCCL_NVLS_ENABLE": "0",
                 "NCCL_MAX_CTAS": "1",
-                #                "NCCL_DEBUG": "INFO" if args.v > 1 else "WARN",
             }
         status = run(
             command, log_dir / f"{scenario}.log", args.v > 0, args.dry_run, env
@@ -445,14 +393,9 @@ def main() -> int:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     summary = (
-        summarize(results, log_dir, peak)
+        summarize(results, log_dir)
         if not args.dry_run
-        else {
-            "log_dir": str(log_dir),
-            "scenarios": results,
-            "peak_bandwidth": peak,
-            "rows": [],
-        }
+        else {"log_dir": str(log_dir), "scenarios": results, "rows": []}
     )
     (log_dir / "summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
