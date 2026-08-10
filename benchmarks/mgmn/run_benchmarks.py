@@ -13,6 +13,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 from typing import Any
 
@@ -69,9 +70,9 @@ def make_axis_override(args: argparse.Namespace) -> str | None:
         and args.stride is None
     ):
         return None
-    low = args.min_elements_pow2 if args.min_elements_pow2 is not None else 20
-    high = args.max_elements_pow2 if args.max_elements_pow2 is not None else 28
-    stride = args.stride if args.stride is not None else 2
+    low = args.min_elements_pow2 if args.min_elements_pow2 is not None else 28
+    high = args.max_elements_pow2 if args.max_elements_pow2 is not None else 32
+    stride = args.stride if args.stride is not None else 1
     if low <= 0 or high < low or stride < 1:
         raise ValueError("invalid element exponent range")
     return f"Elements[pow2]=[{low}:{high}:{stride}]"
@@ -102,6 +103,52 @@ def run(
             if verbose:
                 print(line, end="")
         return process.wait()
+
+
+def make_profile_command(
+    ncu: str,
+    report: pathlib.Path,
+    benchmark_command: list[str],
+    extra_args: list[str],
+    profile_axis: str | None,
+) -> list[str]:
+    """Wrap one benchmark invocation in `ncu`.
+
+    The profiled pass is a second, separate run: Nsight Compute serializes kernels and
+    replays them, so its timings are not comparable to the measurement pass. The benchmark
+    therefore runs with `--profile`, which makes NVBench execute each state one time only,
+    and writes no JSON of its own.
+    """
+    command = [
+        ncu,
+        "--set",
+        "full",
+        "--target-processes",
+        "all",
+        "--export",
+        str(report),
+        "--force-overwrite",
+    ]
+    command += extra_args
+    #! Drop `--json <path>` and `--min-time <value>`: the profiled pass supersedes neither
+    #! the JSON nor the sampling loop of the measurement pass.
+    benchmark: list[str] = []
+    skip_next = False
+    for item in benchmark_command:
+        if skip_next:
+            skip_next = False
+            continue
+        if item in ("--json", "--min-time", "--max-noise", "--timeout"):
+            skip_next = True
+            continue
+        if item == "-a" and profile_axis is not None:
+            skip_next = True
+            continue
+        benchmark.append(item)
+    benchmark.append("--profile")
+    if profile_axis is not None:
+        benchmark += ["-a", profile_axis]
+    return command + ["--"] + benchmark
 
 
 def summary_value(state: dict[str, Any], tag: str) -> float | None:
@@ -295,49 +342,23 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
                     f"  {bar(utilization, UTILIZATION_BAR_WIDTH)}"
                 )
 
-    widths = [
-        max(len(h), *(len(r[i]) for r in rows)) if rows else len(h)
-        for i, h in enumerate(headers)
+    profiles = [
+        (scenario, result["profile"])
+        for scenario, result in summary["scenarios"].items()
+        if "profile" in result
     ]
+    if profiles:
+        lines += [
+            "",
+            "## Nsight Compute reports",
+            "",
+            "Recorded in a separate pass at one element count, with kernel replay enabled.",
+            "These timings are not comparable to the table above.",
+            "",
+        ]
+        for scenario, profile in profiles:
+            lines.append(f"- `{scenario}`: {profile['status']} - `{profile['report']}`")
 
-    def fmt(cells):
-        return (
-            "| "
-            + " | ".join(
-                c.rjust(w) if a == "right" else c.ljust(w)
-                for c, w, a in zip(cells, widths, aligns)
-            )
-            + " |"
-        )
-
-    sep = (
-        "|"
-        + "|".join(
-            ("-" * (w + 1) + ":") if a == "right" else (":" + "-" * (w + 1))
-            for w, a in zip(widths, aligns)
-        )
-        + "|"
-    )
-
-    lines = ["# MGMN benchmark summary", "", fmt(headers), sep]
-    lines.extend(fmt(r) for r in rows)
-    # lines = [
-    #     "# MGMN benchmark summary",
-    #     "",
-    #     "| Elements | Scenario | Median ms | GB/s | Speedup | Status |",
-    #     "|---------:|----------|----------:|-----:|--------:|--------|",
-    # ]
-    # for row in summary["rows"]:
-    #     for scenario in SCENARIOS:
-    #         value = row[scenario]
-    #         if value["median_seconds"] is None:
-    #             lines.append(
-    #                 f"| {row['elements']} | {scenario} | N/A | N/A | N/A | {value['status']} |"
-    #             )
-    #         else:
-    #             lines.append(
-    #                 f"| {row['elements']} | {scenario} | {value['median_seconds'] * 1e3:.3f} | {value['gb_per_second']:.3f} | {value['latency_speedup']:.3f} | ok |"
-    #             )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n")
     print(path.read_text())
@@ -371,9 +392,51 @@ def main() -> int:
     parser.add_argument("--max-noise", type=float)
     parser.add_argument("--timeout", type=float)
     parser.add_argument("--dry-run", action="store_true")
+    # Profiling is a second pass per scenario. Nsight Compute serializes and replays
+    # kernels, so it must not run on top of the measurement pass.
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="record an Nsight Compute report per scenario in an extra pass",
+    )
+    parser.add_argument(
+        "--ncu",
+        default="ncu",
+        help="Nsight Compute executable used by --profile",
+    )
+    parser.add_argument(
+        "--ncu-args",
+        default="",
+        help="extra arguments passed to ncu, split on whitespace",
+    )
+    parser.add_argument(
+        "--profile-size",
+        type=int,
+        help="single element count to profile; must be a power of two "
+        "(default: the largest size of the measurement axis)",
+    )
     args = parser.parse_args()
 
     axis = make_axis_override(args)
+    ncu_args = args.ncu_args.split()
+    # A full `--set full` collection replays every kernel many times, so the profiled pass
+    # is restricted to one element count instead of the full sweep.
+    profile_axis: str | None = None
+    if args.profile:
+        if args.profile_size is not None:
+            if args.profile_size <= 0 or args.profile_size & (args.profile_size - 1):
+                raise ValueError("--profile-size must be a positive power of two")
+            exponent = args.profile_size.bit_length() - 1
+        elif args.sizes:
+            exponent = max(args.sizes).bit_length() - 1
+        else:
+            exponent = (
+                args.max_elements_pow2 if args.max_elements_pow2 is not None else 28
+            )
+        profile_axis = f"Elements[pow2]=[{exponent}]"
+        if not args.dry_run and shutil.which(args.ncu) is None:
+            raise FileNotFoundError(f"missing Nsight Compute executable: {args.ncu}")
+
     root = pathlib.Path(__file__).resolve().parent
     log_dir = args.log_dir or root / "benchmark-results" / dt.datetime.now(
         dt.timezone.utc
@@ -384,6 +447,8 @@ def main() -> int:
         "device": args.device,
         "scenarios": list(SCENARIOS),
         "commands": [],
+        "profile_axis": profile_axis,
+        "profile_commands": [],
     }
     results: dict[str, Any] = {}
     for scenario in SCENARIOS:
@@ -427,6 +492,25 @@ def main() -> int:
             results[scenario]["json"] = json.loads(
                 json_path.read_text(encoding="utf-8")
             )
+        if not args.profile:
+            continue
+        report = log_dir / f"{scenario}.ncu-rep"
+        profile_command = make_profile_command(
+            args.ncu, report, command, ncu_args, profile_axis
+        )
+        manifest["profile_commands"].append(profile_command)
+        profile_status = run(
+            profile_command,
+            log_dir / f"{scenario}.ncu.log",
+            args.v > 0,
+            args.dry_run,
+            env,
+        )
+        results[scenario]["profile"] = {
+            "status": "ok" if profile_status == 0 else f"failed ({profile_status})",
+            "report": str(report),
+            "log": str(log_dir / f"{scenario}.ncu.log"),
+        }
     (log_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
