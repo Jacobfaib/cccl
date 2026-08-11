@@ -43,8 +43,8 @@ struct device_nccl_epilogue
   ncclDevComm devcomm{};
   ncclWindow_t window{};
 
-  template <typename OutputIteratorT>
-  _CCCL_DEVICE_API void operator()(float value, OutputIteratorT) const noexcept
+  template <typename T, typename OutputIteratorT>
+  _CCCL_DEVICE_API void operator()(T value, OutputIteratorT) const noexcept
   {
     const auto cooperative = ncclCoopCta{};
     ncclLsaBarrierSession<ncclCoopCta> barrier{cooperative, devcomm, ncclTeamTagLsa(), blockIdx.x};
@@ -53,7 +53,7 @@ struct device_nccl_epilogue
 
     barrier.sync(cooperative, cuda::memory_order_acquire);
 
-    auto* const local_pointer = static_cast<float*>(ncclGetLocalPointer(window, 0));
+    auto* const local_pointer = static_cast<T*>(ncclGetLocalPointer(window, 0));
 
     for (int peer = 0; peer < nRanks; ++peer)
     {
@@ -61,7 +61,7 @@ struct device_nccl_epilogue
       {
         continue;
       }
-      value += *static_cast<const float*>(ncclGetLsaPointer(window, 0, rank));
+      value += *static_cast<const T*>(ncclGetLsaPointer(window, 0, rank));
     }
     *local_pointer = value;
 
@@ -231,9 +231,9 @@ void cudax_device_nccl(nvbench::state& state)
           "Device-NCCL terminal-epilogue reduction failed",
           inputs[rank].data(),
           outputs[rank].data(),
-          per_rank,
+          inputs[rank].size(),
           cuda::std::plus<>{},
-          0.0F,
+          T{},
           envs[rank]);
       }
     });

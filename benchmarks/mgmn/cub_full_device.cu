@@ -42,7 +42,7 @@ void cub_full_device(nvbench::state& state)
       "cub::DeviceReduce::Reduce failed",
       input.begin(),
       output.begin(),
-      elements,
+      input.size(),
       cuda::std::plus<>{},
       T{},
       env_with_stream);
