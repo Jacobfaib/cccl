@@ -66,8 +66,29 @@ struct TripleChevronFactory
     return ptx_compute_cap<T>(cc);
   }
 
-  _CCCL_HIDE_FROM_ABI CUB_RUNTIME_FUNCTION ::cudaError_t MultiProcessorCount(int& sm_count) const
+  _CCCL_HIDE_FROM_ABI CUB_RUNTIME_FUNCTION ::cudaError_t
+  MultiProcessorCount(int& sm_count, [[maybe_unused]] ::cudaStream_t stream = nullptr) const
   {
+    // A green context owns a subset of the device's SMs, so the device attribute over-states what a
+    // kernel launched into it can occupy, and every grid sized from it over-subscribes the context.
+    // The green context reaches the kernel through the stream, not through the calling thread's
+    // current context, so the stream is what has to be asked.
+    NV_IF_TARGET(NV_IS_HOST, ({
+                   ::CUcontext ctx   = nullptr;
+                   ::CUgreenCtx gctx = nullptr;
+                   if (::cuStreamGetCtx_v2(stream, &ctx, &gctx) == ::CUDA_SUCCESS && gctx != nullptr)
+                   {
+                     ::CUcontext green_as_ctx = nullptr;
+                     ::CUdevResource resource{};
+                     if (::cuCtxFromGreenCtx(&green_as_ctx, gctx) == ::CUDA_SUCCESS
+                         && ::cuCtxGetDevResource(green_as_ctx, &resource, ::CU_DEV_RESOURCE_TYPE_SM) == ::CUDA_SUCCESS)
+                     {
+                       sm_count = static_cast<int>(resource.sm.smCount);
+                       return ::cudaSuccess;
+                     }
+                   }
+                 }));
+
     int device_ordinal;
     ::cudaError_t error = CubDebug(::cudaGetDevice(&device_ordinal));
     if (::cudaSuccess != error)

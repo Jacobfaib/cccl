@@ -445,7 +445,7 @@ def main() -> int:
     root = pathlib.Path(__file__).resolve().parent
     log_dir = args.log_dir or root / "benchmark-results" / dt.datetime.now(
         dt.timezone.utc
-    ).strftime("%Y%m%dT%H%M%SZ")
+    ).strftime("%Y_%m_%d_%H_%M_%S_UTC")
     log_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
         "axis": axis,

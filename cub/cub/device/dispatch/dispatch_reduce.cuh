@@ -368,7 +368,7 @@ struct CCCL_DEPRECATED_BECAUSE("Use the tuning API for DeviceReduce") DispatchRe
   {
     // Get SM count
     int sm_count;
-    if (const auto error = CubDebug(launcher_factory.MultiProcessorCount(sm_count)))
+    if (const auto error = CubDebug(launcher_factory.MultiProcessorCount(sm_count, stream)))
     {
       return error;
     }
@@ -714,7 +714,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
 
   // Get SM count
   int sm_count = 0;
-  if (const auto error = CubDebug(launcher_factory.MultiProcessorCount(sm_count)))
+  if (const auto error = CubDebug(launcher_factory.MultiProcessorCount(sm_count, stream)))
   {
     return error;
   }
