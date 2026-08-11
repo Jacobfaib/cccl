@@ -36,6 +36,24 @@ UTILIZATION_TAG = "nv/cold/bw/global/utilization"
 SAMPLES_TAG = "nv/cold/sample_size"
 
 
+def parse_scenarios(value: str) -> tuple[str, ...]:
+    """Select a subset of `SCENARIOS`, keeping their declared order.
+
+    The order is what `write_markdown` relies on for its per-size ranking tie-break, and the
+    baseline must stay first when it is present, so the selection is filtered out of
+    `SCENARIOS` rather than built from the order the flag was given in.
+    """
+    requested = {item.strip() for item in value.split(",") if item.strip()}
+    if unknown := requested - set(SCENARIOS):
+        raise argparse.ArgumentTypeError(
+            f"unknown scenario(s): {', '.join(sorted(unknown))}; "
+            f"choose from {', '.join(SCENARIOS)}"
+        )
+    if not requested:
+        raise argparse.ArgumentTypeError("no scenario selected")
+    return tuple(s for s in SCENARIOS if s in requested)
+
+
 def parse_sizes(value: str) -> list[int]:
     try:
         sizes = [int(item) for item in value.split(",")]
@@ -85,6 +103,10 @@ def run(
     dry_run: bool,
     env: dict[str, str] | None = None,
 ) -> int:
+    print("== NCCL Environment")
+    for name, value in env.items():
+        if name.startswith("NCCL"):
+            print(f"${name}=${value}")
     if verbose or dry_run:
         print("+", " ".join(command))
     if dry_run:
@@ -211,7 +233,9 @@ def collect(document: dict[str, Any]) -> dict[int, dict[str, Any]]:
     return measurements
 
 
-def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
+def summarize(
+    results: dict[str, Any], log_dir: pathlib.Path, scenarios: tuple[str, ...]
+) -> dict[str, Any]:
     per_scenario = {
         scenario: collect(result["json"])
         for scenario, result in results.items()
@@ -221,24 +245,38 @@ def summarize(results: dict[str, Any], log_dir: pathlib.Path) -> dict[str, Any]:
         {elements for values in per_scenario.values() for elements in values}
     )
 
+    # Speedups are relative to the baseline, which is not run when it was excluded. Fall back to
+    # the fastest scenario present, so the column stays meaningful instead of reading `n/a`.
     rows = []
     for elements in elements_seen:
         row: dict[str, Any] = {"elements": elements, "input_bytes": elements * 4}
-        for scenario in SCENARIOS:
+        for scenario in scenarios:
             row[scenario] = per_scenario.get(scenario, {}).get(
                 elements,
                 {"status": results[scenario]["status"], "seconds": None},
             )
-        baseline = row[BASELINE]["seconds"]
-        for scenario in SCENARIOS:
+        if BASELINE in scenarios:
+            reference = row[BASELINE]["seconds"]
+        else:
+            measured = [
+                row[s]["seconds"] for s in scenarios if row[s]["seconds"] is not None
+            ]
+            reference = min(measured) if measured else None
+        for scenario in scenarios:
             measurement = row[scenario]
             measurement["latency_speedup"] = (
-                baseline / measurement["seconds"]
-                if baseline and measurement["seconds"]
+                reference / measurement["seconds"]
+                if reference and measurement["seconds"]
                 else None
             )
         rows.append(row)
-    return {"log_dir": str(log_dir), "scenarios": results, "rows": rows}
+    return {
+        "log_dir": str(log_dir),
+        "scenarios": results,
+        "rows": rows,
+        "selected": list(scenarios),
+        "baseline": BASELINE if BASELINE in scenarios else None,
+    }
 
 
 SPEEDUP_BAR_WIDTH = 12
@@ -270,8 +308,9 @@ def bar(fraction: float | None, width: int) -> str:
 
 
 def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
+    scenarios = tuple(summary["selected"])
     columns = [
-        ("Scenario", "left", max(len(s) for s in SCENARIOS)),
+        ("Scenario", "left", max(len(s) for s in scenarios)),
         ("GPU ms", "right", 9),
         ("GB/s", "right", 9),
         ("Speedup", "right", 7),
@@ -281,9 +320,10 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         title.ljust(width) if align == "left" else title.rjust(width)
         for title, align, width in columns
     )
+    reference_label = "vs baseline" if summary["baseline"] else "vs fastest"
     header = (
         f"    {header}"
-        f"  {'vs baseline'.center(SPEEDUP_BAR_WIDTH + 2)}"
+        f"  {reference_label.center(SPEEDUP_BAR_WIDTH + 2)}"
         f"  {'vs peak'.center(UTILIZATION_BAR_WIDTH + 2)}"
     )
 
@@ -293,6 +333,14 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         "GPU times are NVBench cold-measurement means. BWUtil is NVBench's global memory",
         "bandwidth utilization, normalized against the device's own peak bandwidth.",
         "",
+    ]
+    if not summary["baseline"]:
+        lines += [
+            f"`{BASELINE}` was not run, so speedups are relative to the fastest scenario",
+            "present rather than to the baseline.",
+            "",
+        ]
+    lines += [
         "```",
         header,
         "  " + "-" * (len(header) + 2),
@@ -304,7 +352,7 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         # Fastest first, so the ranking at each size is apparent without comparing numbers.
         # Scenarios with no measurement sort last; ties keep their declaration order.
         ordered = sorted(
-            SCENARIOS,
+            scenarios,
             key=lambda scenario: (
                 row[scenario]["seconds"] is None,
                 row[scenario]["seconds"] or 0.0,
@@ -383,6 +431,13 @@ def main() -> int:
     )
     parser.add_argument("--log-dir", type=pathlib.Path)
     parser.add_argument("--device", type=int, default=0)
+    parser.add_argument(
+        "--scenarios",
+        type=parse_scenarios,
+        default=SCENARIOS,
+        help="comma-separated subset of scenarios to run "
+        f"(default: all of {', '.join(SCENARIOS)})",
+    )
     # The benchmarks compile in a 2^20..2^28 sweep. These flags override that axis; leaving
     # them unset runs the compiled-in default.
     parser.add_argument("--min-elements-pow2", type=int)
@@ -450,13 +505,13 @@ def main() -> int:
     manifest: dict[str, Any] = {
         "axis": axis,
         "device": args.device,
-        "scenarios": list(SCENARIOS),
+        "scenarios": list(args.scenarios),
         "commands": [],
         "profile_axis": profile_axis,
         "profile_commands": [],
     }
     results: dict[str, Any] = {}
-    for scenario in SCENARIOS:
+    for scenario in args.scenarios:
         json_path = log_dir / f"{scenario}.json"
         executable = args.binary_dir / scenario
         if not args.dry_run and not executable.is_file():
@@ -484,7 +539,6 @@ def main() -> int:
             env |= {
                 "NCCL_MULTI_RANK_GPU_ENABLE": "1",
                 "NCCL_NVLS_ENABLE": "0",
-                "NCCL_MAX_CTAS": "1",
             }
         status = run(
             command, log_dir / f"{scenario}.log", args.v > 0, args.dry_run, env
@@ -520,9 +574,15 @@ def main() -> int:
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
     summary = (
-        summarize(results, log_dir)
+        summarize(results, log_dir, args.scenarios)
         if not args.dry_run
-        else {"log_dir": str(log_dir), "scenarios": results, "rows": []}
+        else {
+            "log_dir": str(log_dir),
+            "scenarios": results,
+            "rows": [],
+            "selected": list(args.scenarios),
+            "baseline": BASELINE if BASELINE in args.scenarios else None,
+        }
     )
     (log_dir / "summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
