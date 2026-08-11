@@ -106,7 +106,7 @@ def run(
     print("== NCCL Environment")
     for name, value in env.items():
         if name.startswith("NCCL"):
-            print(f"${name}=${value}")
+            print(f"{name}={value}")
     if verbose or dry_run:
         print("+", " ".join(command))
     if dry_run:
