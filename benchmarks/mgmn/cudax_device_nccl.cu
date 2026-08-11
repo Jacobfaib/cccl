@@ -201,8 +201,8 @@ void cudax_device_nccl(nvbench::state& state)
   // The env pairs the domain's stream with its terminal epilogue. Both are fixed for the whole run,
   // so they are built once here rather than per iteration: constructing them inside the timed loop
   // would charge the measurement for host-side work that is not part of the reduction.
-  using env_type =
-    decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, cub::terminal_epilogue(device_nccl_epilogue{})});
+  using env_type = decltype(cuda::std::execution::env{
+    cuda::stream_ref{streams[0]}, resources[0]->ref(), cub::terminal_epilogue(device_nccl_epilogue{})});
 
   std::vector<env_type> envs;
   envs.reserve(rank_count);
@@ -210,8 +210,8 @@ void cudax_device_nccl(nvbench::state& state)
   {
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
-      cub::terminal_epilogue(device_nccl_epilogue{
-        aggregates[rank].data(), windows[rank].devcomm, windows[rank].source, windows[rank].destination})});
+      resources[rank]->ref(),
+      cub::terminal_epilogue(device_nccl_epilogue{windows[rank].devcomm, windows[rank].source})});
   }
 
   mgmn::add_common_throughput(state, elements, rank_count);

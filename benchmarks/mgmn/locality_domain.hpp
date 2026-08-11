@@ -103,10 +103,9 @@ template <typename FnT>
   static auto driver_fn = get_driver_function<create_fn_t>("cuMemPoolCreate", 13, 4);
 
   CUmemPoolProps props{};
-  // props.handleTypes                         = CUmemAllocationHandleType(// CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR |
-  // 									CU_MEM_HANDLE_TYPE_FABRIC);
-  props.allocType                           = CU_MEM_ALLOCATION_TYPE_PINNED;
-  props.location.type                       = CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN;
+  props.handleTypes   = CUmemAllocationHandleType(CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR | CU_MEM_HANDLE_TYPE_FABRIC);
+  props.allocType     = CU_MEM_ALLOCATION_TYPE_PINNED;
+  props.location.type = CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN;
   props.location.localized.deviceId         = static_cast<unsigned char>(device.get());
   props.location.localized.localityDomainId = static_cast<unsigned char>(domain);
 

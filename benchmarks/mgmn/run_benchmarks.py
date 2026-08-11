@@ -21,7 +21,7 @@ SCENARIOS = (
     "cub_full_device",
     "cudax_host_nccl",
     "cub_green_atomic",
-    #    "cudax_device_nccl",
+    "cudax_device_nccl",
 )
 
 BASELINE = SCENARIOS[0]
@@ -298,7 +298,6 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
         "  " + "-" * (len(header) + 2),
     ]
 
-    rows = []
     for row in summary["rows"]:
         lines.append("")
         lines.append(f"  n = {row['elements']:,}  ({format_bytes(row['input_bytes'])})")
@@ -341,6 +340,12 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
                     f"  {bar(relative, SPEEDUP_BAR_WIDTH)}"
                     f"  {bar(utilization, UTILIZATION_BAR_WIDTH)}"
                 )
+            body = "  ".join(
+                text.ljust(width) if align == "left" else text.rjust(width)
+                for text, (_, align, width) in zip(cells, columns)
+            )
+            lines.append(f"    {body}{bars}")
+    lines.append("```")
 
     profiles = [
         (scenario, result["profile"])
