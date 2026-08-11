@@ -85,7 +85,10 @@ void cub_green_atomic(nvbench::state& state)
   // allocates for its two-pass reduction is drawn from that domain's localized pool rather than the
   // non-localized device default pool.
   using env_type = decltype(cuda::std::execution::env{
-    cuda::stream_ref{streams[0]}, resources[0]->ref(), cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
+    cuda::stream_ref{streams[0]},
+    resources[0]->ref(),
+    cub::terminal_epilogue(atomic_epilogue{aggregate.data()}),
+    cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
 
   std::vector<cuda::device_buffer<float>> inputs;
   std::vector<cuda::device_buffer<float>> local_outputs;
@@ -105,7 +108,8 @@ void cub_green_atomic(nvbench::state& state)
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
       resources[rank]->ref(),
-      cub::terminal_epilogue(atomic_epilogue{aggregate.data()})});
+      cub::terminal_epilogue(atomic_epilogue{aggregate.data()}),
+      cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
   }
 
   for (auto&& s : streams)

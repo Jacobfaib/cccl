@@ -255,8 +255,6 @@ private:
     }
     else if constexpr (Determinism == ::cuda::execution::determinism::__determinism_t::__not_guaranteed)
     {
-      static_assert(::cuda::std::is_same_v<EpilogueOpT, detail::reduce::no_op>,
-                    "Terminal epilogues require run_to_run determinism");
       using default_policy_selector =
         detail::reduce::policy_selector_from_types<accum_t, offset_t, ReductionOpT, Determinism>;
       return detail::dispatch_with_env_and_tuning<default_policy_selector>(

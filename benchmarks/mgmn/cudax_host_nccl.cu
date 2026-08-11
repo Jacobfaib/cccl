@@ -68,7 +68,10 @@ void cudax_host_nccl(nvbench::state& state)
   // The env carries the domain's memory resource alongside its stream, so the temporary storage
   // `cudax::reduce` allocates internally is drawn from that domain's localized pool as well. Without
   // it the algorithm falls back to the device default pool, which is not localized.
-  using env_type = decltype(cuda::std::execution::env{cuda::stream_ref{streams[0]}, resources[0]->ref()});
+  using env_type = decltype(cuda::std::execution::env{
+    cuda::stream_ref{streams[0]},
+    resources[0]->ref(),
+    cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
 
   std::vector<env_type> environments;
   // Each green context owns its input share and its output scalar, both drawn from that domain's
@@ -91,7 +94,8 @@ void cudax_host_nccl(nvbench::state& state)
     auto res =
       resources.emplace_back(std::make_unique<mgmn::locality_domain_resource>(device, static_cast<unsigned int>(rank)))
         ->ref();
-    environments.emplace_back(cuda::std::execution::env{s, res});
+    environments.emplace_back(
+      cuda::std::execution::env{s, res, cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
 
     inputs_buf.emplace_back(cuda::make_buffer<float>(s, res, per_rank, 1.0F));
     auto& o = outputs.emplace_back(cuda::make_buffer<float>(s, res, 1, cuda::no_init));
