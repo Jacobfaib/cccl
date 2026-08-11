@@ -37,7 +37,7 @@ inline constexpr int elements_stride   = 1;
 //! Declare what each scenario reads and writes so NVBench reports element throughput and achieved
 //! global memory bandwidth. Every scenario reduces `elements` floats down to one float per rank,
 //! so the read volume is what the ranking is based on.
-inline void add_common_throughput(nvbench::state& state, std::size_t elements, int rank_count = 1)
+inline void add_common_throughput(nvbench::state& state, std::size_t elements, int rank_count)
 {
   state.add_element_count(elements, "Elements");
   state.add_global_memory_reads<float>(elements, "Size");
