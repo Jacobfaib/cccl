@@ -26,6 +26,10 @@ SCENARIOS = (
 
 BASELINE = SCENARIOS[0]
 
+#! Profiler executables. Both are taken from `PATH`; the CUDA Toolkit installs them there.
+NCU = "ncu"
+NSYS = "nsys"
+
 #! NVBench summary tags read out of each state. NVBench derives the bandwidth figures from
 #! the element counts and byte volumes the benchmarks declare, and normalizes utilization
 #! against the device's own peak bandwidth, so no peak-bandwidth table is needed here.
@@ -127,33 +131,16 @@ def run(
         return process.wait()
 
 
-def make_profile_command(
-    ncu: str,
-    report: pathlib.Path,
-    benchmark_command: list[str],
-    extra_args: list[str],
-    profile_axis: str | None,
+def make_benchmark_pass(
+    benchmark_command: list[str], profile_axis: str | None
 ) -> list[str]:
-    """Wrap one benchmark invocation in `ncu`.
+    """Strip the measurement-only arguments out of one benchmark invocation.
 
-    The profiled pass is a second, separate run: Nsight Compute serializes kernels and
-    replays them, so its timings are not comparable to the measurement pass. The benchmark
-    therefore runs with `--profile`, which makes NVBench execute each state one time only,
-    and writes no JSON of its own.
+    Both profilers run the benchmark a second time. Neither pass supersedes the JSON output
+    or the sampling loop of the measurement pass, so `--json <path>`, `--min-time <value>`,
+    `--max-noise <value>` and `--timeout <value>` are dropped. `--profile` makes NVBench
+    execute each state one time only.
     """
-    command = [
-        ncu,
-        "--set",
-        "full",
-        "--target-processes",
-        "all",
-        "--export",
-        str(report),
-        "--force-overwrite",
-    ]
-    command += extra_args
-    #! Drop `--json <path>` and `--min-time <value>`: the profiled pass supersedes neither
-    #! the JSON nor the sampling loop of the measurement pass.
     benchmark: list[str] = []
     skip_next = False
     for item in benchmark_command:
@@ -170,7 +157,58 @@ def make_profile_command(
     benchmark.append("--profile")
     if profile_axis is not None:
         benchmark += ["-a", profile_axis]
-    return command + ["--"] + benchmark
+    return benchmark
+
+
+def make_ncu_command(
+    report: pathlib.Path,
+    benchmark_command: list[str],
+    extra_args: list[str],
+    profile_axis: str | None,
+) -> list[str]:
+    """Wrap one benchmark invocation in `ncu`.
+
+    The profiled pass is a second, separate run: Nsight Compute serializes kernels and
+    replays them, so its timings are not comparable to the measurement pass.
+    """
+    command = [
+        NCU,
+        "--set",
+        "full",
+        "--target-processes",
+        "all",
+        "--export",
+        str(report),
+        "--force-overwrite",
+    ]
+    command += extra_args
+    return command + ["--"] + make_benchmark_pass(benchmark_command, profile_axis)
+
+
+def make_nsys_command(
+    report: pathlib.Path,
+    benchmark_command: list[str],
+    extra_args: list[str],
+    profile_axis: str | None,
+) -> list[str]:
+    """Wrap one benchmark invocation in `nsys profile`.
+
+    The traced pass is a second, separate run. Nsight Systems does not replay kernels, but
+    its instrumentation still perturbs the timings, so the trace must not replace the
+    measurement pass.
+    """
+    command = [
+        NSYS,
+        "profile",
+        "--trace",
+        "cuda,nvtx,osrt",
+        "--output",
+        str(report),
+        "--force-overwrite",
+        "true",
+    ]
+    command += extra_args
+    return command + make_benchmark_pass(benchmark_command, profile_axis)
 
 
 def summary_value(state: dict[str, Any], tag: str) -> float | None:
@@ -395,22 +433,35 @@ def write_markdown(summary: dict[str, Any], path: pathlib.Path) -> None:
             lines.append(f"    {body}{bars}")
     lines.append("```")
 
-    profiles = [
-        (scenario, result["profile"])
-        for scenario, result in summary["scenarios"].items()
-        if "profile" in result
-    ]
-    if profiles:
+    for key, title, note in (
+        (
+            "ncu",
+            "Nsight Compute reports",
+            "Recorded in a separate pass at one element count, with kernel replay enabled.",
+        ),
+        (
+            "nsys",
+            "Nsight Systems traces",
+            "Recorded in a separate, instrumented pass at one element count.",
+        ),
+    ):
+        reports = [
+            (scenario, result[key])
+            for scenario, result in summary["scenarios"].items()
+            if key in result
+        ]
+        if not reports:
+            continue
         lines += [
             "",
-            "## Nsight Compute reports",
+            f"## {title}",
             "",
-            "Recorded in a separate pass at one element count, with kernel replay enabled.",
+            note,
             "These timings are not comparable to the table above.",
             "",
         ]
-        for scenario, profile in profiles:
-            lines.append(f"- `{scenario}`: {profile['status']} - `{profile['report']}`")
+        for scenario, report in reports:
+            lines.append(f"- `{scenario}`: {report['status']} - `{report['report']}`")
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n")
@@ -452,22 +503,28 @@ def main() -> int:
     parser.add_argument("--max-noise", type=float)
     parser.add_argument("--timeout", type=float)
     parser.add_argument("--dry-run", action="store_true")
-    # Profiling is a second pass per scenario. Nsight Compute serializes and replays
-    # kernels, so it must not run on top of the measurement pass.
+    # Each profiler adds a second pass per scenario. Nsight Compute serializes and replays
+    # kernels and Nsight Systems instruments the run, so neither may run on top of the
+    # measurement pass.
     parser.add_argument(
-        "--profile",
+        "--ncu",
         action="store_true",
         help="record an Nsight Compute report per scenario in an extra pass",
     )
     parser.add_argument(
-        "--ncu",
-        default="ncu",
-        help="Nsight Compute executable used by --profile",
+        "--nsys",
+        action="store_true",
+        help="record an Nsight Systems trace per scenario in an extra pass",
     )
     parser.add_argument(
         "--ncu-args",
         default="",
         help="extra arguments passed to ncu, split on whitespace",
+    )
+    parser.add_argument(
+        "--nsys-args",
+        default="",
+        help="extra arguments passed to nsys, split on whitespace",
     )
     parser.add_argument(
         "--profile-size",
@@ -479,10 +536,12 @@ def main() -> int:
 
     axis = make_axis_override(args)
     ncu_args = args.ncu_args.split()
+    nsys_args = args.nsys_args.split()
     # A full `--set full` collection replays every kernel many times, so the profiled pass
-    # is restricted to one element count instead of the full sweep.
+    # is restricted to one element count instead of the full sweep. Nsight Systems is held
+    # to the same one size, which keeps the two reports directly comparable.
     profile_axis: str | None = None
-    if args.profile:
+    if args.ncu or args.nsys:
         if args.profile_size is not None:
             if args.profile_size <= 0 or args.profile_size & (args.profile_size - 1):
                 raise ValueError("--profile-size must be a positive power of two")
@@ -494,8 +553,11 @@ def main() -> int:
                 args.max_elements_pow2 if args.max_elements_pow2 is not None else 28
             )
         profile_axis = f"Elements[pow2]=[{exponent}]"
-        if not args.dry_run and shutil.which(args.ncu) is None:
-            raise FileNotFoundError(f"missing Nsight Compute executable: {args.ncu}")
+        if not args.dry_run:
+            if args.ncu and shutil.which(NCU) is None:
+                raise FileNotFoundError(f"missing Nsight Compute executable: {NCU}")
+            if args.nsys and shutil.which(NSYS) is None:
+                raise FileNotFoundError(f"missing Nsight Systems executable: {NSYS}")
 
     root = pathlib.Path(__file__).resolve().parent
     log_dir = args.log_dir or root / "benchmark-results" / dt.datetime.now(
@@ -508,7 +570,8 @@ def main() -> int:
         "scenarios": list(args.scenarios),
         "commands": [],
         "profile_axis": profile_axis,
-        "profile_commands": [],
+        "ncu_commands": [],
+        "nsys_commands": [],
     }
     results: dict[str, Any] = {}
     for scenario in args.scenarios:
@@ -551,25 +614,41 @@ def main() -> int:
             results[scenario]["json"] = json.loads(
                 json_path.read_text(encoding="utf-8")
             )
-        if not args.profile:
-            continue
-        report = log_dir / f"{scenario}.ncu-rep"
-        profile_command = make_profile_command(
-            args.ncu, report, command, ncu_args, profile_axis
-        )
-        manifest["profile_commands"].append(profile_command)
-        profile_status = run(
-            profile_command,
-            log_dir / f"{scenario}.ncu.log",
-            args.v > 0,
-            args.dry_run,
-            env,
-        )
-        results[scenario]["profile"] = {
-            "status": "ok" if profile_status == 0 else f"failed ({profile_status})",
-            "report": str(report),
-            "log": str(log_dir / f"{scenario}.ncu.log"),
-        }
+        if args.ncu:
+            report = log_dir / f"{scenario}.ncu-rep"
+            ncu_command = make_ncu_command(report, command, ncu_args, profile_axis)
+            manifest["ncu_commands"].append(ncu_command)
+            ncu_status = run(
+                ncu_command,
+                log_dir / f"{scenario}.ncu.log",
+                args.v > 0,
+                args.dry_run,
+                env,
+            )
+            results[scenario]["ncu"] = {
+                "status": "ok" if ncu_status == 0 else f"failed ({ncu_status})",
+                "report": str(report),
+                "log": str(log_dir / f"{scenario}.ncu.log"),
+            }
+        if args.nsys:
+            #! `nsys` appends `.nsys-rep` to `--output`, so the stem is passed here.
+            report = log_dir / f"{scenario}.nsys-rep"
+            nsys_command = make_nsys_command(
+                log_dir / scenario, command, nsys_args, profile_axis
+            )
+            manifest["nsys_commands"].append(nsys_command)
+            nsys_status = run(
+                nsys_command,
+                log_dir / f"{scenario}.nsys.log",
+                args.v > 0,
+                args.dry_run,
+                env,
+            )
+            results[scenario]["nsys"] = {
+                "status": "ok" if nsys_status == 0 else f"failed ({nsys_status})",
+                "report": str(report),
+                "log": str(log_dir / f"{scenario}.nsys.log"),
+            }
     (log_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
