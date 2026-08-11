@@ -19,6 +19,8 @@
 
 #include <cuda/__device/compute_capability.h>
 
+#include <cuda.h>
+
 CUB_NAMESPACE_BEGIN
 
 namespace detail
