@@ -25,7 +25,7 @@ void cub_full_device(nvbench::state& state)
   const auto device   = mgmn::state_device(state);
   cuda::stream stream{device};
 
-  const auto input = cuda::make_device_buffer<T>(stream, device, elements, 1.0F);
+  const auto input = cuda::make_device_buffer<T>(stream, device, elements, T{1});
   auto output      = cuda::make_device_buffer<T>(stream, device, 1, cuda::no_init);
   stream.sync();
 

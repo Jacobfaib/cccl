@@ -128,7 +128,7 @@ void cudax_device_nccl(nvbench::state& state)
   {
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
     const auto resource = resources[rank]->ref();
-    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resource, per_rank, 1.0F));
+    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resource, per_rank, T{1}));
     outputs.emplace_back(cuda::make_buffer<T>(streams[rank], resource, 1, cuda::no_init));
     aggregates.emplace_back(1);
   }

@@ -104,7 +104,7 @@ void cub_green_atomic(nvbench::state& state)
     // Allocated from the domain-local pool, with the domain's green context current so the fill
     // kernel that writes the initial values also runs on that domain's SMs.
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
-    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resources[rank]->ref(), elements / rank_count, 1.0F));
+    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resources[rank]->ref(), elements / rank_count, T{1}));
     local_outputs.emplace_back(cuda::make_buffer<T>(streams[rank], resources[rank]->ref(), 1, cuda::no_init));
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
@@ -153,7 +153,7 @@ void cub_green_atomic(nvbench::state& state)
           local_outputs[rank].data(),
           inputs[rank].size(),
           cuda::std::plus<>{},
-          0.0F,
+          T{},
           envs[rank]);
       }
     });
