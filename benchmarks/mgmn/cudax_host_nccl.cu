@@ -4,6 +4,7 @@
 #include <cuda/__event/event.h>
 #include <cuda/buffer>
 #include <cuda/std/execution>
+#include <cuda/std/ranges>
 #include <cuda/stream>
 
 #include <cuda/experimental/__device/logical_device.cuh>
@@ -123,7 +124,13 @@ void cudax_host_nccl(nvbench::state& state)
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     mgmn::run_forked_iteration(cuda::stream_ref{launch.get_stream().get_stream()}, streams, fork, join, [&] {
-      cudax::reduce(cudax::broadcasted, communicators, environments, inputs_buf, output_its);
+      cudax::reduce(
+        cudax::broadcasted,
+        communicators,
+        environments,
+        inputs_buf | cuda::std::views::transform(cuda::std::ranges::begin),
+        inputs_buf | cuda::std::views::transform(cuda::std::ranges::size),
+        output_its);
     });
   });
 }
