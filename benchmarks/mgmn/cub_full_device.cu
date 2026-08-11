@@ -31,7 +31,7 @@ void cub_full_device(nvbench::state& state)
   const auto env = cuda::std::execution::env{
     input.memory_resource(), cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
 
-  mgmn::add_common_throughput(state, elements);
+  mgmn::add_common_throughput(state, elements, 1);
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     const auto env_with_stream = cuda::std::execution::env{cuda::stream_ref{launch.get_stream().get_stream()}, env};

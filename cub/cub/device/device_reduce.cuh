@@ -228,8 +228,6 @@ private:
 
     if constexpr (Determinism == ::cuda::execution::determinism::__determinism_t::__gpu_to_gpu)
     {
-      static_assert(::cuda::std::is_same_v<EpilogueOpT, detail::reduce::no_op>,
-                    "Terminal epilogues are unsupported with gpu_to_gpu determinism");
       // Only instantiated with `plus<float|double>`; RFA hardcodes `deterministic_sum_t<accum_t>`.
       (void) reduction_op;
       using default_policy_selector = detail::reduce::

@@ -967,8 +967,6 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
   KernelLauncherFactory launcher_factory = {},
   EpilogueOpT epilogue                   = {})
 {
-  static_assert(StableReductionOrder || ::cuda::std::is_same_v<EpilogueOpT, no_op>,
-                "Custom DeviceReduce epilogues require a stable reduction order");
   using offset_t = num_items_offset_t<OffsetT>;
 
   ::cuda::compute_capability cc{};
