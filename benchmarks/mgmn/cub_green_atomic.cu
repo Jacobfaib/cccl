@@ -43,6 +43,7 @@ struct atomic_epilogue
 
 void cub_green_atomic(nvbench::state& state)
 {
+  using T             = float;
   const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
   const auto device   = mgmn::state_device(state);
 
@@ -79,7 +80,7 @@ void cub_green_atomic(nvbench::state& state)
 
   // The aggregate is touched by every domain's atomic, so it has no natural home; leave it in
   // ordinary device memory rather than biasing it toward one domain.
-  auto aggregate = cuda::make_device_buffer<float>(cuda::stream_ref{cudaStream_t{}}, device, 1, cuda::no_init);
+  auto aggregate = cuda::make_device_buffer<T>(cuda::stream_ref{cudaStream_t{}}, device, 1, cuda::no_init);
 
   // The env carries the domain's memory resource alongside its stream, so the temporary storage CUB
   // allocates for its two-pass reduction is drawn from that domain's localized pool rather than the
@@ -90,8 +91,8 @@ void cub_green_atomic(nvbench::state& state)
     cub::terminal_epilogue(atomic_epilogue{aggregate.data()}),
     cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
 
-  std::vector<cuda::device_buffer<float>> inputs;
-  std::vector<cuda::device_buffer<float>> local_outputs;
+  std::vector<cuda::device_buffer<T>> inputs;
+  std::vector<cuda::device_buffer<T>> local_outputs;
   std::vector<env_type> envs;
 
   inputs.reserve(rank_count);
@@ -103,8 +104,8 @@ void cub_green_atomic(nvbench::state& state)
     // Allocated from the domain-local pool, with the domain's green context current so the fill
     // kernel that writes the initial values also runs on that domain's SMs.
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
-    inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), elements / rank_count, 1.0F));
-    local_outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resources[rank]->ref(), 1, cuda::no_init));
+    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resources[rank]->ref(), elements / rank_count, 1.0F));
+    local_outputs.emplace_back(cuda::make_buffer<T>(streams[rank], resources[rank]->ref(), 1, cuda::no_init));
     envs.emplace_back(cuda::std::execution::env{
       cuda::stream_ref{streams[rank]},
       resources[rank]->ref(),
@@ -138,7 +139,7 @@ void cub_green_atomic(nvbench::state& state)
     join.emplace_back(device);
   }
 
-  mgmn::add_common_throughput(state, elements, rank_count);
+  mgmn::add_common_throughput<T>(state, elements, rank_count);
   mgmn::add_domain_count(state, rank_count);
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {

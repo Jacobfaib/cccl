@@ -28,6 +28,7 @@ namespace
 //! performs a local CUB reduction per rank followed by a host-launched NCCL collective.
 void cudax_host_nccl(nvbench::state& state)
 {
+  using T             = float;
   const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
   const auto device   = mgmn::state_device(state);
 
@@ -77,16 +78,14 @@ void cudax_host_nccl(nvbench::state& state)
   // Each green context owns its input share and its output scalar, both drawn from that domain's
   // localized pool. The green context is made current so the fill kernel that writes the initial
   // values also runs on that domain's SMs.
-  std::vector<cuda::device_buffer<float>> inputs_buf;
-  std::vector<cuda::device_buffer<float>> outputs;
-  std::vector<cuda::device_buffer<float>::iterator> output_its;
+  std::vector<cuda::device_buffer<T>> inputs_buf;
+  std::vector<cuda::device_buffer<T>> outputs;
 
   streams.reserve(rank_count);
   resources.reserve(rank_count);
   environments.reserve(rank_count);
   inputs_buf.reserve(rank_count);
   outputs.reserve(rank_count);
-  output_its.reserve(rank_count);
   for (int rank = 0; rank < rank_count; ++rank)
   {
     cuda::stream_ref s =
@@ -97,9 +96,8 @@ void cudax_host_nccl(nvbench::state& state)
     environments.emplace_back(
       cuda::std::execution::env{s, res, cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
 
-    inputs_buf.emplace_back(cuda::make_buffer<float>(s, res, per_rank, 1.0F));
-    auto& o = outputs.emplace_back(cuda::make_buffer<float>(s, res, 1, cuda::no_init));
-    output_its.emplace_back(o.begin());
+    inputs_buf.emplace_back(cuda::make_buffer<T>(s, res, per_rank, T{1}));
+    outputs.emplace_back(cuda::make_buffer<T>(s, res, 1, cuda::no_init));
   }
 
   // Confirm the pools honored the request before timing anything; a silent fallback to
@@ -123,7 +121,7 @@ void cudax_host_nccl(nvbench::state& state)
     join.emplace_back(device);
   }
 
-  mgmn::add_common_throughput(state, elements, rank_count);
+  mgmn::add_common_throughput<T>(state, elements, rank_count);
   mgmn::add_domain_count(state, rank_count);
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
@@ -134,7 +132,7 @@ void cudax_host_nccl(nvbench::state& state)
         environments,
         inputs_buf | cuda::std::views::transform(cuda::std::ranges::begin),
         inputs_buf | cuda::std::views::transform(cuda::std::ranges::size),
-        output_its);
+        outputs | cuda::std::views::transform(cuda::std::ranges::begin));
     });
   });
 }

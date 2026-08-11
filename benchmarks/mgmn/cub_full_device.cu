@@ -20,18 +20,19 @@ namespace
 //! scenario is ranked against this one.
 void cub_full_device(nvbench::state& state)
 {
+  using T             = float;
   const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
   const auto device   = mgmn::state_device(state);
   cuda::stream stream{device};
 
-  const auto input = cuda::make_device_buffer<float>(stream, device, elements, 1.0F);
-  auto output      = cuda::make_device_buffer<float>(stream, device, 1, cuda::no_init);
+  const auto input = cuda::make_device_buffer<T>(stream, device, elements, 1.0F);
+  auto output      = cuda::make_device_buffer<T>(stream, device, 1, cuda::no_init);
   stream.sync();
 
   const auto env = cuda::std::execution::env{
     input.memory_resource(), cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
 
-  mgmn::add_common_throughput(state, elements, 1);
+  mgmn::add_common_throughput<T>(state, elements, /*rank_count*/ 1);
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     const auto env_with_stream = cuda::std::execution::env{cuda::stream_ref{launch.get_stream().get_stream()}, env};
@@ -43,7 +44,7 @@ void cub_full_device(nvbench::state& state)
       output.begin(),
       elements,
       cuda::std::plus<>{},
-      float{},
+      T{},
       env_with_stream);
   });
 }

@@ -71,6 +71,7 @@ struct device_nccl_epilogue
 
 void cudax_device_nccl(nvbench::state& state)
 {
+  using T             = float;
   const auto elements = static_cast<std::size_t>(state.get_int64("Elements"));
   const auto device   = mgmn::state_device(state);
 
@@ -114,11 +115,11 @@ void cudax_device_nccl(nvbench::state& state)
     join.emplace_back(device);
   }
 
-  std::vector<cuda::device_buffer<float>> inputs;
-  std::vector<cuda::device_buffer<float>> outputs;
+  std::vector<cuda::device_buffer<T>> inputs;
+  std::vector<cuda::device_buffer<T>> outputs;
   // Registered windows must come from `ncclMemAlloc`: `ncclCommWindowRegister` resolves the backing
   // allocation with `cuMemGetAddressRange`, which rejects stream-ordered pool allocations.
-  std::vector<mgmn::nccl_buffer<float>> aggregates;
+  std::vector<mgmn::nccl_buffer<T>> aggregates;
 
   inputs.reserve(rank_count);
   outputs.reserve(rank_count);
@@ -127,8 +128,8 @@ void cudax_device_nccl(nvbench::state& state)
   {
     cuda::__ensure_current_context guard{contexts[rank].__transformed};
     const auto resource = resources[rank]->ref();
-    inputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, per_rank, 1.0F));
-    outputs.emplace_back(cuda::make_buffer<float>(streams[rank], resource, 1, cuda::no_init));
+    inputs.emplace_back(cuda::make_buffer<T>(streams[rank], resource, per_rank, 1.0F));
+    outputs.emplace_back(cuda::make_buffer<T>(streams[rank], resource, 1, cuda::no_init));
     aggregates.emplace_back(1);
   }
   for (auto&& s : streams)
@@ -218,7 +219,7 @@ void cudax_device_nccl(nvbench::state& state)
       cuda::execution::require(cuda::execution::determinism::not_guaranteed)});
   }
 
-  mgmn::add_common_throughput(state, elements, rank_count);
+  mgmn::add_common_throughput<T>(state, elements, rank_count);
   mgmn::add_domain_count(state, rank_count);
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
