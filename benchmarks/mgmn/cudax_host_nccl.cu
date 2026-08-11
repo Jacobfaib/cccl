@@ -130,9 +130,9 @@ void cudax_host_nccl(nvbench::state& state)
         cudax::broadcasted,
         communicators,
         environments,
-        inputs_buf | cuda::std::views::transform(cuda::std::ranges::begin),
+        inputs_buf | cuda::std::views::transform(cuda::std::ranges::data),
         inputs_buf | cuda::std::views::transform(cuda::std::ranges::size),
-        outputs | cuda::std::views::transform(cuda::std::ranges::begin));
+        outputs | cuda::std::views::transform(cuda::std::ranges::data));
     });
   });
 }
