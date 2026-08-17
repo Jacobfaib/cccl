@@ -40,6 +40,55 @@ UTILIZATION_TAG = "nv/cold/bw/global/utilization"
 SAMPLES_TAG = "nv/cold/sample_size"
 
 
+def parse_clock_tolerance(value: str) -> float:
+    try:
+        tolerance = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("clock tolerance must be a number") from error
+    if not 0.0 < tolerance <= 1.0:
+        raise argparse.ArgumentTypeError("clock tolerance must be in (0, 1]")
+    return tolerance
+
+
+def check_clocks(tolerance: float) -> None:
+    """Fail when the clocks of any visible GPU are below `tolerance` of their maximum."""
+    query = (
+        "index,name,clocks.sm,clocks.max.sm,clocks.mem,clocks.max.mem,"
+        "clocks.gr,clocks.max.gr"
+    )
+    try:
+        output = subprocess.run(
+            ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return
+
+    for line in output.splitlines():
+        fields = [field.strip() for field in line.split(",")]
+        if len(fields) != 8:
+            continue
+        index, name = fields[0], fields[1]
+        try:
+            sm, max_sm, mem, max_mem, gr, max_gr = map(int, fields[2:])
+        except ValueError:
+            continue
+        if all(
+            current >= tolerance * maximum
+            for current, maximum in ((sm, max_sm), (mem, max_mem), (gr, max_gr))
+        ):
+            continue
+        raise RuntimeError(
+            f"GPU {index} ({name}) clocks are not maxed out: "
+            f"SM {sm}/{max_sm} MHz, memory {mem}/{max_mem} MHz, "
+            f"graphics {gr}/{max_gr} MHz\n"
+            f"  sudo -n nvidia-smi -i {index} -lgc {max_sm},{max_sm}\n"
+            f"  sudo -n nvidia-smi -i {index} -lmc {max_mem},{max_mem}"
+        )
+
+
 def parse_scenarios(value: str) -> tuple[str, ...]:
     """Select a subset of `SCENARIOS`, keeping their declared order.
 
@@ -503,6 +552,14 @@ def main() -> int:
     parser.add_argument("--max-noise", type=float)
     parser.add_argument("--timeout", type=float)
     parser.add_argument("--dry-run", action="store_true")
+    # Locked clocks settle a few MHz below the reported maximum, so an exact comparison
+    # rejects every healthy GPU.
+    parser.add_argument(
+        "--clock-tolerance",
+        type=parse_clock_tolerance,
+        default=0.98,
+        help="fraction of its maximum each GPU clock must reach (default: 0.98)",
+    )
     # Each profiler adds a second pass per scenario. Nsight Compute serializes and replays
     # kernels and Nsight Systems instruments the run, so neither may run on top of the
     # measurement pass.
@@ -533,6 +590,9 @@ def main() -> int:
         "(default: the largest size of the measurement axis)",
     )
     args = parser.parse_args()
+
+    if not args.dry_run:
+        check_clocks(args.clock_tolerance)
 
     axis = make_axis_override(args)
     ncu_args = args.ncu_args.split()
