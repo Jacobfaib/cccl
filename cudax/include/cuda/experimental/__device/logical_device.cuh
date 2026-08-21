@@ -23,6 +23,7 @@
 
 #include <cuda/__device/all_devices.h>
 #include <cuda/__device/physical_device.h>
+#include <cuda/__driver/driver_api.h>
 
 #include <cuda/experimental/__green_context/green_ctx.cuh>
 
@@ -79,6 +80,14 @@ public:
   //! Constructing a logical_device for a given device_ref has a side effect of initializing that device
   explicit logical_device(device_ref __dev)
       : logical_device(__dev.get())
+  {}
+
+  explicit logical_device(::cuda::__logical_device_ref __dev)
+      : __dev_id(__dev.underlying_device().get())
+      , __kind(kinds::device)
+#if _CCCL_CTK_AT_LEAST(12, 5)
+      , __ctx(::cuda::__driver::__ctxFromGreenCtx(__dev.green_context()))
+#endif
   {}
 
 #if _CCCL_CTK_AT_LEAST(12, 5)

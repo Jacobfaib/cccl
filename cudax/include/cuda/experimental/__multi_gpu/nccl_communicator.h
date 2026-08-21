@@ -26,7 +26,6 @@
 #include <cuda/std/__utility/exchange.h>
 #include <cuda/std/__utility/move.h>
 
-#include <cuda/experimental/__device/logical_device.cuh>
 #include <cuda/experimental/__multi_gpu/nccl_communicator_ref.h>
 #include <cuda/experimental/__nccl/nccl_api.h>
 
@@ -83,9 +82,9 @@ public:
   //! @throws std::invalid_argument If `__handle` is `NCCL_COMM_NULL`.
   //! @throws std::runtime_error If the device reported by NCCL does not match `__device`.
   [[nodiscard]] static _CCCL_HOST_API nccl_communicator
-  from_native_handle(native_handle_type __handle, ::cuda::experimental::logical_device __device)
+  from_native_handle(native_handle_type __handle, ::cuda::__logical_device_ref __device)
   {
-    return nccl_communicator{__handle, ::cuda::std::move(__device)};
+    return nccl_communicator{__handle, __device};
   }
 
   //! @brief Construct a communicator with no native NCCL communicator.
@@ -97,7 +96,7 @@ public:
   //! @snippet communicators/nccl/basic.cu nccl_communicator_no_init_construction
   _CCCL_HOST_API explicit nccl_communicator(::cuda::no_init_t) noexcept
       : nccl_communicator_ref{::cuda::experimental::__nccl::__NCCL_COMM_NULL,
-                              ::cuda::experimental::logical_device{0},
+                              ::cuda::__logical_device_ref{::cuda::device_ref{0}, /*__gctx=*/nullptr},
                               /*__rank=*/0,
                               /*__size=*/0}
   {}
@@ -117,7 +116,7 @@ public:
   //! @post `__other` does not own a communicator.
   _CCCL_HOST_API nccl_communicator(nccl_communicator&& __other) noexcept
       : nccl_communicator_ref{__other.release(),
-                              ::cuda::std::move(__other.__device_),
+                              __other.__device_,
                               ::cuda::std::exchange(__other.__rank_, 0),
                               ::cuda::std::exchange(__other.__size_, 0)}
   {}
@@ -140,7 +139,7 @@ public:
     {
       __reset();
       __comm_   = __other.release();
-      __device_ = ::cuda::std::move(__other.__device_);
+      __device_ = __other.__device_;
       __rank_   = ::cuda::std::exchange(__other.__rank_, 0);
       __size_   = ::cuda::std::exchange(__other.__size_, 0);
     }
@@ -176,8 +175,8 @@ private:
       : nccl_communicator_ref{__handle}
   {}
 
-  _CCCL_HOST_API explicit nccl_communicator(native_handle_type __handle, ::cuda::experimental::logical_device __device)
-      : nccl_communicator_ref{__handle, ::cuda::std::move(__device)}
+  _CCCL_HOST_API explicit nccl_communicator(native_handle_type __handle, ::cuda::__logical_device_ref __device)
+      : nccl_communicator_ref{__handle, __device}
   {}
 
   _CCCL_HOST_API void __reset() noexcept
