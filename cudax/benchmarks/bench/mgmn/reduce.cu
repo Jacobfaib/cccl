@@ -225,17 +225,18 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
     throw std::runtime_error{"This benchmark must be run with `-d 0`"};
   }
 
-  // A power-of-two axis reports its exponent, not its value.
-  const auto elements = cuda::std::size_t{1} << state.get_int64("Elements");
+  const auto elements = static_cast<cuda::std::size_t>(state.get_int64("Elements"));
   const auto num_gpus = static_cast<cuda::std::size_t>(state.get_int64("GPUs"));
   const auto scale    = scaling_from_string(state.get_string("Scaling"));
-  const auto ranks    = make_ranks(num_gpus);
 
-  if (ranks.empty())
+  // Without this the rank list is silently truncated, and the row duplicates a smaller one.
+  if (num_gpus > cuda::devices.size())
   {
     state.skip("Not enough GPUs for this GPU count");
     return;
   }
+
+  const auto ranks = make_ranks(num_gpus);
 
   const auto num_ranks = ranks.size();
   const auto size      = make_problem_size(scale, elements, num_ranks);
