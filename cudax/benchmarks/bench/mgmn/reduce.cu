@@ -50,7 +50,7 @@ namespace
 {
 using element_types = nvbench::type_list<double>;
 
-inline constexpr int min_elements_pow2 = 26;
+inline constexpr int min_elements_pow2 = 28;
 inline constexpr int max_elements_pow2 = 32;
 inline constexpr int elements_stride   = 1;
 
@@ -99,11 +99,18 @@ constexpr scaling ALL_SCALINGS[] = {scaling::strong, scaling::weak};
   return values;
 }
 
-constexpr cuda::std::int64_t GPU_COUNTS[] = {1, 2, 4, 8};
-
 [[nodiscard]] std::vector<cuda::std::int64_t> gpu_axis_values()
 {
-  return {cuda::std::begin(GPU_COUNTS), cuda::std::end(GPU_COUNTS)};
+  constexpr auto MAX_GPUS_POW_2 = 6;
+  std::vector<cuda::std::int64_t> ret;
+
+  ret.reserve(MAX_GPUS_POW_2);
+  for (int i = 0; i < MAX_GPUS_POW_2; ++i)
+  {
+    ret.push_back(1 << i);
+  }
+
+  return ret;
 }
 
 struct problem_size
