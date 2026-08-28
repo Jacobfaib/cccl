@@ -134,27 +134,23 @@ constexpr scaling ALL_SCALINGS[] = {scaling::strong, scaling::weak};
   return values;
 }
 
-struct problem_size
-{
-  cuda::std::size_t per_rank;
-  cuda::std::size_t total;
-};
-
-[[nodiscard]] problem_size make_problem_size(scaling scale, cuda::std::size_t elements, cuda::std::size_t num_ranks)
+//! Elements one rank reduces. "Elements" is the total under strong scaling and the per-rank
+//! size under weak scaling, so only this differs between the two.
+[[nodiscard]] cuda::std::size_t elements_per_rank(scaling scale, cuda::std::size_t elements, cuda::std::size_t num_ranks)
 {
   switch (scale)
   {
     case scaling::strong:
-      return {elements / num_ranks, elements};
+      return elements / num_ranks;
     case scaling::weak:
-      return {elements, elements * num_ranks};
+      return elements;
   }
   throw std::runtime_error{"Unknown scaling kind: " + std::to_string(static_cast<cuda::std::int8_t>(scale))};
 }
 
 //! The rank count is not the process count, and without the per-rank size an under-filled rank
 //! is invisible. The JSON files are per rank, and carry nothing else that tells them apart.
-void add_summary(nvbench::state& state, const problem_size& size, cuda::std::size_t num_ranks)
+void add_summary(nvbench::state& state, cuda::std::size_t per_rank_elements, cuda::std::size_t num_ranks)
 {
   auto& ranks = state.add_summary("mgmn/ranks");
 
@@ -168,7 +164,7 @@ void add_summary(nvbench::state& state, const problem_size& size, cuda::std::siz
   per_rank.set_string("name", "Elems/rank");
   per_rank.set_string("hint", "");
   per_rank.set_string("description", "Elements reduced by each rank");
-  per_rank.set_int64("value", static_cast<cuda::std::int64_t>(size.per_rank));
+  per_rank.set_int64("value", static_cast<cuda::std::int64_t>(per_rank_elements));
 
   auto& rank = state.add_summary("mgmn/mpi_rank");
 
@@ -176,6 +172,15 @@ void add_summary(nvbench::state& state, const problem_size& size, cuda::std::siz
   rank.set_string("hint", "");
   rank.set_string("description", "MPI rank that produced this result");
   rank.set_int64("value", static_cast<cuda::std::int64_t>(BENCHMARK_MPI_RANK));
+
+  // `mpi_initialize` rejects a node with fewer devices than ranks, so one process drives one
+  // device. The rank count is a multiple of this, so neither summary implies the other.
+  auto& devices = state.add_summary("mgmn/devices");
+
+  devices.set_string("name", "Devices");
+  devices.set_string("hint", "");
+  devices.set_string("description", "Devices taking part in the reduction");
+  devices.set_int64("value", static_cast<cuda::std::int64_t>(BENCHMARK_MPI_SIZE));
 }
 
 //! One rank per locality domain of this process's device. A rank reduces memory that is local
@@ -312,10 +317,10 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
   const auto ranks = make_ranks();
 
   const auto num_ranks = static_cast<cuda::std::size_t>(BENCHMARK_MPI_SIZE) * ranks.size();
-  const auto size      = make_problem_size(scale, elements, num_ranks);
+  const auto per_rank  = elements_per_rank(scale, elements, num_ranks);
 
   // The domains of one device share its memory, so the whole device must hold every rank it owns.
-  const auto per_device = size.per_rank * ranks.size();
+  const auto per_device = per_rank * ranks.size();
 
   if (per_device * sizeof(T) > cuda::device_attributes::total_global_memory(ranks.front().underlying_device()))
   {
@@ -323,7 +328,7 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
     return;
   }
 
-  add_summary(state, size, num_ranks);
+  add_summary(state, per_rank, num_ranks);
 
   auto comms = make_communicators(ranks);
 
@@ -346,14 +351,15 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
     auto& pool  = cuda::__device_default_memory_pool(domain);
     auto& s     = streams.emplace_back(domain);
 
-    in.push_back(cuda::make_buffer<T>(s, pool, size.per_rank, T{1}));
+    in.push_back(cuda::make_buffer<T>(s, pool, per_rank, T{1}));
     out.push_back(cuda::make_buffer<T>(s, pool, 1, cuda::no_init));
     join.emplace_back(domain.underlying_device());
   }
 
-  state.add_element_count(size.total);
-  state.add_global_memory_reads<T>(size.total);
-  // One result per rank.
+  // Per device, not the whole job: nvbench divides by the time of this process alone, so a
+  // process that reported the global size would scale its rates by the process count.
+  state.add_element_count(per_device);
+  state.add_global_memory_reads<T>(per_device);
   state.add_global_memory_writes<T>(comms.size());
 
   for (auto&& s : streams)
@@ -370,9 +376,9 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
         in | cuda::std::views::transform([](auto& buf) {
           return cuda::std::execution::env{buf.stream(), buf.memory_resource()};
         }),
-        in | cuda::std::views::transform(cuda::std::ranges::begin),
+        in | cuda::std::views::transform(cuda::std::ranges::data),
         in | cuda::std::views::transform(cuda::std::ranges::size),
-        out | cuda::std::views::transform(cuda::std::ranges::begin));
+        out | cuda::std::views::transform(cuda::std::ranges::data));
     });
   });
   for (auto&& s : streams)
