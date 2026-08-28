@@ -208,7 +208,7 @@ make_communicators(cuda::std::span<const cuda::__logical_device_ref> ranks)
     throw std::runtime_error(std::string{"ncclGroupEnd: "} + ncclGetErrorString(status));
   }
 
-  cudaSetDevice(BENCHMARK_MPI_RANK);
+  cudaSetDevice(BENCHMARK_NODE_RANK);
 
   std::vector<cudax::nccl_communicator> comms;
 
