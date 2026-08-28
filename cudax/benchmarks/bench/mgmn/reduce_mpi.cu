@@ -208,6 +208,8 @@ make_communicators(cuda::std::span<const cuda::__logical_device_ref> ranks)
     throw std::runtime_error(std::string{"ncclGroupEnd: "} + ncclGetErrorString(status));
   }
 
+  cudaSetDevice(BENCHMARK_MPI_RANK);
+
   std::vector<cudax::nccl_communicator> comms;
 
   comms.reserve(ranks.size());
@@ -360,6 +362,7 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
   {
     s.sync();
   }
+  cudaDeviceSynchronize();
   MPI_Barrier(MPI_COMM_WORLD);
 }
 NVBENCH_BENCH_TYPES(reduce, NVBENCH_TYPE_AXES(element_types))
