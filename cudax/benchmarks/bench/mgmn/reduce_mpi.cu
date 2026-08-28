@@ -342,6 +342,7 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
     s.sync();
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     run_forked_iteration(cuda::stream_ref{launch.get_stream().get_stream()}, in, fork, join, [&] {
       cudax::reduce(
@@ -355,6 +356,11 @@ void reduce(nvbench::state& state, nvbench::type_list<T>)
         out | cuda::std::views::transform(cuda::std::ranges::begin));
     });
   });
+  for (auto&& s : streams)
+  {
+    s.sync();
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
 }
 NVBENCH_BENCH_TYPES(reduce, NVBENCH_TYPE_AXES(element_types))
   .set_name("reduce_mpi")
