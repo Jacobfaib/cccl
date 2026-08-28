@@ -33,6 +33,23 @@ static void mpi_per_rank_json(::std::vector<::std::string>& args);
 #define NVBENCH_MAIN_CUSTOM_ARGS_HANDLER(args)         mpi_per_rank_json(args)
 #define NVBENCH_MAIN_FINALIZE_CUSTOM_POST()            MPI_Finalize()
 
+//! The default finalizer calls `cudaDeviceReset()`, which cannot work here.
+//!
+//! Each rank drives a locality domain, and a locality domain is a green context. The driver
+//! refuses the reset while one is alive: "Device cannot be reset while there are still green
+//! contexts present". The domains belong to a function-local static in libcu++, so they are
+//! released after `main` returns, and nothing here can release them sooner.
+//!
+//! nvbench turns the refusal into a throw. The rank that throws leaves `main` before
+//! `MPI_Finalize()`, `mpirun` kills the other ranks, and every rank that had not yet written
+//! its JSON loses its results. Drop the reset and keep the rest of the sequence.
+#define NVBENCH_MAIN_FINALIZE()                                                               \
+  NVBENCH_MAIN_FINALIZE_CUSTOM_PRE();                                                         \
+  } /* Close a scope to ensure that the inner initialize/finalize hooks clean up in order. */ \
+  NVBENCH_MAIN_FINALIZE_CUSTOM_POST();                                                        \
+  } /* Close a scope to ensure that the inner initialize/finalize hooks clean up in order. */ \
+  []() {}()
+
 #include <cuda/__device/logical_device_ref.h>
 #include <cuda/__event/event.h>
 #include <cuda/__memory_pool/locality_domain_memory_pool.h>
