@@ -20,9 +20,6 @@
 
 #include <testing.cuh>
 
-using cuda::std::layout_left;
-using cuda::std::layout_right;
-
 static const cuda::stream copy_stream{cuda::device_ref{0}};
 
 template <typename T>
@@ -70,7 +67,7 @@ void test_copy(const thrust::host_vector<T>& data, Ints... shape)
 template <typename T, typename... Ints>
 void test_copy_iota(Ints... shape)
 {
-  test_copy<layout_right>(make_iota<T>((static_cast<int>(shape) * ...)), shape...);
+  test_copy<cuda::std::layout_right>(make_iota<T>((static_cast<int>(shape) * ...)), shape...);
 }
 
 //----------------------------------------------------------------------------------------------------------------------

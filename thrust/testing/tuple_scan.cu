@@ -9,8 +9,6 @@
 #  include <unittest/cuda/testframework.h>
 #endif
 
-using namespace unittest;
-
 struct SumTupleFunctor
 {
   template <typename Tuple>
@@ -61,4 +59,4 @@ struct TestTupleScan
     ASSERT_EQUAL_QUIET(h_output, d_output);
   }
 };
-DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestTupleScan, IntegralTypes);
+DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestTupleScan, unittest::IntegralTypes);

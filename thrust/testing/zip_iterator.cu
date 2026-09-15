@@ -9,8 +9,6 @@
 
 #include <unittest/unittest.h>
 
-using namespace unittest;
-
 // ensure that we properly support thrust::zip_iterator from cuda::std
 void TestZipIteratorTraits()
 {
@@ -154,7 +152,7 @@ struct TestZipIteratorConstructionFromIterators
     test<thrust::device_vector<T>>();
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorConstructionFromIterators, type_list<int>);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorConstructionFromIterators, unittest::type_list<int>);
 
 template <typename T>
 struct TestZipIteratorManipulation
@@ -242,7 +240,7 @@ struct TestZipIteratorManipulation
     test<thrust::device_vector<T>>();
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorManipulation, type_list<int>);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorManipulation, unittest::type_list<int>);
 static_assert(cuda::std::is_trivially_copy_constructible<thrust::zip_iterator<cuda::std::tuple<int*, int*>>>::value);
 
 template <typename T>
@@ -289,7 +287,7 @@ struct TestZipIteratorReference
     ASSERT_EQUAL(cuda::std::get<1>(ref2), cuda::std::get<1>(test2));
   } // end operator()()
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorReference, NumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestZipIteratorReference, unittest::NumericTypes);
 
 template <typename Vector>
 void TestZipIteratorCopy()
@@ -369,7 +367,7 @@ struct TestZipIteratorTransform
     ASSERT_EQUAL(h_result, d_result);
   }
 };
-DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestZipIteratorTransform, ThirtyTwoBitTypes);
+DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestZipIteratorTransform, unittest::ThirtyTwoBitTypes);
 
 void TestZipIteratorCopyAoSToSoA()
 {

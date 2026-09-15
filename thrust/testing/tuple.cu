@@ -4,8 +4,6 @@
 
 #include <unittest/unittest.h>
 
-using namespace unittest;
-
 template <typename T>
 struct TestTupleConstructor
 {
@@ -13,7 +11,7 @@ struct TestTupleConstructor
   {
     using namespace thrust;
 
-    host_vector<T> data = random_integers<T>(10);
+    host_vector<T> data = unittest::random_integers<T>(10);
 
     tuple<T> t1(data[0]);
     ASSERT_EQUAL(data[0], get<0>(t1));
@@ -92,7 +90,7 @@ struct TestTupleConstructor
     ASSERT_EQUAL(data[9], get<9>(t10));
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleConstructor, BuiltinNumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleConstructor, unittest::BuiltinNumericTypes);
 
 template <typename T>
 struct TestMakeTuple
@@ -101,7 +99,7 @@ struct TestMakeTuple
   {
     using namespace thrust;
 
-    host_vector<T> data = random_integers<T>(10);
+    host_vector<T> data = unittest::random_integers<T>(10);
 
     tuple<T> t1 = make_tuple(data[0]);
     ASSERT_EQUAL(data[0], get<0>(t1));
@@ -182,7 +180,7 @@ struct TestMakeTuple
     ASSERT_EQUAL(data[9], get<9>(t10));
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestMakeTuple, BuiltinNumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestMakeTuple, unittest::BuiltinNumericTypes);
 
 template <typename T>
 struct TestTupleGet
@@ -190,7 +188,7 @@ struct TestTupleGet
   void operator()()
   {
     using namespace thrust;
-    host_vector<T> data = random_integers<T>(10);
+    host_vector<T> data = unittest::random_integers<T>(10);
 
     tuple<T> t1(data[0]);
     ASSERT_EQUAL(data[0], thrust::get<0>(t1));
@@ -271,7 +269,7 @@ struct TestTupleGet
     ASSERT_EQUAL(data[9], thrust::get<9>(t10));
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleGet, BuiltinNumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleGet, unittest::BuiltinNumericTypes);
 
 template <typename T>
 struct TestTupleComparison
@@ -325,7 +323,7 @@ struct TestTupleComparison
     ASSERT_EQUAL(false, lhs >= rhs);
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleComparison, NumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleComparison, unittest::NumericTypes);
 
 template <typename T>
 struct TestTupleTieFunctor
@@ -456,7 +454,7 @@ struct TestTupleTie
     ASSERT_EQUAL(true, d_result[0]);
   }
 };
-DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleTie, NumericTypes);
+DECLARE_GENERIC_UNITTEST_WITH_TYPES(TestTupleTie, unittest::NumericTypes);
 
 void TestTupleSwap()
 {

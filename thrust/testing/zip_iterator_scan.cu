@@ -7,8 +7,6 @@
 #  include <unittest/cuda/testframework.h>
 #endif
 
-using namespace unittest;
-
 template <typename Tuple>
 struct TuplePlus
 {
@@ -99,4 +97,4 @@ struct TestZipIteratorScan
     ASSERT_EQUAL_QUIET(h_result1, d_result1);
   }
 };
-DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestZipIteratorScan, SignedIntegralTypes);
+DECLARE_GENERIC_SIZED_UNITTEST_WITH_TYPES(TestZipIteratorScan, unittest::SignedIntegralTypes);

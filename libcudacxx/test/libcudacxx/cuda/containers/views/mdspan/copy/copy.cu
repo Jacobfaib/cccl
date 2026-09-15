@@ -23,7 +23,7 @@
 TEST_CASE("copy d2d 1D", "[copy][d2d][1d]")
 {
   constexpr int N = 16;
-  test_copy<layout_right>(make_iota<int>(N), N);
+  test_copy<cuda::std::layout_right>(make_iota<int>(N), N);
 }
 
 /***********************************************************************************************************************
@@ -36,7 +36,7 @@ TEST_CASE("copy d2d 2D row-major to row-major", "[copy][d2d][2d][basic]")
 {
   constexpr int M = 4;
   constexpr int N = 8;
-  test_copy<layout_right>(make_iota<int>(M * N), M, N);
+  test_copy<cuda::std::layout_right>(make_iota<int>(M * N), M, N);
 }
 
 // src: (4,8):(1,4)
@@ -45,7 +45,7 @@ TEST_CASE("copy d2d 2D column-major to column-major", "[copy][d2d][2d][basic]")
 {
   constexpr int M = 4;
   constexpr int N = 8;
-  test_copy<layout_left>(make_iota<int>(M * N), M, N);
+  test_copy<cuda::std::layout_left>(make_iota<int>(M * N), M, N);
 }
 
 // src: (4,8):(8,1)
@@ -63,7 +63,7 @@ TEST_CASE("copy d2d 2D row-major to column-major", "[copy][d2d][2d][basic]")
       expected[i + static_cast<std::size_t>(j) * M] = static_cast<int>(static_cast<std::size_t>(i) * N + j);
     }
   }
-  test_copy<layout_right, layout_left>(data, expected, M, N);
+  test_copy<cuda::std::layout_right, cuda::std::layout_left>(data, expected, M, N);
 }
 
 // src: (4,8):(1,4)
@@ -81,7 +81,7 @@ TEST_CASE("copy d2d 2D column-major to row-major", "[copy][d2d][2d][basic]")
       expected[static_cast<std::size_t>(i) * N + j] = static_cast<int>(i + static_cast<std::size_t>(j) * M);
     }
   }
-  test_copy<layout_left, layout_right>(data, expected, M, N);
+  test_copy<cuda::std::layout_left, cuda::std::layout_right>(data, expected, M, N);
 }
 
 // src: (1280,2564):(2564,1)
@@ -90,7 +90,7 @@ TEST_CASE("copy d2d 2D large", "[copy][d2d][2d][large]")
 {
   constexpr int M = 1280;
   constexpr int N = 2564;
-  test_copy<layout_right>(make_iota<int>(M * N), M, N);
+  test_copy<cuda::std::layout_right>(make_iota<int>(M * N), M, N);
 }
 
 /***********************************************************************************************************************
@@ -104,7 +104,7 @@ TEST_CASE("copy d2d 3D row-major", "[copy][d2d][3d]")
   constexpr int D0 = 2;
   constexpr int D1 = 3;
   constexpr int D2 = 4;
-  test_copy<layout_right>(make_iota<int>(D0 * D1 * D2), D0, D1, D2);
+  test_copy<cuda::std::layout_right>(make_iota<int>(D0 * D1 * D2), D0, D1, D2);
 }
 
 // src: (2,3,4):(12,4,1)
@@ -128,7 +128,7 @@ TEST_CASE("copy d2d 3D row-major to column-major", "[copy][d2d][3d]")
       }
     }
   }
-  test_copy<layout_right, layout_left>(data, expected, D0, D1, D2);
+  test_copy<cuda::std::layout_right, cuda::std::layout_left>(data, expected, D0, D1, D2);
 }
 
 /***********************************************************************************************************************
@@ -261,7 +261,7 @@ TEST_CASE("copy d2d 1D double", "[copy][d2d][types][double]")
   {
     data[i] = static_cast<double>(i) * 0.5;
   }
-  test_copy<layout_right>(data, N);
+  test_copy<cuda::std::layout_right>(data, N);
 }
 
 // src: (2048):(1)
@@ -274,7 +274,7 @@ TEST_CASE("copy d2d 1D short", "[copy][d2d][types][short]")
   {
     data[i] = static_cast<short>(i % 1000);
   }
-  test_copy<layout_right>(data, N);
+  test_copy<cuda::std::layout_right>(data, N);
 }
 
 // src: (4096):(1)
@@ -287,7 +287,7 @@ TEST_CASE("copy d2d 1D char", "[copy][d2d][types][char]")
   {
     data[i] = static_cast<char>(i % 128);
   }
-  test_copy<layout_right>(data, N);
+  test_copy<cuda::std::layout_right>(data, N);
 }
 
 /***********************************************************************************************************************
@@ -299,7 +299,7 @@ TEST_CASE("copy d2d 1D char", "[copy][d2d][types][char]")
 TEST_CASE("copy d2d 1D large", "[copy][d2d][1d][large]")
 {
   constexpr int N = 100000;
-  test_copy<layout_right>(make_iota<float>(N), N);
+  test_copy<cuda::std::layout_right>(make_iota<float>(N), N);
 }
 
 // src: (13,17):(17,1)
@@ -317,7 +317,7 @@ TEST_CASE("copy d2d 2D transposition non-tile-divisible", "[copy][d2d][2d][bound
       expected[r + static_cast<std::size_t>(c) * M] = data[static_cast<std::size_t>(r) * N + c];
     }
   }
-  test_copy<layout_right, layout_left>(data, expected, M, N);
+  test_copy<cuda::std::layout_right, cuda::std::layout_left>(data, expected, M, N);
 }
 
 // src: (100,200):(200,1)
@@ -335,5 +335,5 @@ TEST_CASE("copy d2d 2D large transposition", "[copy][d2d][2d][large][transpose]"
       expected[r + static_cast<std::size_t>(c) * M] = data[static_cast<std::size_t>(r) * N + c];
     }
   }
-  test_copy<layout_right, layout_left>(data, expected, M, N);
+  test_copy<cuda::std::layout_right, cuda::std::layout_left>(data, expected, M, N);
 }
