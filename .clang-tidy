@@ -52,6 +52,7 @@ Checks:
   - '-google-explicit-constructor'
   - '-google-runtime-operator'
   - '-google-build-using-namespace'
+  - '-google-runtime-float'
   # END REMOVE ME
   # TODO(jfaibussowit):
   #
