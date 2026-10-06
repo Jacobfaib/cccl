@@ -439,7 +439,17 @@ def compare_target(
                 test[arch].splitlines(),
                 fromfile=f"base/{target}.{arch}",
                 tofile=f"test/{target}.{arch}",
-                n=3,
+                # There is a tradeoff here with `n`.
+                #
+                # On the one hand, showing the surrounding instructions is not really
+                # useful for the reader (basically impossible to interpret). We also want
+                # to reduce `n` sufficiently so that we can fit more hunks in the little
+                # comment snippets.
+                #
+                # But `n` also controls how hunks are "bunched" together. difflib will
+                # group hunks which are at most 2*n unchanges lines away (see
+                # https://github.com/python/cpython/blob/main/Lib/difflib.py#L584-L591).
+                n=2,
                 lineterm="",
             )
         )
