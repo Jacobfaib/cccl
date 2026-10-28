@@ -8,7 +8,6 @@
 #include <cuda/__event/event.h>
 #include <cuda/__memory_pool/locality_domain_memory_pool.h>
 #include <cuda/__runtime/api_wrapper.h>
-#include <cuda/__runtime/ensure_current_context.h>
 #include <cuda/buffer>
 #include <cuda/devices>
 #include <cuda/std/cstddef>
@@ -261,18 +260,9 @@ void cub_reduce_striped(nvbench::state& state)
   auto output      = cuda::make_device_buffer<T>(stream, device, 1, cuda::no_init);
   stream.sync();
 
-  std::vector<cuda::stream> streams{domains.begin(), domains.end()};
-  cuda::event fork{device};
-  std::vector<cuda::event> join;
-  join.reserve(rank_count);
-  for (cuda::std::size_t rank = 0; rank < rank_count; ++rank)
-  {
-    join.emplace_back(device);
-  }
-
   state.add_element_count(elements, "Elements");
   state.add_global_memory_reads<T>(elements, "Size");
-  state.add_global_memory_writes<T>(rank_count);
+  state.add_global_memory_writes<T>(1);
 
   auto& summary = state.add_summary("mgmn/locality_domains");
   summary.set_string("name", "Domains");
@@ -281,24 +271,20 @@ void cub_reduce_striped(nvbench::state& state)
   summary.set_int64("value", static_cast<cuda::std::int64_t>(rank_count));
 
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
-    run_forked_iteration(cuda::stream_ref{launch.get_stream().get_stream()}, streams, fork, join, [&] {
-      for (cuda::std::size_t rank = 0; rank < rank_count; ++rank)
-      {
-        const auto context = cuda::__ensure_current_context{streams[rank]};
-        const auto env     = cuda::std::execution::env{
-          cuda::stream_ref{streams[rank]}, cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
+    const auto env = cuda::std::execution::env{
+      cuda::stream_ref{launch.get_stream().get_stream()},
+      cuda::execution::require(cuda::execution::determinism::not_guaranteed),
+      cub::striped_marker_t{static_cast<int>(rank_count)}};
 
-        _CCCL_TRY_CUDA_API(
-          cub::DeviceReduce::Reduce,
-          "cub::DeviceReduce::Reduce failed",
-          input.begin() + rank * per_rank,
-          output.begin(),
-          per_rank,
-          cuda::std::plus<>{},
-          T{},
-          env);
-      }
-    });
+    _CCCL_TRY_CUDA_API(
+      cub::DeviceReduce::Reduce,
+      "cub::DeviceReduce::Reduce failed",
+      input.begin(),
+      output.begin(),
+      input.size(),
+      cuda::std::plus<>{},
+      T{},
+      env);
   });
 }
 } // namespace

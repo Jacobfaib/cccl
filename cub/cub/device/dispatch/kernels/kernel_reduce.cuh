@@ -154,7 +154,8 @@ template <typename PolicySelector,
           typename ReductionOpT,
           typename AccumT,
           typename InitValueT,
-          typename TransformOpT>
+          typename TransformOpT,
+          typename GridMappingT = GridEvenShare<OffsetT>>
 #if _CCCL_HAS_CONCEPTS()
   requires reduce_policy_selector<PolicySelector>
 #endif // _CCCL_HAS_CONCEPTS()
@@ -163,7 +164,7 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
   const InputIteratorT d_in,
   const OutputIteratorT d_out,
   const KernelNumItemsT kernel_num_items,
-  GridEvenShare<OffsetT> even_share,
+  GridMappingT even_share,
   ReductionOpT reduction_op,
   [[maybe_unused]] const InitValueT init,
   TransformOpT transform_op)

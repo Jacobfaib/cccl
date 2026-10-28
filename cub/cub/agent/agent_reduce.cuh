@@ -429,7 +429,8 @@ struct AgentReduceImpl
    * Reduce a contiguous segment of input tiles
    * @param[in] even_share GridEvenShare descriptor
    */
-  _CCCL_DEVICE _CCCL_FORCEINLINE AccumT ConsumeTiles(GridEvenShare<OffsetT>& even_share)
+  template <typename GridMappingT>
+  _CCCL_DEVICE _CCCL_FORCEINLINE AccumT ConsumeTiles(GridMappingT& even_share)
   {
     // Initialize GRID_MAPPING_STRIP_MINE even-share descriptor for this thread block
     even_share.template BlockInit<TILE_ITEMS, GRID_MAPPING_STRIP_MINE>();

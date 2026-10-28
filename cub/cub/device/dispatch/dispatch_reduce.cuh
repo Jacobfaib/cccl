@@ -38,6 +38,7 @@
 
 #include <cuda/__argument/argument.h>
 #include <cuda/__device/compute_capability.h>
+#include <cuda/__driver/driver_api.h>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__cstddef/types.h>
 #include <cuda/std/__functional/identity.h>
@@ -66,7 +67,8 @@ template <typename PolicySelector,
           typename InitValueT,
           typename AccumT,
           typename TransformOpT,
-          bool StableReductionOrder = true>
+          bool StableReductionOrder = true,
+          typename GridMappingT     = GridEvenShare<OffsetT>>
 struct DeviceReduceKernelSource
 {
   // PolicySelector must be stateless, so we can pass the type to the kernel
@@ -97,7 +99,8 @@ struct DeviceReduceKernelSource
                        ReductionOpT,
                        AccumT,
                        InitValueT,
-                       TransformOpT>)
+                       TransformOpT,
+                       GridMappingT>)
 
   CUB_DEFINE_KERNEL_GETTER(
     SingleTileSecondKernel,
@@ -645,6 +648,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE void* get_device_ptr(void* ptr)
 
 template <bool StableReductionOrder,
           typename AccumT,
+          bool Striped = false,
           typename InputIteratorT,
           typename OutputIteratorT,
           typename OffsetT,
@@ -665,7 +669,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
   TransformOpT transform_op,
   ReducePolicy active_policy,
   KernelSource kernel_source,
-  KernelLauncherFactory launcher_factory)
+  KernelLauncherFactory launcher_factory,
+  int domain_count = 1)
 {
   using offset_t = num_items_offset_t<OffsetT>;
 
@@ -725,11 +730,16 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     d_block_reductions = static_cast<AccumT*>(allocations[0]);
   }
 
-  GridEvenShare<offset_t> even_share; // NOLINT(misc-const-correctness)
+  ::cuda::std::conditional_t<Striped, detail::striped_grid_even_share<offset_t>, GridEvenShare<offset_t>> even_share;
   if constexpr (!::cuda::args::__traits<OffsetT>::is_deferred)
   {
     const auto tile_size = active_policy.multi_tile.threads_per_block * active_policy.multi_tile.items_per_thread;
     even_share.DispatchInit(kernel_num_items, max_blocks, tile_size);
+  }
+
+  if constexpr (Striped)
+  {
+    even_share.domain_count = domain_count;
   }
 
   const int reduce_grid_size = [&] {
@@ -772,16 +782,45 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
       return d_block_reductions;
     }
   }();
-  if (const auto error = CubDebug(
-        launcher_factory(reduce_grid_size, active_policy.multi_tile.threads_per_block, 0, stream)
-          .doit(kernel_source.ReductionKernel(),
-                d_in,
-                reduce_kernel_output,
-                kernel_num_items,
-                even_share,
-                reduction_op,
-                init,
-                transform_op)))
+  if constexpr (Striped)
+  {
+    CUfunction kernel_fn{};
+    if (const auto error =
+          CubDebug(cudaGetFuncBySymbol(&kernel_fn, reinterpret_cast<const void*>(kernel_source.ReductionKernel()))))
+    {
+      return error;
+    }
+    CUlaunchAttribute attribute{};
+    attribute.id                             = CU_LAUNCH_ATTRIBUTE_LOCALITY_DOMAIN_DISTRIBUTE;
+    attribute.value.localityDomainDistribute = 1;
+    CUlaunchConfig config{};
+    config.gridDimX = reduce_grid_size;
+    config.gridDimY = config.gridDimZ = 1;
+    config.blockDimX                  = static_cast<unsigned>(active_policy.multi_tile.threads_per_block);
+    config.blockDimY = config.blockDimZ = 1;
+    config.hStream                      = stream;
+    config.attrs                        = &attribute;
+    config.numAttrs                     = 1;
+    void* args[]                        = {
+      &d_in,
+      &reduce_kernel_output,
+      const_cast<offset_t*>(&kernel_num_items),
+      &even_share,
+      &reduction_op,
+      &init,
+      &transform_op};
+    ::cuda::__driver::__launchKernel(config, kernel_fn, args);
+  }
+  else if (const auto error = CubDebug(
+             launcher_factory(reduce_grid_size, active_policy.multi_tile.threads_per_block, 0, stream)
+               .doit(kernel_source.ReductionKernel(),
+                     d_in,
+                     reduce_kernel_output,
+                     kernel_num_items,
+                     even_share,
+                     reduction_op,
+                     init,
+                     transform_op)))
   {
     return error;
   }
@@ -876,6 +915,7 @@ _CCCL_HOST_DEVICE_API auto select_accum_t(OverrideAccumT*) -> OverrideAccumT;
 template <
   typename OverrideAccumT   = use_default,
   bool StableReductionOrder = true,
+  bool Striped              = false,
   typename InputIteratorT,
   typename OutputIteratorT,
   typename OffsetT,
@@ -899,7 +939,10 @@ template <
     InitValueT,
     AccumT,
     TransformOpT,
-    StableReductionOrder>,
+    StableReductionOrder,
+    ::cuda::std::conditional_t<Striped,
+                               detail::striped_grid_even_share<num_items_offset_t<OffsetT>>,
+                               GridEvenShare<num_items_offset_t<OffsetT>>>>,
   typename KernelLauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
 #if _CCCL_HAS_CONCEPTS()
   requires reduce_policy_selector<PolicySelector>
@@ -916,7 +959,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
   TransformOpT transform_op              = {},
   PolicySelector policy_selector         = {},
   KernelSource kernel_source             = {},
-  KernelLauncherFactory launcher_factory = {}) -> cudaError_t
+  KernelLauncherFactory launcher_factory = {},
+  int domain_count                       = 1) -> cudaError_t
 {
   using offset_t = num_items_offset_t<OffsetT>;
 
@@ -1009,7 +1053,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
     }
 
     // Regular size
-    return invoke_regular_size_reduce<StableReductionOrder, AccumT>(
+    return invoke_regular_size_reduce<StableReductionOrder, AccumT, Striped>(
       d_temp_storage,
       temp_storage_bytes,
       d_in,
@@ -1021,7 +1065,8 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto dispatch(
       transform_op,
       active_policy,
       kernel_source,
-      launcher_factory);
+      launcher_factory,
+      domain_count);
   });
 }
 } // namespace detail::reduce

@@ -193,4 +193,28 @@ public:
   }
 };
 
+namespace detail
+{
+template <typename OffsetT>
+struct striped_grid_even_share : GridEvenShare<OffsetT>
+{
+  int domain_count = 1;
+
+  template <int TileItems, GridMappingStrategy Strategy>
+  _CCCL_DEVICE _CCCL_FORCEINLINE void BlockInit()
+  {
+    static_assert(Strategy == GRID_MAPPING_STRIP_MINE);
+    const int capacity      = ::cuda::ceil_div(this->grid_size, domain_count);
+    const int domain        = static_cast<int>(blockIdx.x) / capacity;
+    const int local_block   = static_cast<int>(blockIdx.x) - domain * capacity;
+    const int domain_blocks = ::cuda::std::min(capacity, this->grid_size - domain * capacity);
+    const OffsetT stripe    = this->num_items / domain_count;
+
+    this->block_end    = (domain + 1) * stripe;
+    this->block_offset = ::cuda::std::min(this->block_end, domain * stripe + local_block * OffsetT{TileItems});
+    this->block_stride = domain_blocks * OffsetT{TileItems};
+  }
+};
+} // namespace detail
+
 CUB_NAMESPACE_END

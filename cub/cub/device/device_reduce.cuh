@@ -65,6 +65,16 @@
 
 CUB_NAMESPACE_BEGIN
 
+struct striped_marker_t
+{
+  int domain_count = 1;
+
+  _CCCL_HOST_DEVICE_API constexpr int query(striped_marker_t) const noexcept
+  {
+    return domain_count;
+  }
+};
+
 namespace detail
 {
 template <typename DeterminismT>
@@ -243,7 +253,8 @@ private:
         detail::reduce::policy_selector_from_types<accum_t, offset_t, ReductionOpT, Determinism>;
       return detail::dispatch_with_env_and_tuning<default_policy_selector>(
         env, [&](auto policy_selector, void* storage, size_t& bytes, cudaStream_t stream) {
-          return detail::reduce::dispatch<accum_t, /* StableReductionOrder */ false>(
+          constexpr bool striped = ::cuda::std::execution::__queryable_with<EnvT, striped_marker_t>;
+          return detail::reduce::dispatch<accum_t, /* StableReductionOrder */ false, striped>(
             storage,
             bytes,
             d_in,
@@ -253,7 +264,10 @@ private:
             init,
             stream,
             transform_op,
-            policy_selector);
+            policy_selector,
+            {},
+            {},
+            ::cuda::std::execution::__query_or(env, striped_marker_t{}, 1));
         });
     }
     else
