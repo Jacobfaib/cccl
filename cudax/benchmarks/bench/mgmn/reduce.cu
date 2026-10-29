@@ -217,7 +217,7 @@ void cub_reduce(nvbench::state& state)
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     const auto env_with_stream = cuda::std::execution::env{cuda::stream_ref{launch.get_stream().get_stream()}, env};
 
-    _CCCL_TRY_CUDA_API(
+    _CCCL_TRY_RUNTIME_API(
       cub::DeviceReduce::Reduce,
       "cub::DeviceReduce::Reduce failed",
       input.begin(),
@@ -276,7 +276,7 @@ void cub_reduce_striped(nvbench::state& state)
       cuda::execution::require(cuda::execution::determinism::not_guaranteed),
       cub::striped_marker_t{static_cast<int>(rank_count)}};
 
-    _CCCL_TRY_CUDA_API(
+    _CCCL_TRY_RUNTIME_API(
       cub::DeviceReduce::Reduce,
       "cub::DeviceReduce::Reduce failed",
       input.begin(),
