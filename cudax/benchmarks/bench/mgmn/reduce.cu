@@ -179,9 +179,9 @@ void cudax_reduce(nvbench::state& state)
         cudax::broadcasted,
         comms,
         environments,
-        inputs | cuda::std::views::transform(cuda::std::ranges::begin),
+        inputs | cuda::std::views::transform(cuda::std::ranges::data),
         inputs | cuda::std::views::transform(cuda::std::ranges::size),
-        outputs | cuda::std::views::transform(cuda::std::ranges::begin));
+        outputs | cuda::std::views::transform(cuda::std::ranges::data));
     });
   });
 }
@@ -220,8 +220,8 @@ void cub_reduce(nvbench::state& state)
     _CCCL_TRY_RUNTIME_API(
       cub::DeviceReduce::Reduce,
       "cub::DeviceReduce::Reduce failed",
-      input.begin(),
-      output.begin(),
+      input.data(),
+      output.data(),
       input.size(),
       cuda::std::plus<>{},
       T{},
@@ -234,6 +234,7 @@ NVBENCH_BENCH(cub_reduce)
   .set_name("cub_reduce")
   .add_int64_power_of_two_axis("Elements", nvbench::range(min_elements_pow2, max_elements_pow2, elements_stride));
 
+#if 0
 namespace
 {
 void cub_reduce_striped(nvbench::state& state)
@@ -279,8 +280,8 @@ void cub_reduce_striped(nvbench::state& state)
     _CCCL_TRY_RUNTIME_API(
       cub::DeviceReduce::Reduce,
       "cub::DeviceReduce::Reduce failed",
-      input.begin(),
-      output.begin(),
+      input.data(),
+      output.data(),
       input.size(),
       cuda::std::plus<>{},
       T{},
@@ -288,6 +289,79 @@ void cub_reduce_striped(nvbench::state& state)
   });
 }
 } // namespace
+#else
+namespace
+{
+void cub_reduce_striped(nvbench::state& state)
+{
+  const auto elements = static_cast<cuda::std::size_t>(state.get_int64("Elements"));
+  const auto device  = cuda::devices[state.get_device().value().get_id()]; // NOLINT(bugprone-unchecked-optional-access)
+  const auto domains = device.__locality_domains();
+  const auto rank_count = domains.size();
+
+  if (rank_count < 2)
+  {
+    state.skip("the GPU does not expose multiple locality domains");
+    return;
+  }
+  if (elements % rank_count != 0)
+  {
+    throw std::runtime_error{"Elements must divide evenly across locality domains"};
+  }
+  const auto per_rank = elements / rank_count;
+
+  cuda::stream stream{device};
+  cudax::locality_domain_striped_memory_resource resource{device, per_rank * sizeof(T)};
+  const auto input = cuda::make_buffer<T>(stream, resource, elements, T{1});
+  auto output      = cuda::make_device_buffer<T>(stream, device, 1, cuda::no_init);
+  stream.sync();
+
+  std::vector<cuda::stream> streams{domains.begin(), domains.end()};
+  cuda::event fork{device};
+  std::vector<cuda::event> join;
+  join.reserve(rank_count);
+  for (cuda::std::size_t rank = 0; rank < rank_count; ++rank)
+  {
+    join.emplace_back(device);
+  }
+
+  state.add_element_count(elements, "Elements");
+  state.add_global_memory_reads<T>(elements, "Size");
+  state.add_global_memory_reads<T>(rank_count, "Partials");
+  state.add_global_memory_writes<T>(rank_count);
+
+  auto& summary = state.add_summary("mgmn/locality_domains");
+  summary.set_string("name", "Domains");
+  summary.set_string("hint", "");
+  summary.set_string("description", "Locality domains the device was split into");
+  summary.set_int64("value", static_cast<cuda::std::int64_t>(rank_count));
+
+  state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
+    const cuda::stream_ref timing_stream{launch.get_stream().get_stream()};
+    run_forked_iteration(timing_stream, streams, fork, join, [&] {
+      for (cuda::std::size_t rank = 0; rank < rank_count; ++rank)
+      {
+        const auto env = cuda::std::execution::env{
+          cuda::stream_ref{streams[rank]},
+          cuda::__device_default_memory_pool(domains[rank]),
+          cuda::execution::require(cuda::execution::determinism::not_guaranteed)};
+
+        _CCCL_TRY_RUNTIME_API(
+          cub::DeviceReduce::Reduce,
+          "cub::DeviceReduce::Reduce failed",
+          input.data() + rank * per_rank,
+          output.data(),
+          per_rank,
+          cuda::std::plus<>{},
+          T{},
+          env);
+      }
+    });
+
+
+}
+} // namespace
+#endif
 
 NVBENCH_BENCH(cub_reduce_striped)
   .set_name("cub_reduce_striped")
