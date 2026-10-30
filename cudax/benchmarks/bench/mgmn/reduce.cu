@@ -195,6 +195,7 @@ NVBENCH_BENCH(cudax_reduce)
   .set_name("cudax_reduce")
   .add_int64_power_of_two_axis("Elements", nvbench::range(min_elements_pow2, max_elements_pow2, elements_stride));
 
+#if 0
 namespace
 {
 void cub_reduce(nvbench::state& state)
@@ -233,8 +234,9 @@ void cub_reduce(nvbench::state& state)
 NVBENCH_BENCH(cub_reduce)
   .set_name("cub_reduce")
   .add_int64_power_of_two_axis("Elements", nvbench::range(min_elements_pow2, max_elements_pow2, elements_stride));
+#endif
 
-#if 0
+#if 1
 namespace
 {
 void cub_reduce_striped(nvbench::state& state)

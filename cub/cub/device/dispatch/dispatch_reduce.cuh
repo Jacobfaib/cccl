@@ -796,14 +796,19 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     config.blockDimX                  = static_cast<unsigned>(active_policy.multi_tile.threads_per_block);
     config.blockDimY = config.blockDimZ = 1;
     config.hStream                      = stream;
-#if _CCCL_CTK_AT_LEAST(13, 7)
+
     CUlaunchAttribute attribute{};
-    attribute.id                             = CU_LAUNCH_ATTRIBUTE_LOCALITY_DOMAIN_DISTRIBUTE;
-    attribute.value.localityDomainDistribute = 1;
-    config.attrs                             = &attribute;
-    config.numAttrs                          = 1;
-#endif // _CCCL_CTK_AT_LEAST(13, 7)
-    void* args[] = {
+
+    attribute.id = static_cast<CUlaunchAttributeID>(21); // CU_LAUNCH_ATTRIBUTE_LOCALITY_DOMAIN_DISTRIBUTE
+
+    constexpr unsigned int value = 1; // localityDomainDistribute
+    static_assert(sizeof(value) <= sizeof(attribute.value.pad));
+    memcpy(attribute.value.pad, &value, sizeof(value));
+    // A.K.A.
+    // attribute.value.localityDomainDistribute = 1;
+    config.attrs    = &attribute;
+    config.numAttrs = 1;
+    void* args[]    = {
       &d_in,
       &reduce_kernel_output,
       const_cast<offset_t*>(&kernel_num_items),
