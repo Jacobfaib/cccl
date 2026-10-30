@@ -357,8 +357,7 @@ void cub_reduce_striped(nvbench::state& state)
           env);
       }
     });
-
-
+  });
 }
 } // namespace
 #endif
