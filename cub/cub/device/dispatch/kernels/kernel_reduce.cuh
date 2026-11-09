@@ -233,6 +233,15 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
   // Shared memory storage
   __shared__ typename AgentReduceT::TempStorage temp_storage;
 
+  // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+  if constexpr (requires { even_share.record_start(); })
+  {
+    even_share.record_start();
+  }
+#endif
+  // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+
   // Consume input tiles
   AccumT block_aggregate = AgentReduceT(temp_storage, d_in, reduction_op, transform_op).ConsumeTiles(even_share);
 
@@ -256,6 +265,14 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
         (atomicAdd(&d_out[0], blockIdx.x == 0 ? reduction_op(init, block_aggregate) : block_aggregate);));
     }
   }
+  // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+  if constexpr (requires { even_share.record_end(); })
+  {
+    even_share.record_end();
+  }
+#endif
+  // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 }
 
 /**

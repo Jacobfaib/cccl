@@ -102,6 +102,24 @@ struct DeviceReduceKernelSource
                        TransformOpT,
                        GridMappingT>)
 
+  // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+  CUB_DEFINE_KERNEL_GETTER(
+    DiagnosticReductionKernel,
+    DeviceReduceKernel<PolicySelector,
+                       StableReductionOrder,
+                       InputIteratorT,
+                       reduce_kernel_output_t,
+                       OffsetT,
+                       KernelNumItemsT,
+                       ReductionOpT,
+                       AccumT,
+                       InitValueT,
+                       TransformOpT,
+                       ::striped_reduce_placement::timed_mapping<GridMappingT>>)
+#endif
+  // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+
   CUB_DEFINE_KERNEL_GETTER(
     SingleTileSecondKernel,
     DeviceReduceSingleTileKernel<PolicySelector,
@@ -790,6 +808,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     {
       return error;
     }
+
     CUlaunchConfig config{};
     config.gridDimX = reduce_grid_size;
     config.gridDimY = config.gridDimZ = 1;
@@ -808,12 +827,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     // attribute.value.localityDomainDistribute = 1;
     config.attrs    = &attribute;
     config.numAttrs = 1;
-    // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
-#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
-    CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config);
-#endif
-    // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
-    void* args[] = {
+    void* args[]    = {
       &d_in,
       &reduce_kernel_output,
       const_cast<offset_t*>(&kernel_num_items),
@@ -821,7 +835,14 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
       &reduction_op,
       &init,
       &transform_op};
-    ::cuda::__driver::__launchKernel(config, kernel_fn, args);
+    // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+    if (!CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config, kernel_source.DiagnosticReductionKernel(), even_share, args))
+#endif
+    // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+    {
+      ::cuda::__driver::__launchKernel(config, kernel_fn, args);
+    }
   }
   else if (const auto error = CubDebug(
              launcher_factory(reduce_grid_size, active_policy.multi_tile.threads_per_block, 0, stream)

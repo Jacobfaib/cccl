@@ -9,7 +9,9 @@
 #include <cuda/devices>
 #include <cuda/stream>
 
+#include <algorithm>
 #include <cstdio>
+#include <limits>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -17,6 +19,152 @@
 namespace striped_reduce_placement
 {
 inline thread_local bool requested = false;
+
+struct block_interval
+{
+  unsigned long long start;
+  unsigned long long end;
+  unsigned sm;
+};
+
+template <class GridMapping>
+struct timed_mapping : GridMapping
+{
+  block_interval* records;
+  unsigned long long start_time{};
+  unsigned sm{};
+
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_start()
+  {
+    if (threadIdx.x == 0)
+    {
+      asm volatile("mov.u32 %0, %%smid;" : "=r"(sm));
+      asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(start_time) : : "memory");
+    }
+    __syncthreads();
+  }
+
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_end()
+  {
+    __syncthreads();
+    if (threadIdx.x == 0)
+    {
+      unsigned long long end_time;
+      asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(end_time) : : "memory");
+      records[blockIdx.x] = {start_time, end_time, sm};
+    }
+  }
+};
+
+inline void report_overlap(const std::vector<block_interval>& records,
+                           const std::unordered_map<unsigned, int>& sm_domains,
+                           int device,
+                           int domain_count)
+{
+  std::vector<std::vector<block_interval>> intervals(domain_count);
+  auto origin         = std::numeric_limits<unsigned long long>::max();
+  unsigned unknown    = 0;
+  unsigned mismatches = 0;
+  const auto capacity = (records.size() + domain_count - 1) / domain_count;
+  for (cuda::std::size_t block = 0; block < records.size(); ++block)
+  {
+    const auto& record = records[block];
+    if (record.end <= record.start)
+    {
+      throw std::runtime_error("Reduction diagnostic has an invalid block interval");
+    }
+    origin           = std::min(origin, record.start);
+    const auto found = sm_domains.find(record.sm);
+    if (found == sm_domains.end())
+    {
+      ++unknown;
+      continue;
+    }
+    mismatches += found->second != static_cast<int>(block / capacity);
+    intervals[found->second].push_back(record);
+  }
+  std::fprintf(
+    stderr,
+    "[overlap] device=%d reduction_blocks=%zu mismatches=%u unknown=%u\n",
+    device,
+    records.size(),
+    mismatches,
+    unknown);
+
+  // Merge the actual intervals, since overlapping first-to-last envelopes can hide gaps.
+  for (int domain = 0; domain < domain_count; ++domain)
+  {
+    auto& spans = intervals[domain];
+    std::sort(spans.begin(), spans.end(), [](const auto& a, const auto& b) {
+      return a.start < b.start;
+    });
+    std::vector<block_interval> merged;
+    for (const auto& span : spans)
+    {
+      if (merged.empty() || span.start > merged.back().end)
+      {
+        merged.push_back(span);
+      }
+      else
+      {
+        merged.back().end = std::max(merged.back().end, span.end);
+      }
+    }
+    unsigned long long active = 0;
+    for (const auto& span : merged)
+    {
+      active += span.end - span.start;
+    }
+    if (!merged.empty())
+    {
+      std::fprintf(
+        stderr,
+        "[overlap] domain=%d blocks=%zu first_us=%.3f last_us=%.3f active_us=%.3f\n",
+        domain,
+        spans.size(),
+        (merged.front().start - origin) / 1000.0,
+        (merged.back().end - origin) / 1000.0,
+        active / 1000.0);
+    }
+    spans = std::move(merged);
+  }
+
+  for (int a = 0; a < domain_count; ++a)
+  {
+    for (int b = a + 1; b < domain_count; ++b)
+    {
+      const auto& left           = intervals[a];
+      const auto& right          = intervals[b];
+      cuda::std::size_t i        = 0;
+      cuda::std::size_t j        = 0;
+      unsigned long long overlap = 0;
+      while (i < left.size() && j < right.size())
+      {
+        const auto start = std::max(left[i].start, right[j].start);
+        const auto end   = std::min(left[i].end, right[j].end);
+        if (end > start)
+        {
+          overlap += end - start;
+        }
+        if (left[i].end < right[j].end)
+        {
+          ++i;
+        }
+        else
+        {
+          ++j;
+        }
+      }
+      std::fprintf(
+        stderr,
+        "[overlap] domains=%d,%d concurrent_us=%.3f%s\n",
+        a,
+        b,
+        overlap / 1000.0,
+        unknown ? " INCOMPLETE: unknown SMs" : "");
+    }
+  }
+}
 
 _CCCL_KERNEL_ATTRIBUTES void record_block_placement(unsigned* sm_ids)
 {
@@ -49,11 +197,12 @@ inline std::vector<unsigned> probe(CUlaunchConfig config, unsigned* device_ids)
   return result;
 }
 
-inline void inspect(const CUlaunchConfig& config)
+template <class Kernel, class GridMapping>
+bool inspect(const CUlaunchConfig& config, Kernel kernel, const GridMapping& mapping, void** args)
 {
   if (!requested)
   {
-    return;
+    return false;
   }
   requested = false;
 
@@ -125,10 +274,35 @@ inline void inspect(const CUlaunchConfig& config)
     mismatches,
     unknown,
     config.gridDimX);
+
+  auto records = cuda::make_device_buffer<block_interval>(
+    cuda::stream_ref{config.hStream}, device, config.gridDimX, block_interval{});
+  timed_mapping<GridMapping> timed{mapping, records.data()};
+  CUfunction function{};
+  _CCCL_TRY_RUNTIME_API(
+    cudaGetFuncBySymbol, "Resolve timed reduction kernel", &function, reinterpret_cast<const void*>(kernel));
+  void* original_mapping = args[3];
+  args[3]                = &timed;
+  cuda::__driver::__launchKernel(config, function, args);
+  args[3] = original_mapping;
+
+  std::vector<block_interval> host_records(config.gridDimX);
+  _CCCL_TRY_RUNTIME_API(
+    cudaMemcpyAsync,
+    "Read reduction intervals",
+    host_records.data(),
+    records.data(),
+    host_records.size() * sizeof(block_interval),
+    cudaMemcpyDeviceToHost,
+    config.hStream);
+  _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for timed reduction", config.hStream);
+  report_overlap(host_records, sm_domains, device_id, count);
+  return true;
 }
 } // namespace striped_reduce_placement
 
-#define CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config) ::striped_reduce_placement::inspect(config)
+#define CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config, kernel, mapping, args) \
+  ::striped_reduce_placement::inspect(config, kernel, mapping, args)
 // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 
 #include <cub/device/device_reduce.cuh>
@@ -364,6 +538,42 @@ void cub_reduce_striped(nvbench::state& state)
   // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
   // An untimed reduction supplies the exact grid and launch attribute to the probe.
   {
+    bool memory_matches = true;
+    for (cuda::std::size_t rank = 0; per_rank != 0 && rank < rank_count; ++rank)
+    {
+      const auto* stripe      = reinterpret_cast<const char*>(input.data() + rank * per_rank);
+      const void* endpoints[] = {stripe, stripe + per_rank * sizeof(T) - 1};
+      unsigned ordinals[]     = {~0U, ~0U};
+      for (int endpoint = 0; endpoint < 2; ++endpoint)
+      {
+        CUpointer_attribute attrs[] = {CU_POINTER_ATTRIBUTE_LOCALITY_DOMAIN_ORDINAL};
+        void* values[]              = {&ordinals[endpoint]};
+        _CCCL_TRY_DRIVER_API(
+          cuda::__driver::__pointerGetAttributesNoThrow,
+          "Failed to query the locality domain of a stripe endpoint",
+          attrs,
+          values,
+          endpoints[endpoint]);
+      }
+
+      const auto expected = static_cast<unsigned>(domains[rank].locality_domain().domain_id);
+      const bool matches  = ordinals[0] == expected && ordinals[1] == expected;
+      memory_matches      = memory_matches && matches;
+      std::fprintf(
+        stderr,
+        "[memory-placement] device=%d stripe=%zu expected=%u first=%u last=%u %s\n",
+        device.get(),
+        rank,
+        expected,
+        ordinals[0],
+        ordinals[1],
+        matches ? "MATCH" : "MISMATCH");
+    }
+    if (!memory_matches)
+    {
+      throw std::runtime_error("Striped input memory does not match the requested locality domains");
+    }
+
     const auto env = cuda::std::execution::env{
       cuda::stream_ref{stream.get()},
       input.memory_resource(),
