@@ -1,6 +1,136 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+// BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+// Delete the matching marked sections in this file and dispatch_reduce.cuh to remove the probes.
+#include <cuda/__driver/driver_api.h>
+#include <cuda/__runtime/api_wrapper.h>
+#include <cuda/buffer>
+#include <cuda/devices>
+#include <cuda/stream>
+
+#include <cstdio>
+#include <stdexcept>
+#include <unordered_map>
+#include <vector>
+
+namespace striped_reduce_placement
+{
+inline thread_local bool requested = false;
+
+_CCCL_KERNEL_ATTRIBUTES void record_block_placement(unsigned* sm_ids)
+{
+  if (threadIdx.x == 0)
+  {
+    unsigned sm;
+    asm volatile("mov.u32 %0, %%smid;" : "=r"(sm));
+    sm_ids[blockIdx.x] = sm;
+  }
+}
+
+inline std::vector<unsigned> probe(CUlaunchConfig config, unsigned* device_ids)
+{
+  CUfunction function{};
+  _CCCL_TRY_RUNTIME_API(
+    cudaGetFuncBySymbol, "Resolve placement kernel", &function, reinterpret_cast<const void*>(record_block_placement));
+  void* args[] = {&device_ids};
+  cuda::__driver::__launchKernel(config, function, args);
+
+  std::vector<unsigned> result(config.gridDimX);
+  _CCCL_TRY_RUNTIME_API(
+    cudaMemcpyAsync,
+    "Read placement buffer",
+    result.data(),
+    device_ids,
+    result.size() * sizeof(unsigned),
+    cudaMemcpyDeviceToHost,
+    config.hStream);
+  _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for placement probe", config.hStream);
+  return result;
+}
+
+inline void inspect(const CUlaunchConfig& config)
+{
+  if (!requested)
+  {
+    return;
+  }
+  requested = false;
+
+  int device_id{};
+  _CCCL_TRY_RUNTIME_API(cudaGetDevice, "Get placement device", &device_id);
+  const auto device  = cuda::devices[device_id];
+  const auto domains = device.__locality_domains();
+  auto ids =
+    cuda::make_device_buffer<unsigned>(cuda::stream_ref{config.hStream}, device, config.gridDimX, cuda::no_init);
+  // The other streams must not access this allocation before its allocation operation completes.
+  _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for placement buffer", config.hStream);
+
+  std::unordered_map<unsigned, int> sm_domains;
+  for (int domain = 0; domain < static_cast<int>(domains.size()); ++domain)
+  {
+    cuda::stream local_stream{domains[domain]};
+    auto local_config     = config;
+    local_config.hStream  = local_stream.get();
+    local_config.attrs    = nullptr;
+    local_config.numAttrs = 0;
+    for (unsigned sm : probe(local_config, ids.data()))
+    {
+      const auto [it, inserted] = sm_domains.emplace(sm, domain);
+      if (!inserted && it->second != domain)
+      {
+        throw std::runtime_error("Placement probe observes one SM in multiple locality domains");
+      }
+    }
+  }
+
+  const auto observed = probe(config, ids.data());
+  const int count     = static_cast<int>(domains.size());
+  const int capacity  = (static_cast<int>(config.gridDimX) + count - 1) / count;
+  unsigned mismatches = 0;
+  unsigned unknown    = 0;
+  std::fprintf(
+    stderr,
+    "[placement] device=%d blocks=%u threads=%u domains=%d\n",
+    device_id,
+    config.gridDimX,
+    config.blockDimX,
+    count);
+  for (unsigned block = 0; block < config.gridDimX; ++block)
+  {
+    const int expected = static_cast<int>(block) / capacity;
+    const auto found   = sm_domains.find(observed[block]);
+    if (found == sm_domains.end())
+    {
+      ++unknown;
+      std::fprintf(
+        stderr, "[placement] block=%u sm=%u expected=%d observed=UNKNOWN\n", block, observed[block], expected);
+    }
+    else if (found->second != expected)
+    {
+      ++mismatches;
+      std::fprintf(
+        stderr,
+        "[placement] block=%u sm=%u expected=%d observed=%d MISMATCH\n",
+        block,
+        observed[block],
+        expected,
+        found->second);
+    }
+  }
+  std::fprintf(
+    stderr,
+    "[placement] device=%d mismatches=%u unknown=%u total=%u (probe kernel only)\n",
+    device_id,
+    mismatches,
+    unknown,
+    config.gridDimX);
+}
+} // namespace striped_reduce_placement
+
+#define CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config) ::striped_reduce_placement::inspect(config)
+// END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+
 #include <cub/device/device_reduce.cuh>
 
 #include <cuda/__device/logical_device_ref.h>
@@ -231,10 +361,36 @@ void cub_reduce_striped(nvbench::state& state)
   summary.set_string("description", "Locality domains the device was split into");
   summary.set_int64("value", static_cast<cuda::std::int64_t>(rank_count));
 
+  // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+  // An untimed reduction supplies the exact grid and launch attribute to the probe.
+  {
+    const auto env = cuda::std::execution::env{
+      cuda::stream_ref{stream.get()},
+      input.memory_resource(),
+      cuda::execution::require(cuda::execution::determinism::not_guaranteed),
+      cub::striped_marker_t{static_cast<int>(rank_count)}};
+    striped_reduce_placement::requested = true;
+    _CCCL_TRY_RUNTIME_API(
+      cub::DeviceReduce::Reduce,
+      "Placement diagnostic reduction failed",
+      input.data(),
+      output.data(),
+      input.size(),
+      cuda::std::plus<>{},
+      T{},
+      env);
+    stream.sync();
+    if (striped_reduce_placement::requested)
+    {
+      striped_reduce_placement::requested = false;
+      throw std::runtime_error("Striped reduction did not reach the placement probe");
+    }
+  }
+  // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+
   state.exec(nvbench::exec_tag::gpu | nvbench::exec_tag::no_batch, [&](nvbench::launch& launch) {
     const auto env = cuda::std::execution::env{
       cuda::stream_ref{launch.get_stream().get_stream()},
-      input.memory_resource(),
       cuda::execution::require(cuda::execution::determinism::not_guaranteed),
       cub::striped_marker_t{static_cast<int>(rank_count)}};
 

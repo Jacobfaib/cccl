@@ -808,7 +808,12 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     // attribute.value.localityDomainDistribute = 1;
     config.attrs    = &attribute;
     config.numAttrs = 1;
-    void* args[]    = {
+    // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+    CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config);
+#endif
+    // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+    void* args[] = {
       &d_in,
       &reduce_kernel_output,
       const_cast<offset_t*>(&kernel_num_items),
