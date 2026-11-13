@@ -42,6 +42,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 # ============================================================================
 # Normalization
 # ============================================================================
@@ -385,7 +387,7 @@ class ArchResult:
     @property
     def changed(self) -> bool:
         # An architecture on one side only is a change, and has no diff.
-        return self.status is not Status.COMPARED or self.diff is not None
+        return self.status != Status.COMPARED or self.diff is not None
 
 
 @dataclass
@@ -395,11 +397,12 @@ class TargetResult:
     target: str
     status: Status = Status.COMPARED
     archs: list[ArchResult] = field(default_factory=list)
+    gpus: list[dict[str, str | int]] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
         # A target on one side only is a change, and has no per-arch results.
-        if self.status is not Status.COMPARED:
+        if self.status != Status.COMPARED:
             return True
         return any(arch.changed for arch in self.archs)
 
@@ -464,6 +467,20 @@ def compare_target(
     return TargetResult(target=target, archs=results)
 
 
+def find_gpus(
+    gpus: dict[str, dict[str, str | int]], sm: int
+) -> list[dict[str, str | int]]:
+    """Return single-GPU runners at or above `sm`, ordered by SM capability."""
+    return [
+        {"key": gpu, **spec}
+        for gpu, spec in sorted(gpus.items(), key=lambda item: (item[1]["sm"], item[0]))
+        if spec["gpu_count"] == 1 and spec["sm"] >= sm
+    ]
+
+
+MATRIX_PATH = Path(__file__).resolve().parent.parent / "matrix.yaml"
+
+
 def compare(
     base_dir: Path, test_dir: Path, work_dir: Path, verbose: bool = False
 ) -> dict[str, Any]:
@@ -512,6 +529,29 @@ def compare(
         changed = sum(1 for entry in results if entry.changed)
         print(f"{changed} of {len(results)} target(s) changed")
 
+    with MATRIX_PATH.open() as f:
+        gpus = yaml.safe_load(f)["gpus"]
+
+    for entry in results:
+        if entry.status != Status.COMPARED:
+            continue
+
+        matching_gpus = {}
+        for arch in entry.archs:
+            if not arch.changed:
+                continue
+
+            sm = int(arch.arch.removeprefix("sm_"))
+            arch_gpus = find_gpus(gpus, sm)
+            if not arch_gpus:
+                raise ValueError(f"No benchmark GPU maps to {arch.arch}")
+
+            matching_gpus.update((gpu["key"], gpu) for gpu in arch_gpus)
+
+        entry.gpus = sorted(
+            matching_gpus.values(), key=lambda gpu: (gpu["sm"], gpu["key"])
+        )
+
     return {
         "targets": [
             {
@@ -519,6 +559,7 @@ def compare(
                 "status": entry.status,
                 # `changed` is a property, and `asdict` emits fields only.
                 "changed": entry.changed,
+                "gpus": entry.gpus,
                 "archs": [
                     {**asdict(arch), "changed": arch.changed} for arch in entry.archs
                 ],
