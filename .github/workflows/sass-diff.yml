@@ -126,6 +126,8 @@ jobs:
             --env "AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}" \
             --env "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
             --env "CCCL_BUILD_INFIX=sass-${{ inputs.id }}" \
+            --env "GITHUB_ACTIONS=${GITHUB_ACTIONS}" \
+            --env "RUNNER_TEMP=/sass-artifacts" \
             --env "SCCACHE_REGION=${AWS_REGION}" \
             --volume "${GITHUB_WORKSPACE}/${ARTIFACT_ROOT}:/sass-artifacts" \
             -- ./ci/sass/sass_diff.sh \

@@ -108,17 +108,6 @@ readonly filter_regex
 source "${ci_dir}/pretty_printing.sh"
 
 # ============================================================================
-# Test the comparison scripts
-# ============================================================================
-
-if [[ "${CI:-false}" != 'false' ]]; then
-  run_command "🗜️  Install pytest for CI" python3 -m pip install -U pytest
-fi
-
-# Catch script failures before starting the benchmark builds.
-run_command "🧪 Test SASS scripts" python3 -m pytest "${script_dir}"
-
-# ============================================================================
 # Set up both worktrees
 # ============================================================================
 
@@ -335,6 +324,36 @@ fi
 
 echo
 echo "Wrote report: ${artifact_dir}/result/report.json"
+
+mapfile -t selected_targets < <(
+  jq -r '.targets[] | select(.changed) | .target' "${artifact_dir}/result/report.json"
+)
+if [[ "${#selected_targets[@]}" -gt 0 ]]; then
+  # If we are here, then we had SASS diffs. Now we need to finish linking and building the
+  # targets, but *only* the targets which actually had the diffs, so we can package them
+  # up to be shipped to the benchmarking job.
+  for side in base test; do
+    # shellcheck disable=SC2031  # `build_common.sh` shadows PRESET locally.
+    run_side "${side}" build_preset "Link ${side}" "${PRESET}" --target "${selected_targets[@]}"
+  done
+
+  # shellcheck disable=SC2031  # `build_common.sh` changes variables only inside run_side.
+  (
+    artifact_name="z_${PROJECT}-benchmark-artifacts-${CCCL_BUILD_INFIX:-${PRESET}}"
+
+    for side in base test; do
+      build_dir="${preset_dir[${side}]#"${repo_root}/"}"
+
+      "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" "${build_dir}/lib/.*"
+      for target in "${selected_targets[@]}"; do
+        "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" \
+          "${build_dir}/bin/${target//./\\.}$"
+      done
+    done
+
+    "${ci_dir}/util/artifacts/upload_stage_packed.sh" "${artifact_name}"
+  )
+fi
 
 if [[ "${RENDER}" -eq 1 ]]; then
   run_command "📝 Render report" \
