@@ -348,7 +348,9 @@ if [[ "${#selected_targets[@]}" -gt 0 ]]; then
       for side in base test; do
         build_dir="${preset_dir[${side}]#"${repo_root}/"}"
 
-        "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" "${build_dir}/lib/.*" > /dev/null
+        "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" \
+          "${build_dir}/lib/.*" \
+          "${build_dir}/_deps/nvbench-src/python/scripts/.*" > /dev/null
         for target in "${selected_targets[@]}"; do
           "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" \
             "${build_dir}/bin/${target//./\\.}$" > /dev/null
