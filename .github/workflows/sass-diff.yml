@@ -116,6 +116,9 @@ jobs:
         run: |
           mkdir -p "${ARTIFACT_ROOT}"
 
+          # Initialize artifact paths shared with the devcontainer:
+          source ci/util/artifacts/common.sh
+
           # LAUNCH_ARGS intentionally contains multiple launch arguments.
           # shellcheck disable=SC2086
           .devcontainer/launch.sh \
@@ -127,20 +130,30 @@ jobs:
             --env "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
             --env "CCCL_BUILD_INFIX=sass-${{ inputs.id }}" \
             --env "GITHUB_ACTIONS=${GITHUB_ACTIONS}" \
-            --env "RUNNER_TEMP=/sass-artifacts" \
+            --env "RUNNER_TEMP=${RUNNER_TEMP}" \
             --env "SCCACHE_REGION=${AWS_REGION}" \
-            --volume "${GITHUB_WORKSPACE}/${ARTIFACT_ROOT}:/sass-artifacts" \
+            --volume "${ARTIFACT_ARCHIVES}:${ARTIFACT_ARCHIVES}" \
+            --volume "${ARTIFACT_UPLOAD_STAGE}:${ARTIFACT_UPLOAD_STAGE}" \
             -- ./ci/sass/sass_diff.sh \
             "${PROJECT}" \
             "${BASE_REF}" \
             HEAD \
             -preset "${PRESET}" \
             -arch "${ARCHS}" \
-            -output-dir /sass-artifacts \
+            -output-dir "${ARTIFACT_ROOT}" \
             -target-filters-json "${TARGET_FILTERS_JSON}"
 
-          has_changes="$(jq 'any(.targets[].archs[]; .changed)' "${ARTIFACT_ROOT}/result/report.json")"
+          has_changes="$(jq 'any(.targets[]; .changed)' "${ARTIFACT_ROOT}/result/report.json")"
           echo "has_changes=${has_changes}" >> "${GITHUB_OUTPUT}"
+
+          # Dump artifact matrix for upload step:
+          printf "ARTIFACTS=%s\n" "$(ci/util/artifacts/upload/print_matrix.sh)" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload benchmark artifacts
+        if: ${{ steps.compare.outputs.has_changes == 'true' }}
+        uses: ./.github/actions/upload-artifacts
+        with:
+          artifacts: ${{ steps.compare.outputs.ARTIFACTS }}
 
       # The disassembly itself is not uploaded, `sass_diff.sh` writes four complete copies
       # of it, under base/, test/, result/base/ and result/test/. Over 82 benchmark

@@ -337,22 +337,27 @@ if [[ "${#selected_targets[@]}" -gt 0 ]]; then
     run_side "${side}" build_preset "Link ${side}" "${PRESET}" --target "${selected_targets[@]}"
   done
 
-  # shellcheck disable=SC2031  # `build_common.sh` changes variables only inside run_side.
-  (
-    artifact_name="z_${PROJECT}-benchmark-artifacts-${CCCL_BUILD_INFIX:-${PRESET}}"
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    # shellcheck disable=SC2031  # `build_common.sh` changes variables only inside run_side.
+    (
+      # Stage paths are relative to the working directory, which must not change between calls.
+      cd "${repo_root}"
 
-    for side in base test; do
-      build_dir="${preset_dir[${side}]#"${repo_root}/"}"
+      artifact_name="z_${PROJECT}-benchmark-artifacts-${CCCL_BUILD_INFIX:-${PRESET}}"
 
-      "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" "${build_dir}/lib/.*"
-      for target in "${selected_targets[@]}"; do
-        "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" \
-          "${build_dir}/bin/${target//./\\.}$"
+      for side in base test; do
+        build_dir="${preset_dir[${side}]#"${repo_root}/"}"
+
+        "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" "${build_dir}/lib/.*" > /dev/null
+        for target in "${selected_targets[@]}"; do
+          "${ci_dir}/util/artifacts/stage.sh" "${artifact_name}" \
+            "${build_dir}/bin/${target//./\\.}$" > /dev/null
+        done
       done
-    done
 
-    "${ci_dir}/util/artifacts/upload_stage_packed.sh" "${artifact_name}"
-  )
+      "${ci_dir}/util/artifacts/upload_stage_packed.sh" "${artifact_name}"
+    )
+  fi
 fi
 
 if [[ "${RENDER}" -eq 1 ]]; then
