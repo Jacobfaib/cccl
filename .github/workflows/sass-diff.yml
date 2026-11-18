@@ -40,10 +40,6 @@ on:
         required: false
         default: 14
         type: number
-    secrets:
-      inference_api_key:
-        description: "NVIDIA Inference Hub API key, for the triage of the differences."
-        required: true
 
 jobs:
   run:
@@ -98,8 +94,7 @@ jobs:
           chmod 0664 "${aws_dir}/config"
 
       # A SASS change is a result, not a fault. Thus it does not fail this job. The result
-      # is in result/report.json, and the comment artifact holds a copy for
-      # `sass-results`. That job posts the result but does not fail on a change.
+      # is in result/report.json.
       - name: Compare SASS
         id: compare
         env:
@@ -161,7 +156,6 @@ jobs:
       # below are a few MB. To read the SASS itself, run `ci/sass/sass_diff.sh` and open
       # the local artifact directory, which keeps every file.
       - name: Upload the SASS dumps
-        id: dumps
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
@@ -170,99 +164,5 @@ jobs:
             ${{ env.ARTIFACT_ROOT }}/result/diff
             ${{ env.ARTIFACT_ROOT }}/result/report.json
             ${{ env.ARTIFACT_ROOT }}/result/meta.json
-          if-no-files-found: error
-          retention-days: ${{ inputs.artifact_retention_days }}
-
-      - name: Set up Node for triage
-        if: ${{ steps.compare.outputs.has_changes == 'true' }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
-        with:
-          node-version: 24
-
-      # The action invokes node through sudo, whose PATH excludes the tool cache.
-      #
-      # See https://github.com/openai/codex-action/issues/180
-      - name: Make Node available to sudo
-        if: ${{ steps.compare.outputs.has_changes == 'true' }}
-        run: |
-          command -v node > "${RUNNER_TEMP}/triage-node-path"
-          read -r node_path < "${RUNNER_TEMP}/triage-node-path"
-          sudo -n ln -s "${node_path}" /usr/local/bin/node
-          sudo -n node --version
-
-      # codex-action applies this setup only on GitHub-hosted runners, before dropping
-      # sudo. https://github.com/openai/codex-action/blob/52fe01ec70a42f454c9d2ebd47598f9fd6893d56/action.yml#L262-L284
-      #
-      # Otherwise it errors with:
-      #
-      # ERROR codex_core::session: Failed to create session: failed to load AGENTS.md
-      # instructions for environment `local`: fs sandbox helper failed with status exit
-      # status: 1: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
-      - name: Enable namespaces for Codex sandbox
-        if: ${{ steps.compare.outputs.has_changes == 'true' }}
-        run: |
-          sudo sysctl -w kernel.unprivileged_userns_clone=1
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-      - name: Prepare the triage environment
-        if: ${{ steps.compare.outputs.has_changes == 'true' }}
-        run: |
-          mkdir -p "${RUNNER_TEMP}/codex-home"
-          cp ci/sass/sass_triage_config.toml "${RUNNER_TEMP}/codex-home/config.toml"
-
-      # A triage failure must not hide the comparison, thus this step does not fail the
-      # job. The collect step below keeps the analysis only when this step wrote a file.
-      - name: Triage the SASS differences
-        id: triage
-        if: ${{ steps.compare.outputs.has_changes == 'true' }}
-        timeout-minutes: 30
-        continue-on-error: true
-        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
-        env:
-          SASS_RESULT_DIR: ${{ github.workspace }}/${{ env.ARTIFACT_ROOT }}/result
-        with:
-          openai-api-key: ${{ secrets.inference_api_key }}
-          responses-api-endpoint: https://inference-api.nvidia.com/v1/responses
-          codex-version: 0.149.0
-          codex-home: ${{ runner.temp }}/codex-home
-          permission-profile: sass_triage
-          safety-strategy: drop-sudo
-          allow-bot-users: "copy-pr-bot[bot]"
-          model: openai/openai/gpt-5.6-sol
-          effort: high
-          codex-args: --strict-config --ephemeral
-          output-file: ${{ runner.temp }}/sass-analysis.json
-          output-schema-file: ci/sass/model-output.schema.json
-          prompt-file: ci/sass/sass_triage_prompt.md
-
-      # After the dumps upload, because meta.json gets the URL of that artifact.
-      - name: Collect the comment inputs
-        env:
-          ARTIFACTS_URL: ${{ steps.dumps.outputs.artifact-url }}
-          ANALYSIS_FILE: ${{ runner.temp }}/sass-analysis.json
-          TRIAGE_OUTCOME: ${{ steps.triage.outcome }}
-        run: |
-          meta="${ARTIFACT_ROOT}/result/meta.json"
-          jq --arg artifacts_url "${ARTIFACTS_URL}" '. + {artifacts_url: $artifacts_url}' \
-            "${meta}" > "${RUNNER_TEMP}/meta.json"
-          mv "${RUNNER_TEMP}/meta.json" "${meta}"
-
-          if [[ "${TRIAGE_OUTCOME}" == "success" ]] && [[ -s "${ANALYSIS_FILE}" ]]; then
-            cp "${ANALYSIS_FILE}" "${ARTIFACT_ROOT}/result/analysis.json"
-          else
-            echo "No SASS triage to render (outcome: ${TRIAGE_OUTCOME})."
-          fi
-
-      # `sass-results` downloads this artifact with the `sass-*-comment` pattern. It stays
-      # separate from the dumps, which are large and which no job reads. analysis.json
-      # exists only when the triage succeeded.
-      - name: Upload the SASS comment
-        uses: actions/upload-artifact@v4
-        with:
-          name: sass-${{ inputs.id }}-comment
-          path: |
-            ${{ env.ARTIFACT_ROOT }}/result/report.json
-            ${{ env.ARTIFACT_ROOT }}/result/meta.json
-            ${{ env.ARTIFACT_ROOT }}/result/analysis.json
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}
