@@ -235,7 +235,7 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
 
   // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 #ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
-  if constexpr (requires { even_share.record_start(); })
+  if constexpr (::striped_reduce_placement::is_timed_mapping<GridMappingT>)
   {
     even_share.record_start();
   }
@@ -267,7 +267,7 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
   }
   // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 #ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
-  if constexpr (requires { even_share.record_end(); })
+  if constexpr (::striped_reduce_placement::is_timed_mapping<GridMappingT>)
   {
     even_share.record_end();
   }

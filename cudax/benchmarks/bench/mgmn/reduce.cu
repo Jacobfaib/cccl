@@ -56,6 +56,12 @@ struct timed_mapping : GridMapping
   }
 };
 
+template <class GridMapping>
+inline constexpr bool is_timed_mapping = false;
+
+template <class GridMapping>
+inline constexpr bool is_timed_mapping<timed_mapping<GridMapping>> = true;
+
 inline void report_overlap(const std::vector<block_interval>& records,
                            const std::unordered_map<unsigned, int>& sm_domains,
                            int device,
@@ -198,7 +204,7 @@ inline std::vector<unsigned> probe(CUlaunchConfig config, unsigned* device_ids)
 }
 
 template <class Kernel, class GridMapping>
-bool inspect(const CUlaunchConfig& config, Kernel kernel, const GridMapping& mapping, void** args)
+bool inspect(CUlaunchConfig config, Kernel kernel, const GridMapping& mapping, void** args)
 {
   if (!requested)
   {
