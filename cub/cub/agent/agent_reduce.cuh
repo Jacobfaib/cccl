@@ -300,8 +300,9 @@ struct AgentReduceImpl
    * @param block_offset The offset the tile to consume
    * @param input_is_vector_aligned Whether we can vectorize loads
    */
-  template <int IsFirstTile, bool CanVectorize>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void ConsumeFullTile(AccumT& thread_aggregate, OffsetT block_offset)
+  template <int IsFirstTile, bool CanVectorize, typename GridMappingT>
+  _CCCL_DEVICE _CCCL_FORCEINLINE void
+  ConsumeFullTile(AccumT& thread_aggregate, OffsetT block_offset, [[maybe_unused]] GridMappingT& even_share)
   {
     if constexpr (CanVectorize)
     {
@@ -319,6 +320,14 @@ struct AgentReduceImpl
       _CCCL_PRAGMA_UNROLL_FULL()
       for (int i = 0; i < words; ++i)
       {
+        // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+        if constexpr (::striped_reduce_placement::is_access_mapping<GridMappingT>)
+        {
+          even_share.record_load(d_in_unqualified + NumThreads * i * vec_size, sizeof(VectorT));
+        }
+#endif
+        // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
         vec_items[i] = d_vec_in[NumThreads * i];
       }
 
@@ -338,7 +347,24 @@ struct AgentReduceImpl
     {
       // Scalar path: load items in striped fashion and reduce items within each thread stripe
       AccumT items[ITEMS_PER_THREAD];
-      load_transform_direct_striped<NumThreads>(lane_id, d_wrapped_in + block_offset, items, transform_op);
+      // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+      if constexpr (::striped_reduce_placement::is_access_mapping<GridMappingT>)
+      {
+        _CCCL_PRAGMA_UNROLL_FULL()
+        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
+        {
+          const OffsetT offset = block_offset + lane_id + NumThreads * i;
+          even_share.record_load(d_in + offset, sizeof(InputT));
+          items[i] = transform_op(d_wrapped_in[offset]);
+        }
+      }
+      else
+#endif
+      // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+      {
+        load_transform_direct_striped<NumThreads>(lane_id, d_wrapped_in + block_offset, items, transform_op);
+      }
       thread_aggregate =
         IsFirstTile ? cub::ThreadReduce(items, reduction_op) : cub::ThreadReduce(items, reduction_op, thread_aggregate);
     }
@@ -350,8 +376,9 @@ struct AgentReduceImpl
    * @param block_offset The offset the tile to consume
    * @param valid_items The number of valid items in the tile
    */
-  template <int IsFirstTile>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void ConsumePartialTile(AccumT& thread_aggregate, OffsetT block_offset, int valid_items)
+  template <int IsFirstTile, typename GridMappingT>
+  _CCCL_DEVICE _CCCL_FORCEINLINE void ConsumePartialTile(
+    AccumT& thread_aggregate, OffsetT block_offset, int valid_items, [[maybe_unused]] GridMappingT& even_share)
   {
     // Partial tile
     int thread_offset = lane_id;
@@ -359,6 +386,14 @@ struct AgentReduceImpl
     // Read first item
     if (IsFirstTile && (thread_offset < valid_items))
     {
+      // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+      if constexpr (::striped_reduce_placement::is_access_mapping<GridMappingT>)
+      {
+        even_share.record_load(d_in + block_offset + thread_offset, sizeof(InputT));
+      }
+#endif
+      // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
       thread_aggregate =
         transform_op(d_wrapped_in[block_offset + thread_offset]); // NOLINT(bugprone-misplaced-widening-cast)
       thread_offset += NumThreads;
@@ -367,6 +402,14 @@ struct AgentReduceImpl
     // Continue reading items (block-striped)
     while (thread_offset < valid_items)
     {
+      // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
+      if constexpr (::striped_reduce_placement::is_access_mapping<GridMappingT>)
+      {
+        even_share.record_load(d_in + block_offset + thread_offset, sizeof(InputT));
+      }
+#endif
+      // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
       const InputT item(d_wrapped_in[block_offset + thread_offset]); // NOLINT(bugprone-misplaced-widening-cast)
 
       thread_aggregate = reduction_op(thread_aggregate, transform_op(item));
@@ -382,8 +425,8 @@ struct AgentReduceImpl
    * @brief Reduce a contiguous segment of input tiles
    * @param even_share GridEvenShare descriptor
    */
-  template <bool CanVectorize>
-  _CCCL_DEVICE _CCCL_FORCEINLINE AccumT ConsumeRange(GridEvenShare<OffsetT>& even_share)
+  template <bool CanVectorize, typename GridMappingT>
+  _CCCL_DEVICE _CCCL_FORCEINLINE AccumT ConsumeRange(GridMappingT& even_share)
   {
     AccumT thread_aggregate{};
 
@@ -391,7 +434,7 @@ struct AgentReduceImpl
     {
       // First tile isn't full (not all threads have valid items)
       int valid_items = even_share.block_end - even_share.block_offset; // NOLINT(misc-const-correctness)
-      ConsumePartialTile<true>(thread_aggregate, even_share.block_offset, valid_items);
+      ConsumePartialTile<true>(thread_aggregate, even_share.block_offset, valid_items, even_share);
 
       // For Warp Reduction, we need to explicitly handle the valid_items,
       // whereas for Block Reduction it is implicitly handled
@@ -444,11 +487,11 @@ private:
    * @param even_share GridEvenShare descriptor
    * @param input_is_vector_aligned Whether we can vectorize loads
    */
-  template <bool CanVectorize>
-  _CCCL_DEVICE _CCCL_FORCEINLINE void ConsumeFullTileRange(AccumT& thread_aggregate, GridEvenShare<OffsetT>& even_share)
+  template <bool CanVectorize, typename GridMappingT>
+  _CCCL_DEVICE _CCCL_FORCEINLINE void ConsumeFullTileRange(AccumT& thread_aggregate, GridMappingT& even_share)
   {
     // At least one full block
-    ConsumeFullTile<true, CanVectorize>(thread_aggregate, even_share.block_offset);
+    ConsumeFullTile<true, CanVectorize>(thread_aggregate, even_share.block_offset, even_share);
 
     if (even_share.block_end - even_share.block_offset < even_share.block_stride)
     {
@@ -462,7 +505,7 @@ private:
     // `even_share.block_end >= TILE_ITEMS`
     while (even_share.block_offset <= even_share.block_end - TILE_ITEMS)
     {
-      ConsumeFullTile<false, CanVectorize>(thread_aggregate, even_share.block_offset);
+      ConsumeFullTile<false, CanVectorize>(thread_aggregate, even_share.block_offset, even_share);
 
       if (even_share.block_end - even_share.block_offset < even_share.block_stride)
       {
@@ -477,7 +520,7 @@ private:
     if (even_share.block_offset < even_share.block_end)
     {
       const int valid_items = even_share.block_end - even_share.block_offset;
-      ConsumePartialTile<false>(thread_aggregate, even_share.block_offset, valid_items);
+      ConsumePartialTile<false>(thread_aggregate, even_share.block_offset, valid_items, even_share);
     }
   }
 };

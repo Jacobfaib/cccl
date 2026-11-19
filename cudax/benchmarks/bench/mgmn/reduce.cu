@@ -13,18 +13,73 @@
 #include <cstdio>
 #include <limits>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace striped_reduce_placement
 {
 inline thread_local bool requested = false;
 
+template <class Kernel, class Policy>
+void describe_kernel(
+  Kernel kernel, Policy policy, cudaStream_t stream, int grid, int sms, bool striped, int offset_bytes)
+{
+  int device{};
+  _CCCL_TRY_RUNTIME_API(cudaGetDevice, "Get kernel device", &device);
+  const auto pointer = reinterpret_cast<const void*>(kernel);
+  using key_type     = std::tuple<int, const void*, cudaStream_t, int>;
+  static std::vector<key_type> reported;
+  const key_type key{device, pointer, stream, grid};
+  if (std::find(reported.begin(), reported.end(), key) != reported.end())
+  {
+    return;
+  }
+  reported.push_back(key);
+  cudaFuncAttributes attributes{};
+  int resident{};
+  _CCCL_TRY_RUNTIME_API(cudaFuncGetAttributes, "Get reduction attributes", &attributes, pointer);
+  _CCCL_TRY_RUNTIME_API(
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor,
+    "Get reduction occupancy",
+    &resident,
+    pointer,
+    policy.threads_per_block,
+    0);
+  std::fprintf(
+    stderr,
+    "[kernel] device=%d striped=%d stream=%p grid=%d sms=%d blocks_per_sm=%d waves=%.2f "
+    "threads=%d items=%d vector=%d algorithm=%d load=%d offset_bytes=%d "
+    "registers=%d shared_bytes=%zu local_bytes=%zu binary=%d ptx=%d\n",
+    device,
+    striped,
+    reinterpret_cast<void*>(stream),
+    grid,
+    sms,
+    resident,
+    static_cast<double>(grid) / (sms * resident),
+    policy.threads_per_block,
+    policy.items_per_thread,
+    policy.vec_size,
+    static_cast<int>(policy.reduce_algorithm),
+    static_cast<int>(policy.load_modifier),
+    offset_bytes,
+    attributes.numRegs,
+    attributes.sharedSizeBytes,
+    attributes.localSizeBytes,
+    attributes.binaryVersion,
+    attributes.ptxVersion);
+}
+
 struct block_interval
 {
   unsigned long long start;
   unsigned long long end;
   unsigned sm;
+  int threads;
+  int items;
+  int vector;
 };
 
 template <class GridMapping>
@@ -44,14 +99,14 @@ struct timed_mapping : GridMapping
     __syncthreads();
   }
 
-  _CCCL_DEVICE _CCCL_FORCEINLINE void record_end()
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_end(int threads, int items, int vector)
   {
     __syncthreads();
     if (threadIdx.x == 0)
     {
       unsigned long long end_time;
       asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(end_time) : : "memory");
-      records[blockIdx.x] = {start_time, end_time, sm};
+      records[blockIdx.x] = {start_time, end_time, sm, threads, items, vector};
     }
   }
 };
@@ -61,6 +116,65 @@ inline constexpr bool is_timed_mapping = false;
 
 template <class GridMapping>
 inline constexpr bool is_timed_mapping<timed_mapping<GridMapping>> = true;
+
+struct thread_load_range
+{
+  unsigned long long begin = ~0ULL;
+  unsigned long long end{};
+  unsigned long long expected_begin{};
+  unsigned long long expected_end{};
+  unsigned long long bytes{};
+  unsigned long long violations{};
+  unsigned sm{};
+  int domain = -1;
+};
+
+template <class GridMapping>
+struct access_mapping : GridMapping
+{
+  thread_load_range* output;
+  const int* sm_domains;
+  unsigned sm_count;
+  unsigned long long input_begin;
+  unsigned long long stripe_bytes;
+  thread_load_range range{};
+
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_start()
+  {
+    asm volatile("mov.u32 %0, %%smid;" : "=r"(range.sm));
+    range.domain = range.sm < sm_count ? sm_domains[range.sm] : -1;
+    if (range.domain >= 0)
+    {
+      range.expected_begin = input_begin + range.domain * stripe_bytes;
+      range.expected_end   = range.expected_begin + stripe_bytes;
+    }
+  }
+
+  template <class Pointer>
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_load(Pointer pointer, unsigned bytes)
+  {
+    const auto begin = reinterpret_cast<unsigned long long>(pointer);
+    const auto end   = begin + bytes;
+    range.begin      = begin < range.begin ? begin : range.begin;
+    range.end        = end > range.end ? end : range.end;
+    range.bytes += bytes;
+    range.violations += range.domain < 0 || begin < range.expected_begin || end > range.expected_end || end < begin;
+  }
+
+  _CCCL_DEVICE _CCCL_FORCEINLINE void record_end(int, int, int)
+  {
+    output[static_cast<unsigned long long>(blockIdx.x) * blockDim.x + threadIdx.x] = range;
+  }
+};
+
+template <class GridMapping>
+inline constexpr bool is_timed_mapping<access_mapping<GridMapping>> = true;
+
+template <class GridMapping>
+inline constexpr bool is_access_mapping = false;
+
+template <class GridMapping>
+inline constexpr bool is_access_mapping<access_mapping<GridMapping>> = true;
 
 inline void report_overlap(const std::vector<block_interval>& records,
                            const std::unordered_map<unsigned, int>& sm_domains,
@@ -101,6 +215,25 @@ inline void report_overlap(const std::vector<block_interval>& records,
   for (int domain = 0; domain < domain_count; ++domain)
   {
     auto& spans = intervals[domain];
+    std::vector<unsigned> used_sms;
+    std::vector<std::pair<unsigned long long, int>> edges;
+    for (const auto& span : spans)
+    {
+      used_sms.push_back(span.sm);
+      edges.emplace_back(span.start, 1);
+      edges.emplace_back(span.end, -1);
+    }
+    std::sort(used_sms.begin(), used_sms.end());
+    used_sms.erase(std::unique(used_sms.begin(), used_sms.end()), used_sms.end());
+    std::sort(edges.begin(), edges.end());
+    int live = 0;
+    int peak = 0;
+    for (const auto& edge : edges)
+    {
+      live += edge.second;
+      peak = std::max(peak, live);
+    }
+    std::fprintf(stderr, "[residency] domain=%d sms_used=%zu peak_live_blocks=%d\n", domain, used_sms.size(), peak);
     std::sort(spans.begin(), spans.end(), [](const auto& a, const auto& b) {
       return a.start < b.start;
     });
@@ -203,8 +336,17 @@ inline std::vector<unsigned> probe(CUlaunchConfig config, unsigned* device_ids)
   return result;
 }
 
-template <class Kernel, class GridMapping>
-bool inspect(CUlaunchConfig config, Kernel kernel, const GridMapping& mapping, void** args)
+template <class Kernel, class NormalKernel, class AccessKernel, class GridMapping, class Policy>
+bool inspect(
+  CUlaunchConfig config,
+  Kernel kernel,
+  NormalKernel normal_kernel,
+  AccessKernel access_kernel,
+  const GridMapping& mapping,
+  void** args,
+  Policy policy,
+  int sms,
+  int output_bytes)
 {
   if (!requested)
   {
@@ -281,34 +423,263 @@ bool inspect(CUlaunchConfig config, Kernel kernel, const GridMapping& mapping, v
     unknown,
     config.gridDimX);
 
-  auto records = cuda::make_device_buffer<block_interval>(
-    cuda::stream_ref{config.hStream}, device, config.gridDimX, block_interval{});
-  timed_mapping<GridMapping> timed{mapping, records.data()};
+  const auto normal_pointer     = reinterpret_cast<const void*>(normal_kernel);
+  const auto diagnostic_pointer = reinterpret_cast<const void*>(kernel);
+  cudaFuncAttributes normal_attributes{};
+  cudaFuncAttributes diagnostic_attributes{};
+  int normal_resident{};
+  int diagnostic_resident{};
+  _CCCL_TRY_RUNTIME_API(cudaFuncGetAttributes, "Get normal attributes", &normal_attributes, normal_pointer);
+  _CCCL_TRY_RUNTIME_API(cudaFuncGetAttributes, "Get diagnostic attributes", &diagnostic_attributes, diagnostic_pointer);
+  _CCCL_TRY_RUNTIME_API(
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor,
+    "Get normal occupancy",
+    &normal_resident,
+    normal_pointer,
+    config.blockDimX,
+    0);
+  _CCCL_TRY_RUNTIME_API(
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor,
+    "Get diagnostic occupancy",
+    &diagnostic_resident,
+    diagnostic_pointer,
+    config.blockDimX,
+    0);
+  std::fprintf(
+    stderr,
+    "[occupancy] normal_regs=%d diagnostic_regs=%d normal_shared=%zu diagnostic_shared=%zu "
+    "normal_blocks_per_sm=%d diagnostic_blocks_per_sm=%d sms=%d\n",
+    normal_attributes.numRegs,
+    diagnostic_attributes.numRegs,
+    normal_attributes.sharedSizeBytes,
+    diagnostic_attributes.sharedSizeBytes,
+    normal_resident,
+    diagnostic_resident,
+    sms);
+  if (normal_resident == 0 || diagnostic_resident == 0)
+  {
+    throw std::runtime_error("Reduction diagnostic has zero theoretical occupancy");
+  }
+
+  const int resident_grid = sms * std::min(normal_resident, diagnostic_resident);
+  std::vector<int> grids{resident_grid / 2, resident_grid, resident_grid * 2, static_cast<int>(config.gridDimX)};
+  std::sort(grids.begin(), grids.end());
+  grids.erase(std::unique(grids.begin(), grids.end()), grids.end());
+
   CUfunction function{};
+  CUfunction normal_function{};
   _CCCL_TRY_RUNTIME_API(
     cudaGetFuncBySymbol, "Resolve timed reduction kernel", &function, reinterpret_cast<const void*>(kernel));
+  _CCCL_TRY_RUNTIME_API(cudaGetFuncBySymbol, "Resolve normal reduction kernel", &normal_function, normal_pointer);
+  // This benchmark uses pointer outputs. Clear the atomic destination before every diagnostic launch.
+  void* output = *static_cast<void**>(args[1]);
+  if (output_bytes != sizeof(float))
+  {
+    throw std::runtime_error("Grid sweep expects the benchmark's float output");
+  }
+  const float expected_sum = static_cast<float>(mapping.num_items);
+  cudaEvent_t start{};
+  cudaEvent_t stop{};
+  _CCCL_TRY_RUNTIME_API(cudaEventCreate, "Create diagnostic start event", &start);
+  _CCCL_TRY_RUNTIME_API(cudaEventCreate, "Create diagnostic stop event", &stop);
   void* original_mapping = args[3];
-  args[3]                = &timed;
-  cuda::__driver::__launchKernel(config, function, args);
-  args[3] = original_mapping;
+  for (int grid : grids)
+  {
+    auto sweep_mapping = mapping;
+    sweep_mapping.DispatchInit(
+      mapping.num_items, std::max(count, grid), policy.threads_per_block * policy.items_per_thread);
+    auto sweep_config     = config;
+    sweep_config.gridDimX = sweep_mapping.grid_size;
+    args[3]               = &sweep_mapping;
+    float elapsed_sum     = 0;
+    for (int repeat = 0; repeat < 4; ++repeat)
+    {
+      _CCCL_TRY_RUNTIME_API(cudaMemsetAsync, "Reset diagnostic output", output, 0, output_bytes, config.hStream);
+      _CCCL_TRY_RUNTIME_API(cudaEventRecord, "Record reduction start", start, config.hStream);
+      cuda::__driver::__launchKernel(sweep_config, normal_function, args);
+      _CCCL_TRY_RUNTIME_API(cudaEventRecord, "Record reduction stop", stop, config.hStream);
+      _CCCL_TRY_RUNTIME_API(cudaEventSynchronize, "Wait for reduction stop", stop);
+      float elapsed{};
+      _CCCL_TRY_RUNTIME_API(cudaEventElapsedTime, "Measure reduction", &elapsed, start, stop);
+      if (repeat != 0)
+      {
+        elapsed_sum += elapsed;
+      }
+    }
+    std::fprintf(
+      stderr,
+      "[grid-sweep] grid=%u normal_mean_us=%.3f threads=%u items=%d vector=%d\n",
+      sweep_config.gridDimX,
+      elapsed_sum * 1000.0 / 3,
+      sweep_config.blockDimX,
+      policy.items_per_thread,
+      policy.vec_size);
 
-  std::vector<block_interval> host_records(config.gridDimX);
+    float result{};
+    _CCCL_TRY_RUNTIME_API(
+      cudaMemcpy, "Check grid sweep result", &result, output, sizeof(result), cudaMemcpyDeviceToHost);
+    if (result != expected_sum)
+    {
+      throw std::runtime_error("Grid sweep reduction does not match the all-ones input sum");
+    }
+
+    auto records = cuda::make_device_buffer<block_interval>(
+      cuda::stream_ref{config.hStream}, device, sweep_config.gridDimX, block_interval{});
+    timed_mapping<GridMapping> timed{sweep_mapping, records.data()};
+    args[3] = &timed;
+    _CCCL_TRY_RUNTIME_API(cudaMemsetAsync, "Reset timed diagnostic output", output, 0, output_bytes, config.hStream);
+    _CCCL_TRY_RUNTIME_API(cudaEventRecord, "Record diagnostic start", start, config.hStream);
+    cuda::__driver::__launchKernel(sweep_config, function, args);
+    _CCCL_TRY_RUNTIME_API(cudaEventRecord, "Record diagnostic stop", stop, config.hStream);
+    std::vector<block_interval> host_records(sweep_config.gridDimX);
+    _CCCL_TRY_RUNTIME_API(
+      cudaMemcpyAsync,
+      "Read reduction intervals",
+      host_records.data(),
+      records.data(),
+      host_records.size() * sizeof(block_interval),
+      cudaMemcpyDeviceToHost,
+      config.hStream);
+    _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for timed reduction", config.hStream);
+    float elapsed{};
+    _CCCL_TRY_RUNTIME_API(cudaEventElapsedTime, "Measure diagnostic reduction", &elapsed, start, stop);
+    std::fprintf(stderr, "[grid-sweep] grid=%u instrumented_us=%.3f\n", sweep_config.gridDimX, elapsed * 1000.0);
+    const auto& device_policy = host_records.front();
+    std::fprintf(stderr,
+                 "[device-policy] threads=%d items=%d vector=%d\n",
+                 device_policy.threads,
+                 device_policy.items,
+                 device_policy.vector);
+    if (device_policy.threads != policy.threads_per_block || device_policy.items != policy.items_per_thread
+        || device_policy.vector != policy.vec_size)
+    {
+      throw std::runtime_error("Host and device reduction policies do not match");
+    }
+    report_overlap(host_records, sm_domains, device_id, count);
+    _CCCL_TRY_RUNTIME_API(
+      cudaMemcpy, "Check instrumented result", &result, output, sizeof(result), cudaMemcpyDeviceToHost);
+    if (result != expected_sum)
+    {
+      throw std::runtime_error("Instrumented reduction does not match the all-ones input sum");
+    }
+    std::fprintf(
+      stderr, "[grid-sweep] grid=%u result=%g expected=%g MATCH\n", sweep_config.gridDimX, result, expected_sum);
+  }
+  args[3] = original_mapping;
+  _CCCL_TRY_RUNTIME_API(cudaEventDestroy, "Destroy diagnostic start event", start);
+  _CCCL_TRY_RUNTIME_API(cudaEventDestroy, "Destroy diagnostic stop event", stop);
+
+  unsigned sm_table_size = 0;
+  for (const auto& entry : sm_domains)
+  {
+    sm_table_size = std::max(sm_table_size, entry.first + 1);
+  }
+  std::vector<int> sm_table(sm_table_size, -1);
+  for (const auto& entry : sm_domains)
+  {
+    sm_table[entry.first] = entry.second;
+  }
+  auto device_sm_table =
+    cuda::make_device_buffer<int>(cuda::stream_ref{config.hStream}, device, sm_table_size, cuda::no_init);
   _CCCL_TRY_RUNTIME_API(
     cudaMemcpyAsync,
-    "Read reduction intervals",
-    host_records.data(),
-    records.data(),
-    host_records.size() * sizeof(block_interval),
+    "Copy SM domain map",
+    device_sm_table.data(),
+    sm_table.data(),
+    sm_table.size() * sizeof(int),
+    cudaMemcpyHostToDevice,
+    config.hStream);
+  const auto thread_count = static_cast<cuda::std::size_t>(config.gridDimX) * config.blockDimX;
+  auto addresses          = cuda::make_device_buffer<thread_load_range>(
+    cuda::stream_ref{config.hStream}, device, thread_count, thread_load_range{});
+  const auto input_begin  = reinterpret_cast<unsigned long long>(*static_cast<const void**>(args[0]));
+  const auto stripe_bytes = static_cast<unsigned long long>(mapping.num_items / count) * sizeof(float);
+  access_mapping<GridMapping> access{
+    mapping, addresses.data(), device_sm_table.data(), sm_table_size, input_begin, stripe_bytes};
+  CUfunction access_function{};
+  _CCCL_TRY_RUNTIME_API(
+    cudaGetFuncBySymbol, "Resolve address audit kernel", &access_function, reinterpret_cast<const void*>(access_kernel));
+  args[3] = &access;
+  _CCCL_TRY_RUNTIME_API(cudaMemsetAsync, "Reset address audit output", output, 0, output_bytes, config.hStream);
+  cuda::__driver::__launchKernel(config, access_function, args);
+  args[3] = original_mapping;
+  std::vector<thread_load_range> host_addresses(thread_count);
+  _CCCL_TRY_RUNTIME_API(
+    cudaMemcpyAsync,
+    "Read device load addresses",
+    host_addresses.data(),
+    addresses.data(),
+    thread_count * sizeof(thread_load_range),
     cudaMemcpyDeviceToHost,
     config.hStream);
-  _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for timed reduction", config.hStream);
-  report_overlap(host_records, sm_domains, device_id, count);
+  _CCCL_TRY_RUNTIME_API(cudaStreamSynchronize, "Wait for address audit", config.hStream);
+  unsigned long long unknown_threads = 0;
+  for (const auto& range : host_addresses)
+  {
+    unknown_threads += range.domain < 0;
+  }
+  std::fprintf(stderr,
+               "[device-access] checked_threads=%zu unknown_threads=%llu end_addresses=exclusive\n",
+               thread_count,
+               unknown_threads);
+  for (int domain = 0; domain < count; ++domain)
+  {
+    unsigned long long begin       = ~0ULL;
+    unsigned long long end         = 0;
+    unsigned long long bytes       = 0;
+    unsigned long long violations  = 0;
+    cuda::std::size_t first_thread = 0;
+    cuda::std::size_t last_thread  = 0;
+    for (cuda::std::size_t thread = 0; thread < host_addresses.size(); ++thread)
+    {
+      const auto& range = host_addresses[thread];
+      if (range.domain != domain || range.bytes == 0)
+      {
+        continue;
+      }
+      if (range.begin < begin)
+      {
+        begin        = range.begin;
+        first_thread = thread;
+      }
+      if (range.end > end)
+      {
+        end         = range.end;
+        last_thread = thread;
+      }
+      bytes += range.bytes;
+      violations += range.violations;
+    }
+    const auto expected_begin = input_begin + domain * stripe_bytes;
+    const auto expected_end   = expected_begin + stripe_bytes;
+    const bool matches = begin == expected_begin && end == expected_end && bytes == stripe_bytes && violations == 0;
+    std::fprintf(
+      stderr,
+      "[device-access] domain=%d first_block=%zu first_thread=%zu load_begin=0x%llx "
+      "last_block=%zu last_thread=%zu load_end=0x%llx expected_begin=0x%llx expected_end=0x%llx "
+      "bytes=%llu expected_bytes=%llu violating_loads=%llu %s\n",
+      domain,
+      first_thread / config.blockDimX,
+      first_thread % config.blockDimX,
+      begin,
+      last_thread / config.blockDimX,
+      last_thread % config.blockDimX,
+      end,
+      expected_begin,
+      expected_end,
+      bytes,
+      stripe_bytes,
+      violations,
+      matches && unknown_threads == 0 ? "MATCH" : "MISMATCH");
+  }
   return true;
 }
 } // namespace striped_reduce_placement
 
-#define CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config, kernel, mapping, args) \
-  ::striped_reduce_placement::inspect(config, kernel, mapping, args)
+#define CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config, kernel, normal, access, mapping, args, policy, sms, output_bytes) \
+  ::striped_reduce_placement::inspect(config, kernel, normal, access, mapping, args, policy, sms, output_bytes)
+#define CCCL_REDUCE_KERNEL_DIAGNOSTICS(kernel, policy, stream, grid, sms, striped, offset_bytes) \
+  ::striped_reduce_placement::describe_kernel(kernel, policy, stream, grid, sms, striped, offset_bytes)
 // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 
 #include <cub/device/device_reduce.cuh>

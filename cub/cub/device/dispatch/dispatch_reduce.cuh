@@ -117,6 +117,19 @@ struct DeviceReduceKernelSource
                        InitValueT,
                        TransformOpT,
                        ::striped_reduce_placement::timed_mapping<GridMappingT>>)
+  CUB_DEFINE_KERNEL_GETTER(
+    AccessReductionKernel,
+    DeviceReduceKernel<PolicySelector,
+                       StableReductionOrder,
+                       InputIteratorT,
+                       reduce_kernel_output_t,
+                       OffsetT,
+                       KernelNumItemsT,
+                       ReductionOpT,
+                       AccumT,
+                       InitValueT,
+                       TransformOpT,
+                       ::striped_reduce_placement::access_mapping<GridMappingT>>)
 #endif
   // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 
@@ -789,6 +802,19 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
     ", SM occupancy: %d",
     sm_occupancy);
 
+  // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+#ifdef CCCL_REDUCE_KERNEL_DIAGNOSTICS
+  CCCL_REDUCE_KERNEL_DIAGNOSTICS(
+    kernel_source.ReductionKernel(),
+    active_policy.multi_tile,
+    stream,
+    reduce_grid_size,
+    sm_count,
+    Striped,
+    sizeof(offset_t));
+#endif
+  // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
+
   // Invoke DeviceReduceKernel
   auto reduce_kernel_output = [&] {
     if constexpr (!StableReductionOrder)
@@ -837,7 +863,16 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t invoke_regular_size_reduce(
       &transform_op};
     // BEGIN TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
 #ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
-    if (!CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(config, kernel_source.DiagnosticReductionKernel(), even_share, args))
+    if (!CCCL_STRIPED_REDUCE_PLACEMENT_PROBE(
+          config,
+          kernel_source.DiagnosticReductionKernel(),
+          kernel_source.ReductionKernel(),
+          kernel_source.AccessReductionKernel(),
+          even_share,
+          args,
+          active_policy.multi_tile,
+          sm_count,
+          kernel_source.InitSize()))
 #endif
     // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
     {

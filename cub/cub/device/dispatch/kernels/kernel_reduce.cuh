@@ -269,7 +269,7 @@ __launch_bounds__(int(current_policy<PolicySelector>().multi_tile.threads_per_bl
 #ifdef CCCL_STRIPED_REDUCE_PLACEMENT_PROBE
   if constexpr (::striped_reduce_placement::is_timed_mapping<GridMappingT>)
   {
-    even_share.record_end();
+    even_share.record_end(policy.threads_per_block, policy.items_per_thread, policy.vec_size);
   }
 #endif
   // END TEMPORARY STRIPED PLACEMENT DIAGNOSTICS
